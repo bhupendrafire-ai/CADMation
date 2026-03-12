@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme {
+  /* Industrial Palette directly in the theme */
+  --color-background: #0d0d0e;
+  --color-foreground: #fcfcfc;
+  --color-card: #141415;
+  --color-card-foreground: #fcfcfc;
+  --color-popover: #0d0d0e;
+  --color-popover-foreground: #fcfcfc;
+  --color-primary: #ffffff;
+  --color-primary-foreground: #0d0d0e;
+  --color-secondary: #1f1f21;
+  --color-secondary-foreground: #fcfcfc;
+  --color-muted: #27272a;
+  --color-muted-foreground: #a1a1aa;
+  --color-accent: #27272a;
+  --color-accent-foreground: #fcfcfc;
+  --color-border: #27272a;
+  --color-input: #27272a;
+  --color-ring: #d4d4d8;
+
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/10;
+  }
+
+  .spec-tree-node {
+    @apply flex items-center gap-2 py-1 px-2 hover:bg-white/5 rounded cursor-pointer transition-colors;
+  }
+
+  .chat-bubble {
+    @apply max-w-[85%] p-4 rounded-2xl;
+  }
+
+  .chat-bubble-user {
+    @apply bg-secondary self-end;
+  }
+
+  .chat-bubble-ai {
+    @apply bg-muted/50 self-start;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(161, 161, 170, 0.5);
+  /* muted-foreground/50 */
+}
