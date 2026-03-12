@@ -89,3 +89,28 @@ async def health():
         "status": "ok",
         "catia": catia_bridge.check_connection()
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    import sys
+    try:
+        print("\n" + "="*60)
+        print("  CADMation AI Copilot for CATIA V5 - Standalone Server")
+        print("="*60)
+        print(f"  * Mode:        {'Standalone' if getattr(sys, 'frozen', False) else 'Development'}")
+        print("  * Access UI:   http://localhost:8000")
+        print("="*60 + "\n")
+        
+        # Check for .env file location
+        env_path = os.path.join(os.getcwd(), ".env")
+        if not os.path.exists(env_path):
+             print(f"  [!] Note: No .env file found at: {os.getcwd()}")
+             print("      If your AI keys are not in system environment variables,")
+             print("      please create a .env file next to this EXE.\n")
+
+        uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+
+    except Exception as e:
+        print(f"\n[FATAL ERROR] Failed to start server: {e}")
+        input("\nPress Enter to close this window...")

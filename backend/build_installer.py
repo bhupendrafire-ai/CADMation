@@ -27,14 +27,23 @@ args = [
     MAIN_SCRIPT,
     "--onefile",                                # Pack everything into one exe
     "--name=CADMation_Copilot",                 # Output file name
-    f"--add-data={FRONTEND_DIST};frontend/dist", # Include frontend files (Note: ';' for Windows)
+    f"--add-data={FRONTEND_DIST};frontend/dist", # Include frontend files
     "--collect-all=uvicorn",                   # Include uvicorn and its deps
     "--collect-all=fastapi",                   # Include fastapi and its deps
+    "--collect-all=pydantic",                  # Ensure validation logic is bundled
+    "--collect-all=pydantic_settings",         # Ensure .env loading works
     "--hidden-import=app.routers.catia",
     "--hidden-import=app.routers.chat",
     "--hidden-import=app.services.catia_bridge",
     "--hidden-import=app.services.tree_extractor",
     "--hidden-import=app.services.llm_engine",
+    "--hidden-import=uvicorn.logging",
+    "--hidden-import=uvicorn.protocols.http.h11_impl",
+    "--hidden-import=uvicorn.protocols.http.httptools_impl",
+    "--hidden-import=uvicorn.protocols.websockets.websockets_impl",
+    "--hidden-import=uvicorn.protocols.websockets.wsproto_impl",
+    "--hidden-import=uvicorn.lifespan.on",
+    "--hidden-import=uvicorn.lifespan.off",
     "--clean",
     "--noconfirm"
 ]
