@@ -1,4 +1,4 @@
-# CADMation
+# CADMation v2.0.0
 
 Local AI copilot for CATIA V5 sheet metal design.
 
@@ -8,7 +8,8 @@ Local AI copilot for CATIA V5 sheet metal design.
 - **Smart Chat Window**: Automatic insertion of tagged components into the chat cursor position.
 - **Session Memory**: Multi-turn conversation support for complex design workflows.
 - **Standalone Executable**: Single-file distribution for easy local use.
-- **Accurate BOM Extraction**: Multi-body bounding box union for precise stock sizes, including CATProduct sub-assembly support.
+- **Accurate BOM Extraction (v2.0.0)**: Multi-body bounding box union for precise stock sizes, including CATProduct sub-assembly support and hyper-robust SPA tracking.
+- **Improved Measurement Reliability (v2.0.0)**: Non-destructive "Context Breaker" strategy for reliable STEP file measurement without session corruption.
 - **STD/MFG Classification**: Toggle parts as Standard or Manufactured in the BOM editor; exports to separate Excel worksheets.
 
 ## Installation
