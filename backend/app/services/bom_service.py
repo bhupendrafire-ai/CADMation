@@ -277,7 +277,9 @@ class BOMService:
 
         if node.get("type") in ["Part", "Component"]:
             instance_name = name
-            part_number = node.get("partNumber", name.split(".")[0]).strip()
+            instance_name = name
+            # Use the partNumber already resolved by TreeExtractor
+            part_number = node.get("partNumber", "").strip() or name.split(".")[0].strip()
             
             item_data = {
                 "ITEM NO.": len(mfg) + len(std) + 100,

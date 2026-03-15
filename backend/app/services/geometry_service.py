@@ -56,7 +56,18 @@ class GeometryService:
             spa = active_doc.GetWorkbench("SPAWorkbench")
             
             # Use Selection as a middle-man to get a stable measurable object
-            targets = [raw_pop]
+            targets = []
+            
+            # Prefer MainBody if it's a Part to avoid measuring construction geometries/wireframes
+            try:
+                if hasattr(raw_pop, "MainBody") and getattr(raw_pop, "MainBody", None) is not None:
+                    targets.append(raw_pop.MainBody)
+            except: pass
+            
+            # Fallback to the object itself
+            if not targets:
+                targets.append(raw_pop)
+                
             try:
                 if hasattr(raw_pop, "ReferenceProduct"):
                     targets.append(raw_pop.ReferenceProduct)

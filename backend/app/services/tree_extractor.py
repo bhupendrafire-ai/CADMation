@@ -145,11 +145,19 @@ class TreeExtractor:
                 except:
                     item_props = {"stock_size": "Not Measurable"}
 
-                # Part Number (Reference Name)
+                # Part Number (Reference Name) resolution
                 try: 
                     pn = child.PartNumber.strip()
+                    if not pn:
+                         # Try to get from filename if property is empty
+                         try: pn = child.ReferenceProduct.Parent.Name.split(".")[0].strip()
+                         except: pn = ""
                 except: 
-                    pn = child.Name.split(".")[0].strip()
+                    try: pn = child.ReferenceProduct.Parent.Name.split(".")[0].strip()
+                    except: pn = child.Name.split(".")[0].strip()
+
+                if not pn:
+                     pn = child.Name.split(".")[0].strip()
 
                 children.append({
                     "name": child.Name,
