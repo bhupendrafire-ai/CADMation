@@ -1,42 +1,49 @@
-"""
-catia_bridge.py — COM wrapper for pycatia connections.
-
-Provides a singleton-style accessor to the running CATIA V5 application
-object. Handles connection lifecycle: connect, reconnect, and graceful
-failure when CATIA is not running.
-"""
-
 import logging
-from pycatia import catia
-# from pycatia.exception_handling import CATIAApplicationException # Not strictly needed for logic fix
+import win32com.client
+import pythoncom
+import threading
 
 logger = logging.getLogger(__name__)
 
 class CATIABridge:
     _instance = None
-    _caia = None
+    # We remove the cached _caia to avoid inter-thread apartment issues
+    # Instead, we'll re-connect or use thread-local storage if performance is an issue
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(CATIABridge, cls).__new__(cls)
         return cls._instance
 
+    def _ensure_com_init(self):
+        """Ensures COM is initialized for the current thread."""
+        try:
+            # CoInitialize identifies the current thread as part of an STA
+            pythoncom.CoInitialize()
+        except Exception:
+            pass
+
     def get_application(self):
         """
         Attempts to connect to a running CATIA V5 session.
-        Returns the catia application object or None if not found.
+        Respects thread apartments by re-acquiring the object.
         """
+        self._ensure_com_init()
+        
         try:
-            # Note: pycatia.catia() connects to the active session
-            if self._caia is None:
-                self._caia = catia()
+            # Re-acquire the proxy in the current thread's apartment
+            # This is safer than sharing a cached object across threads
+            dispatch = win32com.client.GetActiveObject("CATIA.Application")
             
-            # Simple check to see if the session is still responsive
-            _ = self._caia.name 
-            return self._caia
+            # Verify the connection is responsive
+            _ = dispatch.Name 
+            logger.info("Successfully acquired CATIA connection in current thread.")
+            return dispatch
         except Exception as e:
-            logger.warning(f"Failed to connect to CATIA V5: {e}")
-            self._caia = None
+            # Log the error for debugging, even if we return None
+            # Only log if it's not a standard 'Operation unavailable' error to avoid spam
+            if "Operation unavailable" not in str(e):
+                logger.debug(f"CATIA connection attempt failed: {e}")
             return None
 
     def get_active_document_name(self) -> str | None:
@@ -46,7 +53,7 @@ class CATIABridge:
             return None
         
         try:
-            return caa.active_document.name
+            return caa.ActiveDocument.Name
         except Exception:
             return "No Active Document"
 

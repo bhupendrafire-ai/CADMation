@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
+import BOMEditor from './BOMEditor'
 
-const ChatWindow = forwardRef(({ messages, onSendMessage }, ref) => {
+const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, onBomExport }, ref) => {
     const [input, setInput] = useState('')
     const messagesEndRef = useRef(null)
     const textareaRef = useRef(null)
@@ -58,6 +59,33 @@ const ChatWindow = forwardRef(({ messages, onSendMessage }, ref) => {
                         <div className="text-sm leading-relaxed whitespace-pre-wrap font-sans">
                             {msg.content}
                         </div>
+
+                        {msg.bomEditor && (
+                            <BOMEditor
+                                items={msg.bomEditor.items}
+                                onItemsChange={(items) => onUpdateBomMessage?.(i, { ...msg.bomEditor, items })}
+                                onExport={(items) => onBomExport?.(i, items)}
+                                disabled={msg.bomEditor.exporting}
+                            />
+                        )}
+                        
+                        {msg.interactive && msg.interactive.type === 'choice' && (
+                            <div className="mt-4 flex flex-wrap gap-2 pt-4 border-t border-white/5">
+                                {msg.interactive.options.map((opt) => (
+                                    <button
+                                        key={opt.id}
+                                        onClick={() => onSendMessage(opt.value || opt.label)}
+                                        className={`text-xs px-3 py-1.5 rounded-lg border transition-all active:scale-95 ${
+                                            opt.primary 
+                                            ? 'bg-white text-black border-white hover:bg-neutral-200' 
+                                            : 'bg-transparent text-white/70 border-white/10 hover:border-white/30 hover:text-white'
+                                        }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 ))}
                 <div ref={messagesEndRef} />

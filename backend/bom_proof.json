@@ -1,0 +1,626 @@
+{
+  "Document": "_0101BZ105930N-930N_011_FLANGE UP_TOOL_OP50.CATProduct",
+  "TotalParts": 62,
+  "Parts": [
+    {
+      "Name": "Part1.7",
+      "Size": "100.0 x 100.0 x 40.0",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 100.0,
+        "y": 100.0,
+        "z": 40.0
+      }
+    },
+    {
+      "Name": "INPUT PART_01.1",
+      "Size": "190.0 x 190.0 x 2.4",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 190.0,
+        "y": 190.0,
+        "z": 2.4
+      }
+    },
+    {
+      "Name": "Copy (1) of INPUT PART_01.1",
+      "Size": "468.6 x 468.6 x 1.0",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 468.6,
+        "y": 468.6,
+        "z": 1.0
+      }
+    },
+    {
+      "Name": "OUTPUT_PART.1",
+      "Size": "190.0 x 190.0 x 2.4",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 190.0,
+        "y": 190.0,
+        "z": 2.4
+      }
+    },
+    {
+      "Name": "FINAL_PART.1",
+      "Size": "190.0 x 190.0 x 2.4",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 190.0,
+        "y": 190.0,
+        "z": 2.4
+      }
+    },
+    {
+      "Name": "ADPATER_GENERAL.1",
+      "Size": "100.0 x 100.0 x 40.0",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 100.0,
+        "y": 100.0,
+        "z": 40.0
+      }
+    },
+    {
+      "Name": "ADAPTER_LOWER_AND_UPPER_DIE.1",
+      "Size": "100.0 x 100.0 x 40.0",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 100.0,
+        "y": 100.0,
+        "z": 40.0
+      }
+    },
+    {
+      "Name": "PRESS DATA_.1",
+      "Size": "4603.9 x 4603.9 x 139.8",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 4603.9,
+        "y": 4603.9,
+        "z": 139.8
+      }
+    },
+    {
+      "Name": "000_DIE_TIMING_DIAGRAM_AND_DESIGN_CALCULATION_1302DD.1",
+      "Size": "447.2 x 447.2 x 0.0",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 447.2,
+        "y": 447.2,
+        "z": 0.0
+      }
+    },
+    {
+      "Name": "Copy (1) of ADAPTER_LOWER_FLANGE_STEEL.1",
+      "Size": "1030.2 x 1030.2 x 32.3",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 1030.2,
+        "y": 1030.2,
+        "z": 32.3
+      }
+    },
+    {
+      "Name": "ADAPTER_LOWER_FLANGE_STEEL.1",
+      "Size": "855.2 x 855.2 x 40.9",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 855.2,
+        "y": 855.2,
+        "z": 40.9
+      }
+    },
+    {
+      "Name": "001_LOWER SHOE .1",
+      "Size": "1563.5 x 1563.5 x 46.8",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 1563.5,
+        "y": 1563.5,
+        "z": 46.8
+      }
+    },
+    {
+      "Name": "ADAPTER_LOWER_AND_UPPER_DIE.1",
+      "Size": "100.0 x 100.0 x 40.0",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 100.0,
+        "y": 100.0,
+        "z": 40.0
+      }
+    },
+    {
+      "Name": "MWF150-150.2",
+      "Size": "295.7 x 295.7 x 22.5",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 295.7,
+        "y": 295.7,
+        "z": 22.5
+      }
+    },
+    {
+      "Name": "MWF150-150.4",
+      "Size": "295.7 x 295.7 x 22.5",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 295.7,
+        "y": 295.7,
+        "z": 22.5
+      }
+    },
+    {
+      "Name": "TRANSPORTAION STRAP.1",
+      "Size": "170.2 x 170.2 x 12.3",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 170.2,
+        "y": 170.2,
+        "z": 12.3
+      }
+    },
+    {
+      "Name": "TRANSPORTAION STRAP.2",
+      "Size": "170.2 x 170.2 x 12.3",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 170.2,
+        "y": 170.2,
+        "z": 12.3
+      }
+    },
+    {
+      "Name": "TRANSPORTAION STRAP.3",
+      "Size": "170.2 x 170.2 x 12.3",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 170.2,
+        "y": 170.2,
+        "z": 12.3
+      }
+    },
+    {
+      "Name": "TRANSPORTAION STRAP.4",
+      "Size": "170.2 x 170.2 x 12.3",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 170.2,
+        "y": 170.2,
+        "z": 12.3
+      }
+    },
+    {
+      "Name": "000_LIFTER_DIA_80MM.5",
+      "Size": "163.0 x 163.0 x 28.9",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 163.0,
+        "y": 163.0,
+        "z": 28.9
+      }
+    },
+    {
+      "Name": "000_LIFTER_DIA_80MM.6",
+      "Size": "163.0 x 163.0 x 28.9",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 163.0,
+        "y": 163.0,
+        "z": 28.9
+      }
+    },
+    {
+      "Name": "000_LIFTER_DIA_80MM.1",
+      "Size": "163.0 x 163.0 x 28.9",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 163.0,
+        "y": 163.0,
+        "z": 28.9
+      }
+    },
+    {
+      "Name": "000_LIFTER_DIA_80MM.2",
+      "Size": "163.0 x 163.0 x 28.9",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 163.0,
+        "y": 163.0,
+        "z": 28.9
+      }
+    },
+    {
+      "Name": "DTPK38-60-20-Y_1.1",
+      "Size": "118.3 x 118.3 x 11.8",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 118.3,
+        "y": 118.3,
+        "z": 11.8
+      }
+    },
+    {
+      "Name": "DTPK38-60-20-Y_1.2",
+      "Size": "118.3 x 118.3 x 11.8",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 118.3,
+        "y": 118.3,
+        "z": 11.8
+      }
+    },
+    {
+      "Name": "DTPK38-60-20-Y_1.3",
+      "Size": "118.3 x 118.3 x 11.8",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 118.3,
+        "y": 118.3,
+        "z": 11.8
+      }
+    },
+    {
+      "Name": "DTPK38-60-20-Y_1.4",
+      "Size": "118.3 x 118.3 x 11.8",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 118.3,
+        "y": 118.3,
+        "z": 11.8
+      }
+    },
+    {
+      "Name": "GSV750-50_1.1",
+      "Size": "197.5 x 197.5 x 20.2",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 197.5,
+        "y": 197.5,
+        "z": 20.2
+      }
+    },
+    {
+      "Name": "GSV750-50_1.2",
+      "Size": "197.5 x 197.5 x 20.2",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 197.5,
+        "y": 197.5,
+        "z": 20.2
+      }
+    },
+    {
+      "Name": "GSV750-50_1.3",
+      "Size": "197.5 x 197.5 x 20.2",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 197.5,
+        "y": 197.5,
+        "z": 20.2
+      }
+    },
+    {
+      "Name": "GSV750-50_1.4",
+      "Size": "197.5 x 197.5 x 20.2",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 197.5,
+        "y": 197.5,
+        "z": 20.2
+      }
+    },
+    {
+      "Name": "DTPM55-20-Y_1.1",
+      "Size": "218.6 x 218.6 x 16.8",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 218.6,
+        "y": 218.6,
+        "z": 16.8
+      }
+    },
+    {
+      "Name": "BALANCER  DTPK38-60-20-Y_1",
+      "Size": "218.6 x 218.6 x 16.8",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 218.6,
+        "y": 218.6,
+        "z": 16.8
+      }
+    },
+    {
+      "Name": "ADAPTER_LOWER_AND_UPPER_DIE.1",
+      "Size": "100.0 x 100.0 x 40.0",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 100.0,
+        "y": 100.0,
+        "z": 40.0
+      }
+    },
+    {
+      "Name": "203_UPPER_FLANGE_STEEL_01.1",
+      "Size": "251.3 x 251.3 x 25.7",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 251.3,
+        "y": 251.3,
+        "z": 25.7
+      }
+    },
+    {
+      "Name": "Copy (1) of 000_LOWER_FLANGE_STEEL_01.1",
+      "Size": "246.3 x 246.3 x 24.4",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 246.3,
+        "y": 246.3,
+        "z": 24.4
+      }
+    },
+    {
+      "Name": "Part1.1",
+      "Size": "231.9 x 231.9 x 23.6",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 231.9,
+        "y": 231.9,
+        "z": 23.6
+      }
+    },
+    {
+      "Name": "Part2.1",
+      "Size": "238.1 x 238.1 x 25.9",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 238.1,
+        "y": 238.1,
+        "z": 25.9
+      }
+    },
+    {
+      "Name": "000_STOPPER_PLATE.1",
+      "Size": "289.2 x 289.2 x 26.4",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 289.2,
+        "y": 289.2,
+        "z": 26.4
+      }
+    },
+    {
+      "Name": "000_STOPPER_PLATE.2",
+      "Size": "289.2 x 289.2 x 26.4",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 289.2,
+        "y": 289.2,
+        "z": 26.4
+      }
+    },
+    {
+      "Name": "000_STOPPER_PLATE.3",
+      "Size": "289.2 x 289.2 x 26.4",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 289.2,
+        "y": 289.2,
+        "z": 26.4
+      }
+    },
+    {
+      "Name": "000_STOPPER_PLATE.4",
+      "Size": "289.2 x 289.2 x 26.4",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 289.2,
+        "y": 289.2,
+        "z": 26.4
+      }
+    },
+    {
+      "Name": "002_LOWER_PAD_ST_01",
+      "Size": "783.0 x 783.0 x 40.0",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 783.0,
+        "y": 783.0,
+        "z": 40.0
+      }
+    },
+    {
+      "Name": "002_UPPER SHOE .1",
+      "Size": "1538.2 x 1538.2 x 43.6",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 1538.2,
+        "y": 1538.2,
+        "z": 43.6
+      }
+    },
+    {
+      "Name": "ADAPTER_LOWER_AND_UPPER_DIE.1",
+      "Size": "100.0 x 100.0 x 40.0",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 100.0,
+        "y": 100.0,
+        "z": 40.0
+      }
+    },
+    {
+      "Name": "000-MAIN_WEAR_PLATE.1",
+      "Size": "263.9 x 263.9 x 21.7",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 263.9,
+        "y": 263.9,
+        "z": 21.7
+      }
+    },
+    {
+      "Name": "000-MAIN_WEAR_PLATE.2",
+      "Size": "263.9 x 263.9 x 21.7",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 263.9,
+        "y": 263.9,
+        "z": 21.7
+      }
+    },
+    {
+      "Name": "000-MAIN_WEAR_PLATE.3",
+      "Size": "263.9 x 263.9 x 21.7",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 263.9,
+        "y": 263.9,
+        "z": 21.7
+      }
+    },
+    {
+      "Name": "000-MAIN_WEAR_PLATE.4",
+      "Size": "263.9 x 263.9 x 21.7",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 263.9,
+        "y": 263.9,
+        "z": 21.7
+      }
+    },
+    {
+      "Name": "000_LIFTER_DIA_80MM.4",
+      "Size": "163.0 x 163.0 x 28.9",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 163.0,
+        "y": 163.0,
+        "z": 28.9
+      }
+    },
+    {
+      "Name": "000_LIFTER_DIA_80MM.1",
+      "Size": "163.0 x 163.0 x 28.9",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 163.0,
+        "y": 163.0,
+        "z": 28.9
+      }
+    },
+    {
+      "Name": "000_LIFTER_DIA_80MM.2",
+      "Size": "163.0 x 163.0 x 28.9",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 163.0,
+        "y": 163.0,
+        "z": 28.9
+      }
+    },
+    {
+      "Name": "000_LIFTER_DIA_80MM.3",
+      "Size": "163.0 x 163.0 x 28.9",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 163.0,
+        "y": 163.0,
+        "z": 28.9
+      }
+    },
+    {
+      "Name": "716_02_SETTING PLATE.1",
+      "Size": "154.9 x 154.9 x 16.6",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 154.9,
+        "y": 154.9,
+        "z": 16.6
+      }
+    },
+    {
+      "Name": "716_02_SETTING PLATE.2",
+      "Size": "154.9 x 154.9 x 16.6",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 154.9,
+        "y": 154.9,
+        "z": 16.6
+      }
+    },
+    {
+      "Name": "716_02_SETTING PLATE.3",
+      "Size": "154.9 x 154.9 x 16.6",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 154.9,
+        "y": 154.9,
+        "z": 16.6
+      }
+    },
+    {
+      "Name": "716_02_SETTING PLATE.4",
+      "Size": "154.9 x 154.9 x 16.6",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 154.9,
+        "y": 154.9,
+        "z": 16.6
+      }
+    },
+    {
+      "Name": "ADAPTER_LOWER_AND_UPPER_DIE.1",
+      "Size": "100.0 x 100.0 x 40.0",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 100.0,
+        "y": 100.0,
+        "z": 40.0
+      }
+    },
+    {
+      "Name": "203_UPPER_FLANGE_STEEL_01.1",
+      "Size": "347.5 x 347.5 x 35.8",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 347.5,
+        "y": 347.5,
+        "z": 35.8
+      }
+    },
+    {
+      "Name": "204_UPPER_FLANGE_STEEL_02.1",
+      "Size": "347.7 x 347.7 x 35.8",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 347.7,
+        "y": 347.7,
+        "z": 35.8
+      }
+    },
+    {
+      "Name": "000_EJECTION PIN NON STD.1",
+      "Size": "221.1 x 221.1 x 18.1",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 221.1,
+        "y": 221.1,
+        "z": 18.1
+      }
+    },
+    {
+      "Name": "000_EJECTION PIN NON STD.2",
+      "Size": "221.1 x 221.1 x 18.1",
+      "Mat": "STEEL",
+      "Dimensions": {
+        "x": 221.1,
+        "y": 221.1,
+        "z": 18.1
+      }
+    }
+  ]
+}

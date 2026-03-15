@@ -57,7 +57,8 @@ function App() {
         role: 'ai', 
         content: data.reply + 
                  (data.output ? `\n\n**Execution Log:**\n\`\`\`\n${data.output}\n\`\`\`` : "") +
-                 (data.executed ? "\n\n✅ Changes applied to CATIA." : (data.error ? `\n\n❌ Error: ${data.error}` : ""))
+                 (data.executed ? "\n\n✅ Changes applied to CATIA." : (data.error ? `\n\n❌ Error: ${data.error}` : "")),
+        interactive: data.interactive
       }
       setMessages(prev => [...prev, aiMsg])
     } catch (err) {
@@ -82,6 +83,68 @@ function App() {
     setTaggedNode(node)
     if (node && chatWindowRef.current) {
       chatWindowRef.current.insertText(node.name)
+    }
+  }
+
+  const handleGenerateBOM = (items, error) => {
+    if (error) {
+      setMessages((prev) => [...prev, { role: 'ai', content: `BOM failed: ${error}` }])
+      return
+    }
+    if (!items || !items.length) {
+      setMessages((prev) => [...prev, { role: 'ai', content: 'No BOM items found. Open a CATIA assembly and refresh the tree.' }])
+      return
+    }
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'ai',
+        content: 'BOM draft loaded from the specification tree. Select items, approve or edit sizes, set heat treatment and machining stock, then export to Excel.',
+        bomEditor: { items },
+      },
+    ])
+  }
+
+  const handleUpdateBomMessage = (messageIndex, bomData) => {
+    setMessages((prev) =>
+      prev.map((m, i) => (i === messageIndex && m.bomEditor ? { ...m, bomEditor: bomData } : m))
+    )
+  }
+
+  const handleBomExport = async (messageIndex, items) => {
+    const msg = messages[messageIndex]
+    if (msg?.bomEditor) {
+      setMessages((prev) =>
+        prev.map((m, i) =>
+          i === messageIndex ? { ...m, bomEditor: { ...m.bomEditor, exporting: true } } : m
+        )
+      )
+    }
+    try {
+      const res = await fetch('/api/catia/bom/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+      const data = await res.json()
+      if (data.status === 'success') {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'ai', content: `BOM exported to:\n${data.file_path}` },
+        ])
+      } else {
+        setMessages((prev) => [...prev, { role: 'ai', content: `Export failed: ${data.error}` }])
+      }
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: 'ai', content: 'Failed to connect for BOM export.' }])
+    } finally {
+      if (msg?.bomEditor) {
+        setMessages((prev) =>
+          prev.map((m, i) =>
+            i === messageIndex ? { ...m, bomEditor: { ...m.bomEditor, exporting: false } } : m
+          )
+        )
+      }
     }
   }
 
@@ -116,12 +179,15 @@ function App() {
           onRefresh={handleRefreshTree}
           taggedNode={taggedNode}
           onNodeTag={handleNodeTag}
+          onGenerateBOM={handleGenerateBOM}
         />
 
         <ChatWindow
           ref={chatWindowRef}
           messages={messages}
           onSendMessage={handleSendMessage}
+          onUpdateBomMessage={handleUpdateBomMessage}
+          onBomExport={handleBomExport}
         />
       </main>
 

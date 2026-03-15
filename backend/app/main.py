@@ -63,6 +63,15 @@ import sys
 base_path = getattr(sys, '_MEIPASS', os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 FRONTEND_DIST = os.path.join(base_path, "frontend", "dist")
 
+@app.get("/api/health")
+async def health():
+    """Quick liveness check. Including real CATIA status."""
+    return {
+        "status": "ok",
+        "catia": catia_bridge.check_connection()
+    }
+
+
 if os.path.exists(FRONTEND_DIST):
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
 
@@ -81,15 +90,6 @@ if os.path.exists(FRONTEND_DIST):
 from app.services.catia_bridge import catia_bridge
 
 # ... existing app and router definitions ...
-
-@app.get("/api/health")
-async def health():
-    """Quick liveness check. Including real CATIA status."""
-    return {
-        "status": "ok",
-        "catia": catia_bridge.check_connection()
-    }
-
 
 if __name__ == "__main__":
     import uvicorn

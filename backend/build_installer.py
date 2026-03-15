@@ -12,7 +12,7 @@ import shutil
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIST = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend", "dist"))
-MAIN_SCRIPT = os.path.join(BASE_DIR, "app", "main.py")
+MAIN_SCRIPT = os.path.join(BASE_DIR, "gui.py")
 
 print(f"--- Starting Build Process ---")
 print(f"Base Directory: {BASE_DIR}")
@@ -26,12 +26,16 @@ if not os.path.exists(FRONTEND_DIST):
 args = [
     MAIN_SCRIPT,
     "--onefile",                                # Pack everything into one exe
+    "--noconsole",                               # Hide the terminal window
     "--name=CADMation_Copilot",                 # Output file name
     f"--add-data={FRONTEND_DIST};frontend/dist", # Include frontend files
+    "--collect-all=PySide6",                    # Bundle all of PySide6
     "--collect-all=uvicorn",                   # Include uvicorn and its deps
     "--collect-all=fastapi",                   # Include fastapi and its deps
     "--collect-all=pydantic",                  # Ensure validation logic is bundled
     "--collect-all=pydantic_settings",         # Ensure .env loading works
+    "--hidden-import=PySide6.QtWebEngineWidgets",
+    "--hidden-import=PySide6.QtWebEngineCore",
     "--hidden-import=app.routers.catia",
     "--hidden-import=app.routers.chat",
     "--hidden-import=app.services.catia_bridge",

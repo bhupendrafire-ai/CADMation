@@ -8,6 +8,8 @@ Local AI copilot for CATIA V5 sheet metal design.
 - **Smart Chat Window**: Automatic insertion of tagged components into the chat cursor position.
 - **Session Memory**: Multi-turn conversation support for complex design workflows.
 - **Standalone Executable**: Single-file distribution for easy local use.
+- **Accurate BOM Extraction**: Multi-body bounding box union for precise stock sizes, including CATProduct sub-assembly support.
+- **STD/MFG Classification**: Toggle parts as Standard or Manufactured in the BOM editor; exports to separate Excel worksheets.
 
 ## Installation
 1. Ensure **CATIA V5** is installed and running.

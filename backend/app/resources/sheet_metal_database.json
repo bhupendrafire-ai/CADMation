@@ -1,0 +1,38 @@
+{
+  "standards": {
+    "material_thickness": [0.5, 0.8, 1.0, 1.2, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0],
+    "bend_radii_multiplier": 1.0,
+    "clearance_percent": 10
+  },
+  "fasteners": {
+    "M6_SHCS": {
+      "tap_drill": 5.0,
+      "clearance": 6.6,
+      "c_bore_dia": 11.0,
+      "c_bore_depth": 7.0
+    },
+    "M8_SHCS": {
+      "tap_drill": 6.8,
+      "clearance": 9.0,
+      "c_bore_dia": 15.0,
+      "c_bore_depth": 9.0
+    },
+    "M10_SHCS": {
+      "tap_drill": 8.5,
+      "clearance": 11.0,
+      "c_bore_dia": 18.0,
+      "c_bore_depth": 11.0
+    },
+    "M12_SHCS": {
+      "tap_drill": 10.2,
+      "clearance": 13.5,
+      "c_bore_dia": 21.0,
+      "c_bore_depth": 13.0
+    }
+  },
+  "dowels": {
+    "D6": {"drill": 5.8, "ream": 6.0},
+    "D8": {"drill": 7.8, "ream": 8.0},
+    "D10": {"drill": 9.8, "ream": 10.0}
+  }
+}

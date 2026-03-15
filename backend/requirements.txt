@@ -7,6 +7,7 @@ pydantic-settings>=2.1.0
 
 # === CATIA V5 COM Bridge ===
 pycatia>=0.6.6
+PySide6>=6.6.0
 
 # === LLM SDKs (wired in Step 5) ===
 openai>=1.12.0
