@@ -1,0 +1,1896 @@
+{
+  "id": "7edf37ee-2ca4-4437-9600-36acc16efa5d",
+  "name": "measure_flat_1773588488093.CATPart",
+  "last_doc": "measure_flat_1773588488093.CATPart",
+  "updated_at": "2026-03-15T21:07:30.050453",
+  "messages": [
+    {
+      "role": "ai",
+      "content": "Ready to assist with your CATIA V5 sheet metal die design. What would you like to build today?"
+    },
+    {
+      "role": "ai",
+      "content": "I have scanned the active document (ignoring hidden items). Please select the items you wish to measure for the BOM:",
+      "interactive": {
+        "type": "bom-selector",
+        "items": [
+          {
+            "id": "CAM-3 ASSLY_catproduct",
+            "name": "CAM-3 ASSLY_catproduct",
+            "instanceName": "1232",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1232"
+            ]
+          },
+          {
+            "id": "PIE PUNCH DIA 9_catpart",
+            "name": "PIE PUNCH DIA 9_catpart",
+            "instanceName": "1229",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1229"
+            ]
+          },
+          {
+            "id": "PIE PUNCH DIA 9__catpart",
+            "name": "PIE PUNCH DIA 9__catpart",
+            "instanceName": "1230",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1230"
+            ]
+          },
+          {
+            "id": "CAM-3 ASSLY______catproduct",
+            "name": "CAM-3 ASSLY______catproduct",
+            "instanceName": "1231",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1231"
+            ]
+          },
+          {
+            "id": "CAM-3 SLIDER ASSLY__catproduct",
+            "name": "CAM-3 SLIDER ASSLY__catproduct",
+            "instanceName": "1227",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1227"
+            ]
+          },
+          {
+            "id": "CAM-3 SLIDER_catpart",
+            "name": "CAM-3 SLIDER_catpart",
+            "instanceName": "1218",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1218"
+            ]
+          },
+          {
+            "id": "GAS SPRING HIT BLOCK___catpart",
+            "name": "GAS SPRING HIT BLOCK___catpart",
+            "instanceName": "1219",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1219"
+            ]
+          },
+          {
+            "id": "Copy _1_ of WP_STW___38_100_____catpart",
+            "name": "Copy _1_ of WP_STW___38_100_____catpart",
+            "instanceName": "1220",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1220"
+            ]
+          },
+          {
+            "id": "Copy _1_ of WP_STW___38_100_________catpart",
+            "name": "Copy _1_ of WP_STW___38_100_________catpart",
+            "instanceName": "1221",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1221"
+            ]
+          },
+          {
+            "id": "Copy _1_ of CAM_V_UNIT___CBG 50-100_catpart",
+            "name": "Copy _1_ of CAM_V_UNIT___CBG 50-100_catpart",
+            "instanceName": "1222",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1222"
+            ]
+          },
+          {
+            "id": "Copy _1_ of C+VE RETURN FOLLOWER_CPRFE 50-105 _SANKYO__catpart",
+            "name": "Copy _1_ of C+VE RETURN FOLLOWER_CPRFE 50-105 _SANKYO__catpart",
+            "instanceName": "1223",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1223"
+            ]
+          },
+          {
+            "id": "Symmetry of Copy _1_ of C+VE RETURN FOLLOWER_CPRFE 50-105 _SANKYO__catpart",
+            "name": "Symmetry of Copy _1_ of C+VE RETURN FOLLOWER_CPRFE 50-105 _SANKYO__catpart",
+            "instanceName": "1224",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1224"
+            ]
+          },
+          {
+            "id": "Symmetry of Copy _1_ of WP_STW___38_100_________catpart",
+            "name": "Symmetry of Copy _1_ of WP_STW___38_100_________catpart",
+            "instanceName": "1225",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1225"
+            ]
+          },
+          {
+            "id": "Symmetry of Copy _1_ of WP_STW___38_100_____catpart",
+            "name": "Symmetry of Copy _1_ of WP_STW___38_100_____catpart",
+            "instanceName": "1226",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1226"
+            ]
+          },
+          {
+            "id": "CAM-3 DRIVER ASSLY__catproduct",
+            "name": "CAM-3 DRIVER ASSLY__catproduct",
+            "instanceName": "1228",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1228"
+            ]
+          },
+          {
+            "id": "CAM-3 DRIVER_catpart",
+            "name": "CAM-3 DRIVER_catpart",
+            "instanceName": "1216",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1216"
+            ]
+          },
+          {
+            "id": "Copy _1_ of CAM_V_UNIT MALE_CBP _50-100_MISUMI__catpart",
+            "name": "Copy _1_ of CAM_V_UNIT MALE_CBP _50-100_MISUMI__catpart",
+            "instanceName": "1217",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1217"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM-1 ASSLY_catproduct",
+            "name": "Symmetry of CAM-1 ASSLY_catproduct",
+            "instanceName": "1233",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1233"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM-1 SLIDER ASSLY_catproduct",
+            "name": "Symmetry of CAM-1 SLIDER ASSLY_catproduct",
+            "instanceName": "1214",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1214"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM-1 STEEL_catpart",
+            "name": "Symmetry of CAM-1 STEEL_catpart",
+            "instanceName": "1196",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1196"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM-1 SLIDER_catpart",
+            "name": "Symmetry of CAM-1 SLIDER_catpart",
+            "instanceName": "1197",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1197"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM-1 PAD_catpart",
+            "name": "Symmetry of CAM-1 PAD_catpart",
+            "instanceName": "1198",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1198"
+            ]
+          },
+          {
+            "id": "Symmetry of SPOOL RETAINER___CSRZ 28-70_catpart",
+            "name": "Symmetry of SPOOL RETAINER___CSRZ 28-70_catpart",
+            "instanceName": "1199",
+            "type": "Component",
+            "qty": 3,
+            "selected": true,
+            "instances": [
+              "1199",
+              "1194",
+              "1195"
+            ]
+          },
+          {
+            "id": "Symmetry of Gathered SPOOL RETAINER___CSRZ 28-70 on UserPattern.4_catproduct",
+            "name": "Symmetry of Gathered SPOOL RETAINER___CSRZ 28-70 on UserPattern.4_catproduct",
+            "instanceName": "1200",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1200"
+            ]
+          },
+          {
+            "id": "Symmetry of WEAR PLATE MWF 100-200_catpart",
+            "name": "Symmetry of WEAR PLATE MWF 100-200_catpart",
+            "instanceName": "1201",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1201",
+              "1151"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of WEAR PLATE MWF 100-200_catpart",
+            "name": "Symmetry of Symmetry of WEAR PLATE MWF 100-200_catpart",
+            "instanceName": "1202",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1202"
+            ]
+          },
+          {
+            "id": "Symmetry of WP STW_38_100_catpart",
+            "name": "Symmetry of WP STW_38_100_catpart",
+            "instanceName": "1203",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1203",
+              "1154"
+            ]
+          },
+          {
+            "id": "Symmetry of WP STW_38_75_catpart",
+            "name": "Symmetry of WP STW_38_75_catpart",
+            "instanceName": "1204",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1204",
+              "1155"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of WP STW_38_100_catpart",
+            "name": "Symmetry of Symmetry of WP STW_38_100_catpart",
+            "instanceName": "1205",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1205"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of WP STW_38_75_catpart",
+            "name": "Symmetry of Symmetry of WP STW_38_75_catpart",
+            "instanceName": "1206",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1206"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM_V_UNIT_CBG 65-200_catpart",
+            "name": "Symmetry of CAM_V_UNIT_CBG 65-200_catpart",
+            "instanceName": "1207",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1207"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM_POSITIVE_RETRACTOR__catpart",
+            "name": "Symmetry of CAM_POSITIVE_RETRACTOR__catpart",
+            "instanceName": "1208",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1208"
+            ]
+          },
+          {
+            "id": "Symmetry of GAS_SPRNG_GSV 350-25_catpart",
+            "name": "Symmetry of GAS_SPRNG_GSV 350-25_catpart",
+            "instanceName": "1209",
+            "type": "Component",
+            "qty": 5,
+            "selected": true,
+            "instances": [
+              "1209",
+              "1190",
+              "1191",
+              "1192",
+              "1193"
+            ]
+          },
+          {
+            "id": "Symmetry of Gathered GAS_SPRNG_GSV 350-25 on UserPattern.9_catproduct",
+            "name": "Symmetry of Gathered GAS_SPRNG_GSV 350-25 on UserPattern.9_catproduct",
+            "instanceName": "1210",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1210"
+            ]
+          },
+          {
+            "id": "Symmetry of GAS SPRING HITTING BLK_catpart",
+            "name": "Symmetry of GAS SPRING HITTING BLK_catpart",
+            "instanceName": "1211",
+            "type": "Component",
+            "qty": 4,
+            "selected": true,
+            "instances": [
+              "1211",
+              "1187",
+              "1188",
+              "1189"
+            ]
+          },
+          {
+            "id": "Symmetry of Gathered GAS SPRING HITTING BLK on UserPattern.2_catproduct",
+            "name": "Symmetry of Gathered GAS SPRING HITTING BLK on UserPattern.2_catproduct",
+            "instanceName": "1212",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1212"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of CAM_POSITIVE_RETRACTOR__1_catpart",
+            "name": "Symmetry of Symmetry of CAM_POSITIVE_RETRACTOR__1_catpart",
+            "instanceName": "1213",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1213"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM-1 DRIVER ASSLY_catproduct",
+            "name": "Symmetry of CAM-1 DRIVER ASSLY_catproduct",
+            "instanceName": "1215",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1215"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM-1 DRIVER_catpart",
+            "name": "Symmetry of CAM-1 DRIVER_catpart",
+            "instanceName": "1182",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1182"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM +VE RETRACTOR BLOCK_catpart",
+            "name": "Symmetry of CAM +VE RETRACTOR BLOCK_catpart",
+            "instanceName": "1183",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1183"
+            ]
+          },
+          {
+            "id": "Symmetry of WEAR PLATE MWF 100-200___catpart",
+            "name": "Symmetry of WEAR PLATE MWF 100-200___catpart",
+            "instanceName": "1184",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1184",
+              "1132"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of WEAR PLATE MWF 100-200___catpart",
+            "name": "Symmetry of Symmetry of WEAR PLATE MWF 100-200___catpart",
+            "instanceName": "1185",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1185"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of CAM +VE RETRACTOR BLOCK_1_catpart",
+            "name": "Symmetry of Symmetry of CAM +VE RETRACTOR BLOCK_1_catpart",
+            "instanceName": "1186",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1186"
+            ]
+          },
+          {
+            "id": "CAM-2 ASSLY_catproduct",
+            "name": "CAM-2 ASSLY_catproduct",
+            "instanceName": "1234",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1234"
+            ]
+          },
+          {
+            "id": "CAM-2 SLIDER ASSLY_catproduct",
+            "name": "CAM-2 SLIDER ASSLY_catproduct",
+            "instanceName": "1180",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1180"
+            ]
+          },
+          {
+            "id": "PIE PUNCH DIA13_catpart",
+            "name": "PIE PUNCH DIA13_catpart",
+            "instanceName": "1167",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1167"
+            ]
+          },
+          {
+            "id": "PIE PUNCH DIA13___catpart",
+            "name": "PIE PUNCH DIA13___catpart",
+            "instanceName": "1168",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1168"
+            ]
+          },
+          {
+            "id": "PIE PUNCH DIA25_catpart",
+            "name": "PIE PUNCH DIA25_catpart",
+            "instanceName": "1169",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1169"
+            ]
+          },
+          {
+            "id": "CAM-2 SLIDER_catpart",
+            "name": "CAM-2 SLIDER_catpart",
+            "instanceName": "1170",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1170"
+            ]
+          },
+          {
+            "id": "CAM_V_UNIT___CBG 50-100_catpart",
+            "name": "CAM_V_UNIT___CBG 50-100_catpart",
+            "instanceName": "1171",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1171"
+            ]
+          },
+          {
+            "id": "WP_STW_38_100_catpart",
+            "name": "WP_STW_38_100_catpart",
+            "instanceName": "1172",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1172"
+            ]
+          },
+          {
+            "id": "WP_STW_38_100__catpart",
+            "name": "WP_STW_38_100__catpart",
+            "instanceName": "1173",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1173"
+            ]
+          },
+          {
+            "id": "Symmetry of WP_STW_38_100_catpart",
+            "name": "Symmetry of WP_STW_38_100_catpart",
+            "instanceName": "1174",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1174"
+            ]
+          },
+          {
+            "id": "Symmetry of WP_STW_38_100__catpart",
+            "name": "Symmetry of WP_STW_38_100__catpart",
+            "instanceName": "1175",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1175"
+            ]
+          },
+          {
+            "id": "C+VE RETURN FOLLOWER_CPRFE 50-105 _SANKYO__catpart",
+            "name": "C+VE RETURN FOLLOWER_CPRFE 50-105 _SANKYO__catpart",
+            "instanceName": "1176",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1176"
+            ]
+          },
+          {
+            "id": "Symmetry of C+VE RETURN FOLLOWER_CPRFE 50-105 _SANKYO__catpart",
+            "name": "Symmetry of C+VE RETURN FOLLOWER_CPRFE 50-105 _SANKYO__catpart",
+            "instanceName": "1177",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1177"
+            ]
+          },
+          {
+            "id": "GAS SPRING HIT BLOCK_catpart",
+            "name": "GAS SPRING HIT BLOCK_catpart",
+            "instanceName": "1178",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1178"
+            ]
+          },
+          {
+            "id": "PIE PUNCH DIA6.5_catpart",
+            "name": "PIE PUNCH DIA6.5_catpart",
+            "instanceName": "1179",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1179"
+            ]
+          },
+          {
+            "id": "CAM-2 DRIVER ASSLY_catproduct",
+            "name": "CAM-2 DRIVER ASSLY_catproduct",
+            "instanceName": "1181",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1181"
+            ]
+          },
+          {
+            "id": "CAM-2 DRIVER_catpart",
+            "name": "CAM-2 DRIVER_catpart",
+            "instanceName": "1165",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1165"
+            ]
+          },
+          {
+            "id": "CAM_V_UNIT MALE_CBP _50-100_MISUMI__catpart",
+            "name": "CAM_V_UNIT MALE_CBP _50-100_MISUMI__catpart",
+            "instanceName": "1166",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1166"
+            ]
+          },
+          {
+            "id": "CAM-1 ASSLY_catproduct",
+            "name": "CAM-1 ASSLY_catproduct",
+            "instanceName": "1235",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1235"
+            ]
+          },
+          {
+            "id": "CAM-1 SLIDER ASSLY_catproduct",
+            "name": "CAM-1 SLIDER ASSLY_catproduct",
+            "instanceName": "1163",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1163"
+            ]
+          },
+          {
+            "id": "CAM-1 STEEL_catpart",
+            "name": "CAM-1 STEEL_catpart",
+            "instanceName": "1144",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1144"
+            ]
+          },
+          {
+            "id": "CAM-1 SLIDER_catpart",
+            "name": "CAM-1 SLIDER_catpart",
+            "instanceName": "1145",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1145"
+            ]
+          },
+          {
+            "id": "CAM-1 PAD_catpart",
+            "name": "CAM-1 PAD_catpart",
+            "instanceName": "1146",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1146"
+            ]
+          },
+          {
+            "id": "PIE PUNCH DIA3_catpart",
+            "name": "PIE PUNCH DIA3_catpart",
+            "instanceName": "1147",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1147"
+            ]
+          },
+          {
+            "id": "SPOOL RETAINER___CSRZ 28-70_catpart",
+            "name": "SPOOL RETAINER___CSRZ 28-70_catpart",
+            "instanceName": "1148",
+            "type": "Component",
+            "qty": 3,
+            "selected": true,
+            "instances": [
+              "1148",
+              "1142",
+              "1143"
+            ]
+          },
+          {
+            "id": "Gathered SPOOL RETAINER___CSRZ 28-70 on UserPattern.4_catproduct",
+            "name": "Gathered SPOOL RETAINER___CSRZ 28-70 on UserPattern.4_catproduct",
+            "instanceName": "1149",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1149"
+            ]
+          },
+          {
+            "id": "WEAR PLATE MWF 100-200_catpart",
+            "name": "WEAR PLATE MWF 100-200_catpart",
+            "instanceName": "1150",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1150"
+            ]
+          },
+          {
+            "id": "WP STW_38_100_catpart",
+            "name": "WP STW_38_100_catpart",
+            "instanceName": "1152",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1152"
+            ]
+          },
+          {
+            "id": "WP STW_38_75_catpart",
+            "name": "WP STW_38_75_catpart",
+            "instanceName": "1153",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1153"
+            ]
+          },
+          {
+            "id": "CAM_V_UNIT_CBG 65-200_catpart",
+            "name": "CAM_V_UNIT_CBG 65-200_catpart",
+            "instanceName": "1156",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1156"
+            ]
+          },
+          {
+            "id": "CAM_POSITIVE_RETRACTOR__catpart",
+            "name": "CAM_POSITIVE_RETRACTOR__catpart",
+            "instanceName": "1157",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1157"
+            ]
+          },
+          {
+            "id": "GAS_SPRNG_GSV 350-25_catpart",
+            "name": "GAS_SPRNG_GSV 350-25_catpart",
+            "instanceName": "1158",
+            "type": "Component",
+            "qty": 5,
+            "selected": true,
+            "instances": [
+              "1158",
+              "1138",
+              "1139",
+              "1140",
+              "1141"
+            ]
+          },
+          {
+            "id": "Gathered GAS_SPRNG_GSV 350-25 on UserPattern.9_catproduct",
+            "name": "Gathered GAS_SPRNG_GSV 350-25 on UserPattern.9_catproduct",
+            "instanceName": "1159",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1159"
+            ]
+          },
+          {
+            "id": "GAS SPRING HITTING BLK_catpart",
+            "name": "GAS SPRING HITTING BLK_catpart",
+            "instanceName": "1160",
+            "type": "Component",
+            "qty": 5,
+            "selected": true,
+            "instances": [
+              "1160",
+              "1134",
+              "1135",
+              "1136",
+              "1137"
+            ]
+          },
+          {
+            "id": "Gathered GAS SPRING HITTING BLK on UserPattern.2_catproduct",
+            "name": "Gathered GAS SPRING HITTING BLK on UserPattern.2_catproduct",
+            "instanceName": "1161",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1161"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM_POSITIVE_RETRACTOR__1_catpart",
+            "name": "Symmetry of CAM_POSITIVE_RETRACTOR__1_catpart",
+            "instanceName": "1162",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1162"
+            ]
+          },
+          {
+            "id": "CAM-1 DRIVER ASSLY_catproduct",
+            "name": "CAM-1 DRIVER ASSLY_catproduct",
+            "instanceName": "1164",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1164"
+            ]
+          },
+          {
+            "id": "CAM-1 DRIVER_catpart",
+            "name": "CAM-1 DRIVER_catpart",
+            "instanceName": "1129",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1129"
+            ]
+          },
+          {
+            "id": "CAM +VE RETRACTOR BLOCK_catpart",
+            "name": "CAM +VE RETRACTOR BLOCK_catpart",
+            "instanceName": "1130",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1130"
+            ]
+          },
+          {
+            "id": "WEAR PLATE MWF 100-200___catpart",
+            "name": "WEAR PLATE MWF 100-200___catpart",
+            "instanceName": "1131",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1131"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM +VE RETRACTOR BLOCK_1_catpart",
+            "name": "Symmetry of CAM +VE RETRACTOR BLOCK_1_catpart",
+            "instanceName": "1133",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1133"
+            ]
+          },
+          {
+            "id": "UPPER_ASSLY_catproduct",
+            "name": "UPPER_ASSLY_catproduct",
+            "instanceName": "1236",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1236"
+            ]
+          },
+          {
+            "id": "UPPER_SHOE_ASSLY_catproduct",
+            "name": "UPPER_SHOE_ASSLY_catproduct",
+            "instanceName": "1127",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1127"
+            ]
+          },
+          {
+            "id": "UPPER_SHOE_catpart",
+            "name": "UPPER_SHOE_catpart",
+            "instanceName": "1104",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1104"
+            ]
+          },
+          {
+            "id": "GUIDE BUSH_GBF__catpart",
+            "name": "GUIDE BUSH_GBF__catpart",
+            "instanceName": "1105",
+            "type": "Component",
+            "qty": 4,
+            "selected": true,
+            "instances": [
+              "1105",
+              "1101",
+              "1102",
+              "1103"
+            ]
+          },
+          {
+            "id": "Gathered GUIDE BUSH_GBF_ on UserPattern.2_catproduct",
+            "name": "Gathered GUIDE BUSH_GBF_ on UserPattern.2_catproduct",
+            "instanceName": "1106",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1106"
+            ]
+          },
+          {
+            "id": "PAD GUIDE PILLAR GPM 40--160_catpart",
+            "name": "PAD GUIDE PILLAR GPM 40--160_catpart",
+            "instanceName": "1107",
+            "type": "Component",
+            "qty": 4,
+            "selected": true,
+            "instances": [
+              "1107",
+              "1098",
+              "1099",
+              "1100"
+            ]
+          },
+          {
+            "id": "Gathered PAD GUIDE PILLAR GPM 40--160 on UserPattern.5_catproduct",
+            "name": "Gathered PAD GUIDE PILLAR GPM 40--160 on UserPattern.5_catproduct",
+            "instanceName": "1108",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1108"
+            ]
+          },
+          {
+            "id": "SPOOL RETAINER_CSRZ 35-_catpart",
+            "name": "SPOOL RETAINER_CSRZ 35-_catpart",
+            "instanceName": "1109",
+            "type": "Component",
+            "qty": 6,
+            "selected": true,
+            "instances": [
+              "1109",
+              "1095",
+              "1096",
+              "1097",
+              "1111",
+              "1094"
+            ]
+          },
+          {
+            "id": "Gathered SPOOL RETAINER_CSRZ 35- on UserPattern.8_catproduct",
+            "name": "Gathered SPOOL RETAINER_CSRZ 35- on UserPattern.8_catproduct",
+            "instanceName": "1110",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1110"
+            ]
+          },
+          {
+            "id": "Gathered SPOOL RETAINER_CSRZ 35- on UserPattern.9_catproduct",
+            "name": "Gathered SPOOL RETAINER_CSRZ 35- on UserPattern.9_catproduct",
+            "instanceName": "1112",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1112"
+            ]
+          },
+          {
+            "id": "CAM_GIB_PLATE 72-100_catpart",
+            "name": "CAM_GIB_PLATE 72-100_catpart",
+            "instanceName": "1113",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1113"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM_GIB_PLATE 72-100_catpart",
+            "name": "Symmetry of CAM_GIB_PLATE 72-100_catpart",
+            "instanceName": "1114",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1114"
+            ]
+          },
+          {
+            "id": "WP_STW_58_100_catpart",
+            "name": "WP_STW_58_100_catpart",
+            "instanceName": "1115",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1115"
+            ]
+          },
+          {
+            "id": "WP_STW_58_100__catpart",
+            "name": "WP_STW_58_100__catpart",
+            "instanceName": "1116",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1116"
+            ]
+          },
+          {
+            "id": "WP_STW_58_100___catpart",
+            "name": "WP_STW_58_100___catpart",
+            "instanceName": "1117",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1117"
+            ]
+          },
+          {
+            "id": "Symmetry of WP_STW_58_100_catpart",
+            "name": "Symmetry of WP_STW_58_100_catpart",
+            "instanceName": "1118",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1118"
+            ]
+          },
+          {
+            "id": "Symmetry of WP_STW_58_100__catpart",
+            "name": "Symmetry of WP_STW_58_100__catpart",
+            "instanceName": "1119",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1119"
+            ]
+          },
+          {
+            "id": "GAS_SPRNG_GSV 350-38_catpart",
+            "name": "GAS_SPRNG_GSV 350-38_catpart",
+            "instanceName": "1120",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1120"
+            ]
+          },
+          {
+            "id": "CAST LIFTER____63_catpart",
+            "name": "CAST LIFTER____63_catpart",
+            "instanceName": "1121",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1121"
+            ]
+          },
+          {
+            "id": "Symmetry of CAST LIFTER____63_catpart",
+            "name": "Symmetry of CAST LIFTER____63_catpart",
+            "instanceName": "1122",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1122",
+              "1123"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of CAST LIFTER____63_catpart",
+            "name": "Symmetry of Symmetry of CAST LIFTER____63_catpart",
+            "instanceName": "1124",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1124"
+            ]
+          },
+          {
+            "id": "GAS_SPRNG__GSV 350-50_catpart",
+            "name": "GAS_SPRNG__GSV 350-50_catpart",
+            "instanceName": "1125",
+            "type": "Component",
+            "qty": 9,
+            "selected": true,
+            "instances": [
+              "1125",
+              "1086",
+              "1087",
+              "1088",
+              "1089",
+              "1090",
+              "1091",
+              "1092",
+              "1093"
+            ]
+          },
+          {
+            "id": "Gathered GAS_SPRNG__GSV 350-50 on UserPattern.12_catproduct",
+            "name": "Gathered GAS_SPRNG__GSV 350-50 on UserPattern.12_catproduct",
+            "instanceName": "1126",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1126"
+            ]
+          },
+          {
+            "id": "UPPER_PAD_ASSLY_catproduct",
+            "name": "UPPER_PAD_ASSLY_catproduct",
+            "instanceName": "1128",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1128"
+            ]
+          },
+          {
+            "id": "UPPER_PAD_catpart",
+            "name": "UPPER_PAD_catpart",
+            "instanceName": "1081",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1081"
+            ]
+          },
+          {
+            "id": "GUIDE BUSH GBF 40_catpart",
+            "name": "GUIDE BUSH GBF 40_catpart",
+            "instanceName": "1082",
+            "type": "Component",
+            "qty": 4,
+            "selected": true,
+            "instances": [
+              "1082",
+              "1078",
+              "1079",
+              "1080"
+            ]
+          },
+          {
+            "id": "Gathered GUIDE BUSH GBF 40 on UserPattern.7_catproduct",
+            "name": "Gathered GUIDE BUSH GBF 40 on UserPattern.7_catproduct",
+            "instanceName": "1083",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1083"
+            ]
+          },
+          {
+            "id": "GAS SPRING HITTING BLK___catpart",
+            "name": "GAS SPRING HITTING BLK___catpart",
+            "instanceName": "1084",
+            "type": "Component",
+            "qty": 9,
+            "selected": true,
+            "instances": [
+              "1084",
+              "1070",
+              "1071",
+              "1072",
+              "1073",
+              "1074",
+              "1075",
+              "1076",
+              "1077"
+            ]
+          },
+          {
+            "id": "Gathered GAS SPRING HITTING BLK__ on UserPattern.3_catproduct",
+            "name": "Gathered GAS SPRING HITTING BLK__ on UserPattern.3_catproduct",
+            "instanceName": "1085",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1085"
+            ]
+          },
+          {
+            "id": "LOWER_ASSLY_catproduct",
+            "name": "LOWER_ASSLY_catproduct",
+            "instanceName": "1237",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1237"
+            ]
+          },
+          {
+            "id": "LOWER_SHOE_ASSLY_catproduct",
+            "name": "LOWER_SHOE_ASSLY_catproduct",
+            "instanceName": "1069",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1069"
+            ]
+          },
+          {
+            "id": "LOWER_SHOE_catpart",
+            "name": "LOWER_SHOE_catpart",
+            "instanceName": "1007",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1007"
+            ]
+          },
+          {
+            "id": "LOWER_STEEL_catpart",
+            "name": "LOWER_STEEL_catpart",
+            "instanceName": "1008",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1008"
+            ]
+          },
+          {
+            "id": "GAS_SPRNG_GSV 350-75_catpart",
+            "name": "GAS_SPRNG_GSV 350-75_catpart",
+            "instanceName": "1009",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1009"
+            ]
+          },
+          {
+            "id": "GUIDE PILLAR_GPM 60-_catpart",
+            "name": "GUIDE PILLAR_GPM 60-_catpart",
+            "instanceName": "1010",
+            "type": "Component",
+            "qty": 4,
+            "selected": true,
+            "instances": [
+              "1010",
+              "1004",
+              "1005",
+              "1006"
+            ]
+          },
+          {
+            "id": "WEAR PLATE_MWF 125-150_catpart",
+            "name": "WEAR PLATE_MWF 125-150_catpart",
+            "instanceName": "1011",
+            "type": "Component",
+            "qty": 3,
+            "selected": true,
+            "instances": [
+              "1011",
+              "1012",
+              "1013"
+            ]
+          },
+          {
+            "id": "Symmetry of WEAR PLATE_MWF 125-150_catpart",
+            "name": "Symmetry of WEAR PLATE_MWF 125-150_catpart",
+            "instanceName": "1014",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1014"
+            ]
+          },
+          {
+            "id": "Symmetry of WEAR PLATE_MWF 125-150_1_catpart",
+            "name": "Symmetry of WEAR PLATE_MWF 125-150_1_catpart",
+            "instanceName": "1015",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1015",
+              "1016"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of WEAR PLATE_MWF 125-150_catpart",
+            "name": "Symmetry of Symmetry of WEAR PLATE_MWF 125-150_catpart",
+            "instanceName": "1017",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1017"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of WEAR PLATE_MWF 125-150_1_catpart",
+            "name": "Symmetry of Symmetry of WEAR PLATE_MWF 125-150_1_catpart",
+            "instanceName": "1018",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1018"
+            ]
+          },
+          {
+            "id": "MWFT_75-125__catpart",
+            "name": "MWFT_75-125__catpart",
+            "instanceName": "1019",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1019"
+            ]
+          },
+          {
+            "id": "MWFT_75-125___catpart",
+            "name": "MWFT_75-125___catpart",
+            "instanceName": "1020",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1020"
+            ]
+          },
+          {
+            "id": "MWFT_75-150__catpart",
+            "name": "MWFT_75-150__catpart",
+            "instanceName": "1021",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1021"
+            ]
+          },
+          {
+            "id": "CAM_V_UNIT MALE_CBP 65-200_MISUMI__catpart",
+            "name": "CAM_V_UNIT MALE_CBP 65-200_MISUMI__catpart",
+            "instanceName": "1022",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1022"
+            ]
+          },
+          {
+            "id": "CAM_GIB_PLATE_77-150_catpart",
+            "name": "CAM_GIB_PLATE_77-150_catpart",
+            "instanceName": "1023",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1023"
+            ]
+          },
+          {
+            "id": "Symmetry of MWFT_75-200__catpart",
+            "name": "Symmetry of MWFT_75-200__catpart",
+            "instanceName": "1024",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1024",
+              "1027"
+            ]
+          },
+          {
+            "id": "Symmetry of MWFT_75-100_catpart",
+            "name": "Symmetry of MWFT_75-100_catpart",
+            "instanceName": "1025",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1025",
+              "1028"
+            ]
+          },
+          {
+            "id": "Symmetry of MWFT_75-125_catpart",
+            "name": "Symmetry of MWFT_75-125_catpart",
+            "instanceName": "1026",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1026",
+              "1029"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of MWFT_75-100_catpart",
+            "name": "Symmetry of Symmetry of MWFT_75-100_catpart",
+            "instanceName": "1030",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1030"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of MWFT_75-125_catpart",
+            "name": "Symmetry of Symmetry of MWFT_75-125_catpart",
+            "instanceName": "1031",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1031"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of MWFT_75-200__catpart",
+            "name": "Symmetry of Symmetry of MWFT_75-200__catpart",
+            "instanceName": "1032",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1032"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM_V_UNIT MALE_CBP 65-200_MISUMI__catpart",
+            "name": "Symmetry of CAM_V_UNIT MALE_CBP 65-200_MISUMI__catpart",
+            "instanceName": "1033",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1033"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM_GIB_PLATE_72-200_catpart",
+            "name": "Symmetry of CAM_GIB_PLATE_72-200_catpart",
+            "instanceName": "1034",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1034",
+              "1035"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of CAM_GIB_PLATE_72-200_catpart",
+            "name": "Symmetry of Symmetry of CAM_GIB_PLATE_72-200_catpart",
+            "instanceName": "1036",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1036"
+            ]
+          },
+          {
+            "id": "Symmetry of GAS_SPRNG_GSV 350-75_catpart",
+            "name": "Symmetry of GAS_SPRNG_GSV 350-75_catpart",
+            "instanceName": "1037",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1037",
+              "1038"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of GAS_SPRNG_GSV 350-75_catpart",
+            "name": "Symmetry of Symmetry of GAS_SPRNG_GSV 350-75_catpart",
+            "instanceName": "1039",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1039"
+            ]
+          },
+          {
+            "id": "CAST LIFTER__63_catpart",
+            "name": "CAST LIFTER__63_catpart",
+            "instanceName": "1040",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1040"
+            ]
+          },
+          {
+            "id": "Symmetry of CAST LIFTER__63_catpart",
+            "name": "Symmetry of CAST LIFTER__63_catpart",
+            "instanceName": "1041",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1041",
+              "1042"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of CAST LIFTER__63_catpart",
+            "name": "Symmetry of Symmetry of CAST LIFTER__63_catpart",
+            "instanceName": "1043",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1043"
+            ]
+          },
+          {
+            "id": "URETHENE STOCK BLOCK_USPHA 70-140_catpart",
+            "name": "URETHENE STOCK BLOCK_USPHA 70-140_catpart",
+            "instanceName": "1044",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1044"
+            ]
+          },
+          {
+            "id": "Symmetry of URETHENE STOCK BLOCK_USPHA 70-140_catpart",
+            "name": "Symmetry of URETHENE STOCK BLOCK_USPHA 70-140_catpart",
+            "instanceName": "1045",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1045",
+              "1046"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of URETHENE STOCK BLOCK_USPHA 70-140_catpart",
+            "name": "Symmetry of Symmetry of URETHENE STOCK BLOCK_USPHA 70-140_catpart",
+            "instanceName": "1047",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1047"
+            ]
+          },
+          {
+            "id": "CQ2G32-50DZ_0_0_0___SMC_catpart",
+            "name": "CQ2G32-50DZ_0_0_0___SMC_catpart",
+            "instanceName": "1048",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1048"
+            ]
+          },
+          {
+            "id": "CAM_GIB_PLATE_77-100__catpart",
+            "name": "CAM_GIB_PLATE_77-100__catpart",
+            "instanceName": "1049",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1049"
+            ]
+          },
+          {
+            "id": "Symmetry of CAM_GIB_PLATE_77-100__catpart",
+            "name": "Symmetry of CAM_GIB_PLATE_77-100__catpart",
+            "instanceName": "1050",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1050",
+              "1051"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of CAM_GIB_PLATE_77-100__catpart",
+            "name": "Symmetry of Symmetry of CAM_GIB_PLATE_77-100__catpart",
+            "instanceName": "1052",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1052"
+            ]
+          },
+          {
+            "id": "MWFT_75-100____catpart",
+            "name": "MWFT_75-100____catpart",
+            "instanceName": "1053",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1053"
+            ]
+          },
+          {
+            "id": "Symmetry of MWFT_75-100____catpart",
+            "name": "Symmetry of MWFT_75-100____catpart",
+            "instanceName": "1054",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1054",
+              "1055"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of MWFT_75-100____catpart",
+            "name": "Symmetry of Symmetry of MWFT_75-100____catpart",
+            "instanceName": "1056",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1056"
+            ]
+          },
+          {
+            "id": "TRANSPORT PLATE__catpart",
+            "name": "TRANSPORT PLATE__catpart",
+            "instanceName": "1057",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1057"
+            ]
+          },
+          {
+            "id": "Symmetry of TRANSPORT PLATE__catpart",
+            "name": "Symmetry of TRANSPORT PLATE__catpart",
+            "instanceName": "1058",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1058",
+              "1059"
+            ]
+          },
+          {
+            "id": "Symmetry of Symmetry of TRANSPORT PLATE__catpart",
+            "name": "Symmetry of Symmetry of TRANSPORT PLATE__catpart",
+            "instanceName": "1060",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1060"
+            ]
+          },
+          {
+            "id": "DIE BUTTON 20-16___MISUMI__catpart",
+            "name": "DIE BUTTON 20-16___MISUMI__catpart",
+            "instanceName": "1061",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1061"
+            ]
+          },
+          {
+            "id": "DIE BUTTON 20-16___MISUMI____catpart",
+            "name": "DIE BUTTON 20-16___MISUMI____catpart",
+            "instanceName": "1062",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1062"
+            ]
+          },
+          {
+            "id": "DIE BUTTON 20-16___MISUMI______catpart",
+            "name": "DIE BUTTON 20-16___MISUMI______catpart",
+            "instanceName": "1063",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1063"
+            ]
+          },
+          {
+            "id": "Gathered GUIDE PILLAR_GPM 60- on UserPattern.14_catproduct",
+            "name": "Gathered GUIDE PILLAR_GPM 60- on UserPattern.14_catproduct",
+            "instanceName": "1064",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1064"
+            ]
+          },
+          {
+            "id": "WP SEZ_48_100___catpart",
+            "name": "WP SEZ_48_100___catpart",
+            "instanceName": "1065",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1065"
+            ]
+          },
+          {
+            "id": "WP SEZ_48_100_catpart",
+            "name": "WP SEZ_48_100_catpart",
+            "instanceName": "1066",
+            "type": "Component",
+            "qty": 2,
+            "selected": true,
+            "instances": [
+              "1066",
+              "1068"
+            ]
+          },
+          {
+            "id": "Symmetry of WP SEZ_48_100___catpart",
+            "name": "Symmetry of WP SEZ_48_100___catpart",
+            "instanceName": "1067",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1067"
+            ]
+          },
+          {
+            "id": "1100591_____DATA_FROM_KALEES_03_02_26_catpart",
+            "name": "1100591_____DATA_FROM_KALEES_03_02_26_catpart",
+            "instanceName": "1239",
+            "type": "Component",
+            "qty": 1,
+            "selected": true,
+            "instances": [
+              "1239"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

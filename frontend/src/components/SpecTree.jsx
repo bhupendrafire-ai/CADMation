@@ -15,7 +15,7 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
         if (!treeData) return
         setIsGeneratingBOM(true)
         try {
-            const res = await fetch('/api/catia/bom/items')
+            const res = await fetch('/api/catia/bom/fast')
             const data = await res.json()
             if (data.error) {
                 onGenerateBOM?.([], data.error)

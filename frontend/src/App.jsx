@@ -3,6 +3,7 @@ import './App.css'
 import ChatWindow from './components/ChatWindow'
 import SpecTree from './components/SpecTree'
 import StatusIndicator from './components/StatusIndicator'
+import ChatSidebar from './components/ChatSidebar'
 
 function App() {
   const [isConnected, setIsConnected] = useState(false)
@@ -13,6 +14,12 @@ function App() {
 
   const [treeData, setTreeData] = useState(null)
   const [taggedNode, setTaggedNode] = useState(null)
+  
+  // Session / History Management
+  const [sessionId, setSessionId] = useState(null)
+  const [sessions, setSessions] = useState([])
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  
   const chatWindowRef = useRef(null)
 
   // Poll for CATIA connection status
@@ -31,8 +38,70 @@ function App() {
 
     checkStatus()
     const interval = setInterval(checkStatus, 5000)
+    
+    // History initialization
+    refreshSessions()
+    startNewSession()
+    
     return () => clearInterval(interval)
   }, [])
+
+  const refreshSessions = async () => {
+    try {
+      const res = await fetch('/api/chat/sessions')
+      const data = await res.json()
+      setSessions(data)
+    } catch (err) {
+      console.error("Failed to fetch sessions:", err)
+    }
+  }
+
+  const startNewSession = async () => {
+    try {
+      const res = await fetch('/api/chat/sessions/new', { method: 'POST' })
+      const data = await res.json()
+      setSessionId(data.session_id)
+      setMessages([
+        { role: 'ai', content: 'Ready to assist with your CATIA V5 sheet metal die design. What would you like to build today?' }
+      ])
+    } catch (err) {
+      console.error("Failed to create new session:", err)
+    }
+  }
+
+  const handleSelectSession = async (id) => {
+    try {
+      const res = await fetch(`/api/chat/sessions/${id}`)
+      const data = await res.json()
+      setSessionId(data.id)
+      setMessages(data.messages || [])
+    } catch (err) {
+      console.error("Failed to load session:", err)
+    }
+  }
+
+  // Autosave messages to backend whenever they change
+  useEffect(() => {
+    if (!sessionId || messages.length <= 1) return // Skip initial or empty
+
+    const timer = setTimeout(async () => {
+      try {
+        await fetch(`/api/chat/sessions/${sessionId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            messages,
+            last_doc: activeDoc
+          })
+        })
+        refreshSessions()
+      } catch (err) {
+        console.error("Autosave failed:", err)
+      }
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [messages, sessionId, activeDoc])
 
   const handleSendMessage = async (content) => {
     // Add user message immediately
@@ -45,6 +114,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: content,
+          session_id: sessionId,
           history: messages,
           tagged_node: taggedNode
         })
@@ -63,6 +133,8 @@ function App() {
       setMessages(prev => [...prev, aiMsg])
     } catch (err) {
       setMessages(prev => [...prev, { role: 'ai', content: "Sorry, I'm having trouble connecting to the backend." }])
+    } finally {
+      refreshSessions()
     }
   }
 
@@ -99,15 +171,28 @@ function App() {
       ...prev,
       {
         role: 'ai',
-        content: 'BOM draft loaded from the specification tree. Select items, approve or edit sizes, set heat treatment and machining stock, then export to Excel.',
-        bomEditor: { items },
+        content: 'I have scanned the active document (ignoring hidden items). Please select the items you wish to measure for the BOM:',
+        interactive: {
+          type: 'bom-selector',
+          items: items
+        },
       },
     ])
   }
 
   const handleUpdateBomMessage = (messageIndex, bomData) => {
     setMessages((prev) =>
-      prev.map((m, i) => (i === messageIndex && m.bomEditor ? { ...m, bomEditor: bomData } : m))
+      prev.map((m, i) => {
+        if (i === messageIndex) {
+          // If we are transitioning from selector to editor, clear interactive type
+          const nextMsg = { ...m, bomEditor: bomData };
+          if (nextMsg.interactive?.type === 'bom-selector') {
+             nextMsg.interactive = null;
+          }
+          return nextMsg;
+        }
+        return m;
+      })
     )
   }
 
@@ -188,6 +273,15 @@ function App() {
           onSendMessage={handleSendMessage}
           onUpdateBomMessage={handleUpdateBomMessage}
           onBomExport={handleBomExport}
+        />
+
+        <ChatSidebar
+          isOpen={isSidebarOpen}
+          onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+          sessions={sessions}
+          currentSessionId={sessionId}
+          onSelectSession={handleSelectSession}
+          onNewChat={startNewSession}
         />
       </main>
 

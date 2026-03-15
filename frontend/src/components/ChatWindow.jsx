@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import BOMEditor from './BOMEditor'
+import BOMSelectionList from './BOMSelectionList'
 
 const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, onBomExport }, ref) => {
     const [input, setInput] = useState('')
@@ -69,6 +70,18 @@ const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, on
                             />
                         )}
                         
+                        {msg.interactive && msg.interactive.type === 'bom-selector' && (
+                            <BOMSelectionList
+                                items={msg.interactive.items}
+                                onCalculationComplete={(results) => {
+                                    onUpdateBomMessage?.(i, {
+                                        items: results,
+                                        exporting: false
+                                    })
+                                }}
+                            />
+                        )}
+
                         {msg.interactive && msg.interactive.type === 'choice' && (
                             <div className="mt-4 flex flex-wrap gap-2 pt-4 border-t border-white/5">
                                 {msg.interactive.options.map((opt) => (

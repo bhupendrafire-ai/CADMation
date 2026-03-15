@@ -13,7 +13,9 @@ from typing import Optional, Dict, Any
 from app.services.catia_bridge import catia_bridge
 from app.services.tree_extractor import tree_extractor
 from app.services.llm_engine import llm_engine
+from app.services.history_service import history_service
 import logging
+import re
 from pycatia.mec_mod_interfaces.part import Part
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,7 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: str
     history: Optional[list] = []
     include_tree: bool = True
     tagged_node: Optional[Dict[str, Any]] = None
@@ -40,6 +43,31 @@ class ChatResponse(BaseModel):
 from app.services.skill_service import skill_service
 
 from app.services.memory_service import memory_service
+
+@router.get("/sessions")
+def list_sessions():
+    return history_service.list_sessions()
+
+@router.get("/sessions/{session_id}")
+def get_session(session_id: str):
+    session = history_service.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+class SessionUpdate(BaseModel):
+    messages: list
+    name: Optional[str] = None
+    last_doc: Optional[str] = None
+
+@router.put("/sessions/{session_id}")
+def update_session(session_id: str, update: SessionUpdate):
+    history_service.save_session(session_id, update.messages, last_doc=update.last_doc)
+    return {"status": "success"}
+
+@router.post("/sessions/new")
+def create_session():
+    return {"session_id": history_service.create_session()}
 
 @router.post("", response_model=ChatResponse)
 def chat(request: ChatRequest):
@@ -134,7 +162,7 @@ def chat(request: ChatRequest):
             ]
         }
 
-    return ChatResponse(
+    res = ChatResponse(
         reply=reply,
         code=code,
         executed=executed,
@@ -142,3 +170,19 @@ def chat(request: ChatRequest):
         output=output_text,
         interactive=interactive_feedback
     )
+
+    # 5. Persist History
+    try:
+        updated_history = request.history + [
+            {"role": "user", "content": request.message},
+            {"role": "ai", "content": reply, "interactive": interactive_feedback, "code": code, "executed": executed, "output": output_text}
+        ]
+        
+        # Determine current active document for naming
+        active_doc_name = catia_bridge.get_active_document_name()
+        
+        history_service.save_session(request.session_id, updated_history, last_doc=active_doc_name)
+    except Exception as e:
+        logger.error(f"Chat: Failed to persist history: {e}")
+
+    return res

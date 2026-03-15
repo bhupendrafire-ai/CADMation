@@ -1,0 +1,85 @@
+
+Sub CATMain()
+    On Error Resume Next
+    Dim outPath
+    outPath = "H:\\CADMation\\backend\\macro_out.txt"
+    
+    Dim fso, f
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set f = fso.CreateTextFile(outPath, True)
+    
+    Dim doc As Document
+    Set doc = CATIA.ActiveDocument
+    Dim root As Product
+    Set root = doc.Product
+    
+    Dim target As Product
+    Set target = FindTarget(root, "001_LOWER SHOE")
+    
+    If target Is Nothing Then
+        f.WriteLine "Target not found"
+        f.Close
+        Exit Sub
+    End If
+    
+    f.WriteLine "Target: " & target.Name
+    
+    Dim pDoc As Document
+    Set pDoc = target.ReferenceProduct.Parent
+    Dim p As Part
+    Set p = pDoc.Part
+    Dim spa
+    Set spa = pDoc.GetWorkbench("SPAWorkbench")
+    
+    Dim i, b, m, bbox(5), dx, dy, dz, vol
+    
+    f.WriteLine "Bodies: " & p.Bodies.Count
+    For i = 1 To p.Bodies.Count
+        Set b = p.Bodies.Item(i)
+        
+        Set m = spa.GetMeasurable(b)
+        If Err.Number <> 0 Then
+            Err.Clear
+            Dim ref
+            Set ref = p.CreateReferenceFromObject(b)
+            Set m = spa.GetMeasurable(ref)
+            If Err.Number <> 0 Then
+                f.WriteLine "[" & i & "] " & b.Name & " | GetMeasurable failed"
+                Err.Clear
+                GoTo NextBody
+            End If
+        End If
+        
+        vol = m.Volume
+        m.GetBoundaryBox bbox
+        If Err.Number <> 0 Then
+            f.WriteLine "[" & i & "] " & b.Name & " | Vol: " & vol & " | BBox failed"
+            Err.Clear
+        Else
+            dx = Abs(bbox(3) - bbox(0)) * 1000
+            dy = Abs(bbox(4) - bbox(1)) * 1000
+            dz = Abs(bbox(5) - bbox(2)) * 1000
+            f.WriteLine "[" & i & "] " & b.Name & " | Vol: " & vol & " | " & dx & " x " & dy & " x " & dz
+        End If
+NextBody:
+    Next
+    
+    f.Close
+End Sub
+
+Function FindTarget(pProd, name)
+    Dim i, child, res
+    If InStr(UCase(pProd.Name), UCase(name)) > 0 Then
+        Set FindTarget = pProd
+        Exit Function
+    End If
+    For i = 1 To pProd.Products.Count
+        Set child = pProd.Products.Item(i)
+        Set res = FindTarget(child, name)
+        If Not res Is Nothing Then
+            Set FindTarget = res
+            Exit Function
+        End If
+    Next
+    Set FindTarget = Nothing
+End Function

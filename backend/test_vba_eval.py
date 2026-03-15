@@ -1,0 +1,70 @@
+import win32com.client
+from app.services.catia_bridge import catia_bridge
+
+def vba_measure_eval():
+    caa = catia_bridge.get_application()
+    
+    script = """
+    Function CATMain()
+        Dim outStr
+        outStr = ""
+        On Error Resume Next
+        
+        Dim doc As Document
+        Set doc = CATIA.ActiveDocument
+        Dim root As Product
+        Set root = doc.Product
+        
+        Dim target As Product
+        Set target = root.Products.Item("001_LOWER SHOE .1")
+        
+        If target Is Nothing Then
+            CATMain = "Not found"
+            Exit Function
+        End If
+        
+        Dim pDoc As Document
+        Set pDoc = target.ReferenceProduct.Parent
+        Dim p As Part
+        Set p = pDoc.Part
+        Dim spa
+        Set spa = pDoc.GetWorkbench("SPAWorkbench")
+        
+        outStr = "Bodies: " & CStr(p.Bodies.Count) & vbCrLf
+        
+        Dim i, b, m, bbox(5), dx, dy, dz
+        
+        For i = 1 To p.Bodies.Count
+            Set b = p.Bodies.Item(i)
+            Err.Clear
+            Set m = spa.GetMeasurable(b)
+            If Err.Number <> 0 Then
+                Err.Clear
+                Dim ref
+                Set ref = p.CreateReferenceFromObject(b)
+                Set m = spa.GetMeasurable(ref)
+            End If
+            
+            If Err.Number = 0 Then
+                Err.Clear
+                m.GetBoundaryBox bbox
+                If Err.Number = 0 Then
+                    dx = Abs(bbox(3) - bbox(0)) * 1000
+                    dy = Abs(bbox(4) - bbox(1)) * 1000
+                    dz = Abs(bbox(5) - bbox(2)) * 1000
+                    outStr = outStr & "[" & CStr(i) & "] " & b.Name & " : " & CStr(Round(dx,1)) & " x " & CStr(Round(dy,1)) & " x " & CStr(Round(dz,1)) & vbCrLf
+                End If
+            End If
+        Next
+        
+        CATMain = outStr
+    End Function
+    """
+    
+    try:
+        res = caa.SystemService.Evaluate(script, 1, "CATMain", []) # 1 = CATScriptLanguage
+        print(f"Result:\n{res}")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+vba_measure_eval()

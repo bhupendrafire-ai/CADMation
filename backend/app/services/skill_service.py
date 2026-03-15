@@ -90,14 +90,14 @@ class SkillService:
         return SkillResult(reply=reply, interactive=interactive)
 
     def _skill_bom(self, args: List[str]) -> SkillResult:
+        from app.services.bom_service import bom_service
+        items = bom_service.get_bom_fast_list()
+        
         return SkillResult(
-            reply="### 📊 BOM Skill\nExtracted Bill of Materials data is ready. Would you like to export it to Excel?",
+            reply="### 📊 BOM Extraction\nI've found the following items in your current assembly. Please select the ones you want to calculate dimensions for:",
             interactive={
-                "type": "choice",
-                "options": [
-                    {"id": "export_excel", "label": "Export to Excel", "primary": True},
-                    {"id": "view_table", "label": "View in UI", "primary": False}
-                ]
+                "type": "bom-selector",
+                "items": items
             }
         )
 

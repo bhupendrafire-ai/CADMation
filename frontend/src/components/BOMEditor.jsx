@@ -71,9 +71,9 @@ export default function BOMEditor({ items: initialItems, onItemsChange, onExport
     const newItem = {
       id: `new-${Date.now()}`,
       _rowId: items.length + 1,
-      name: 'New Part',
+      name: 'New Instance',
       partNumber: 'New Part',
-      description: 'New Part',
+      instanceName: 'New Instance',
       material: 'STEEL',
       size: '',
       heatTreatment: 'NONE',
@@ -188,7 +188,8 @@ export default function BOMEditor({ items: initialItems, onItemsChange, onExport
           <thead className="sticky top-0 bg-black/40 z-10">
             <tr className="border-b border-white/10">
               <th className="text-left py-2 px-2 w-8">Include</th>
-              <th className="text-left py-2 px-2 min-w-[140px]">Part / Description</th>
+              <th className="text-left py-2 px-2 min-w-[140px]">Instance Name</th>
+              <th className="text-left py-2 px-2 min-w-[120px]">Part Number</th>
               <th className="text-left py-2 px-2 w-20">Type</th>
               <th className="text-left py-2 px-2 min-w-[120px]">Size (mm)</th>
               <th className="text-left py-2 px-2 min-w-[90px]">Heat treatment</th>
@@ -212,8 +213,11 @@ export default function BOMEditor({ items: initialItems, onItemsChange, onExport
                     className="rounded border-white/20"
                   />
                 </td>
-                <td className="py-1 px-2 font-mono truncate max-w-[180px]" title={row.name}>
-                  {row.name}
+                <td className="py-1 px-2 font-mono truncate max-w-[180px]" title={row.instanceName || row.name}>
+                  {row.instanceName || row.name}
+                </td>
+                <td className="py-1 px-2 font-mono truncate max-w-[150px]" title={row.partNumber}>
+                  {row.partNumber}
                 </td>
 
                 {/* STD / MFG toggle button — switches classification on click */}

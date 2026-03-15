@@ -47,12 +47,18 @@ class CATIABridge:
             return None
 
     def get_active_document_name(self) -> str | None:
-        """Returns the name of the active document or None."""
+        """Returns the display name of the active document (window caption)."""
         caa = self.get_application()
         if not caa:
             return None
         
         try:
+            # Prefer Window Caption as it shows the true filename for imports (e.g. .stp)
+            try:
+                caption = caa.ActiveWindow.Caption
+                if caption: return caption
+            except: pass
+            
             return caa.ActiveDocument.Name
         except Exception:
             return "No Active Document"

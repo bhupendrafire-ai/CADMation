@@ -1,0 +1,622 @@
+{
+  "id": "d163b7e3-0fc0-4c19-81e0-a4869a05941a",
+  "name": "D29006420820351.stp",
+  "last_doc": "D29006420820351.stp",
+  "updated_at": "2026-03-15T19:15:38.930307",
+  "messages": [
+    {
+      "role": "ai",
+      "content": "Ready to assist with your CATIA V5 sheet metal die design. What would you like to build today?"
+    },
+    {
+      "role": "ai",
+      "content": "I have scanned the active document (ignoring hidden items). Please select the items you wish to measure for the BOM:",
+      "interactive": null,
+      "bomEditor": {
+        "items": [
+          {
+            "id": 1,
+            "name": "NE1520L00000",
+            "partNumber": "NE1520L00000",
+            "instanceName": "NE1520_LOWER_ASSEMBLY.1",
+            "size": "Not Measurable",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 2,
+            "name": "NE1520DA01",
+            "partNumber": "NE1520DA01",
+            "instanceName": "NE1520_ADAPTER_LOWER_ASSEMBLY",
+            "size": "Not Measurable",
+            "qty": 2,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 3,
+            "name": "NE1520L10000",
+            "partNumber": "NE1520L10000",
+            "instanceName": "NE1520_LOWER_SHOE",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 4,
+            "name": "NE152000C001",
+            "partNumber": "NE152000C001",
+            "instanceName": "NE1520_LOWER_CASTING",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 5,
+            "name": "NE1520L11000",
+            "partNumber": "NE1520L11000",
+            "instanceName": "LWR_MANUFACTURING_PART_ASSEM",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 6,
+            "name": "NE152000201",
+            "partNumber": "NE152000201",
+            "instanceName": "LOWER STEEL 01",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 7,
+            "name": "NE152000202",
+            "partNumber": "NE152000202",
+            "instanceName": "LWR_STEEL_02",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 8,
+            "name": "NE152000203",
+            "partNumber": "NE152000203",
+            "instanceName": "LWR_STEEL_03",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 9,
+            "name": "NE152000204",
+            "partNumber": "NE152000204",
+            "instanceName": "LOWER_STEEL_04",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 10,
+            "name": "NE1520L12000",
+            "partNumber": "NE1520L12000",
+            "instanceName": "LWR_STD_PART_ASSEM",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 11,
+            "name": "NE152000212",
+            "partNumber": "NE152000212",
+            "instanceName": "BOTTOMING_BLK.1",
+            "size": "Unknown",
+            "qty": 3,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 12,
+            "name": "NE152000213",
+            "partNumber": "NE152000213",
+            "instanceName": "KEEPER_PLATE.1",
+            "size": "Unknown",
+            "qty": 2,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 13,
+            "name": "NE152000500",
+            "partNumber": "NE152000500",
+            "instanceName": "WEAR_PLATE.1",
+            "size": "Unknown",
+            "qty": 2,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 14,
+            "name": "NE1520L12100",
+            "partNumber": "NE1520L12100",
+            "instanceName": "NE1520L12100.1",
+            "size": "Unknown",
+            "qty": 4,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 15,
+            "name": "NE152000900",
+            "partNumber": "NE152000900",
+            "instanceName": "STACKING_BLK.1",
+            "size": "Unknown",
+            "qty": 4,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 16,
+            "name": "NE152000214",
+            "partNumber": "NE152000214",
+            "instanceName": "STACKER_PIN.1",
+            "size": "Unknown",
+            "qty": 4,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 17,
+            "name": "NE1520D0018",
+            "partNumber": "NE1520D0018",
+            "instanceName": "NE1520D0018.1",
+            "size": "Unknown",
+            "qty": 4,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 18,
+            "name": "NE1520D0008",
+            "partNumber": "NE1520D0008",
+            "instanceName": "NE1520D008.1",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 19,
+            "name": "NE1520D007",
+            "partNumber": "NE1520D007",
+            "instanceName": "NE1520D007.1",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 20,
+            "name": "NE152000215",
+            "partNumber": "NE152000215",
+            "instanceName": "TRANSPORT_PLATE.1",
+            "size": "Unknown",
+            "qty": 4,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 21,
+            "name": "NE152000216",
+            "partNumber": "NE152000216",
+            "instanceName": "NE152000216.1",
+            "size": "Unknown",
+            "qty": 2,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 22,
+            "name": "NE1520D006",
+            "partNumber": "NE1520D006",
+            "instanceName": "NE1520D006.1",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 23,
+            "name": "NE1520D010",
+            "partNumber": "NE1520D010",
+            "instanceName": "TATA LOGO.1",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 24,
+            "name": "NE1520D012",
+            "partNumber": "NE1520D012",
+            "instanceName": "TATA LOGO.2",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 25,
+            "name": "NE152000L11000",
+            "partNumber": "NE152000L11000",
+            "instanceName": "GAUGE_FABRICATION_ASSEMBLY.1",
+            "size": "Unknown",
+            "qty": 4,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 26,
+            "name": "NE152000217",
+            "partNumber": "NE152000217",
+            "instanceName": "GAUGE_BLK",
+            "size": "Unknown",
+            "qty": 4,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 27,
+            "name": "NE152000218",
+            "partNumber": "NE152000218",
+            "instanceName": "GAUGE_PLATE",
+            "size": "Unknown",
+            "qty": 4,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 28,
+            "name": "NE1520L20000",
+            "partNumber": "NE1520L20000",
+            "instanceName": "LOWER_PAD_ASM",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 29,
+            "name": "NE152000C005",
+            "partNumber": "NE152000C005",
+            "instanceName": "LOWER_PAD_CASTING",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 30,
+            "name": "NE152000205",
+            "partNumber": "NE152000205",
+            "instanceName": "LWR_PAD_STEEL_01.1",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 31,
+            "name": "NE152000206",
+            "partNumber": "NE152000206",
+            "instanceName": "LWR_PAD_STEEL_02.2",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 32,
+            "name": "NE1520L21000",
+            "partNumber": "NE1520L21000",
+            "instanceName": "LWR_PAD_STD_PART_ASM",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 33,
+            "name": "NE152000901",
+            "partNumber": "NE152000901",
+            "instanceName": "CUSHION.1",
+            "size": "Unknown",
+            "qty": 4,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 34,
+            "name": "NE152000501",
+            "partNumber": "NE152000501",
+            "instanceName": "NE000000501.1",
+            "size": "Unknown",
+            "qty": 6,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 35,
+            "name": "NE15200XXX",
+            "partNumber": "NE15200XXX",
+            "instanceName": "START_PART_LOWER",
+            "size": "Unknown",
+            "qty": 2,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 36,
+            "name": "NE152002XX",
+            "partNumber": "NE152002XX",
+            "instanceName": "START_PART_FABRICATION",
+            "size": "Unknown",
+            "qty": 2,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 37,
+            "name": "NE1520U00000",
+            "partNumber": "NE1520U00000",
+            "instanceName": "N1520_UPPER_ASSEMBLY.1",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 38,
+            "name": "NE1520D003",
+            "partNumber": "NE1520D003",
+            "instanceName": "NE00000U11000_ADAPTER_UPPER_ASSEMBLY",
+            "size": "Unknown",
+            "qty": 3,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 39,
+            "name": "NE1520U10000",
+            "partNumber": "NE1520U10000",
+            "instanceName": "N1520_UPPER_SHOE",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 40,
+            "name": "NE152000C002",
+            "partNumber": "NE152000C002",
+            "instanceName": "NE1520_UPPER_CASTING",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 41,
+            "name": "NE1520U11000",
+            "partNumber": "NE1520U11000",
+            "instanceName": "UPR_MANUFACTURING_PART_ASSEM",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 42,
+            "name": "NE152000207",
+            "partNumber": "NE152000207",
+            "instanceName": "UPR_STEEL_01",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 43,
+            "name": "NE152000208",
+            "partNumber": "NE152000208",
+            "instanceName": "UPR_STEEL_02",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 44,
+            "name": "NE152000209",
+            "partNumber": "NE152000209",
+            "instanceName": "UPR_STEEL_03",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 45,
+            "name": "NE152000210",
+            "partNumber": "NE152000210",
+            "instanceName": "UPR_STEEL_04",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 46,
+            "name": "NE152000223",
+            "partNumber": "NE152000223",
+            "instanceName": "GAS SPRING BACK PLATE",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 47,
+            "name": "NE1520U13000",
+            "partNumber": "NE1520U13000",
+            "instanceName": "UPR_STD PART_ASSLM.1",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 48,
+            "name": "NE1520U12300",
+            "partNumber": "NE1520U12300",
+            "instanceName": "GAS_SPRING_ASSY.1",
+            "size": "Unknown",
+            "qty": 2,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 49,
+            "name": "NE152000502",
+            "partNumber": "NE152000502",
+            "instanceName": "GAS_SPRING_UDF.1",
+            "size": "Unknown",
+            "qty": 2,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 50,
+            "name": "NE152000219",
+            "partNumber": "NE152000219",
+            "instanceName": "NON STD KEY-01.1",
+            "size": "Unknown",
+            "qty": 3,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 51,
+            "name": "NE152000220",
+            "partNumber": "NE152000220",
+            "instanceName": "NON STD KEY-02",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 52,
+            "name": "NE152000503",
+            "partNumber": "NE152000503",
+            "instanceName": "WEAR PLATE.1",
+            "size": "Unknown",
+            "qty": 4,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 53,
+            "name": "NE152000221",
+            "partNumber": "NE152000221",
+            "instanceName": "SETTING_PLATE.1",
+            "size": "Unknown",
+            "qty": 4,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 54,
+            "name": "NE1520D019",
+            "partNumber": "NE1520D019",
+            "instanceName": "NAME_PLATE",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 55,
+            "name": "NE1520D020",
+            "partNumber": "NE1520D020",
+            "instanceName": "TATA LOGO.3",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 56,
+            "name": "NE1520D021",
+            "partNumber": "NE1520D021",
+            "instanceName": "TATA LOGO.4",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 57,
+            "name": "NE152000504",
+            "partNumber": "NE152000504",
+            "instanceName": "2480.022.01500.1",
+            "size": "Unknown",
+            "qty": 2,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 58,
+            "name": "NE1520U20000",
+            "partNumber": "NE1520U20000",
+            "instanceName": "NE1520_UPPER_PAD",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 59,
+            "name": "NE152000222",
+            "partNumber": "NE152000222",
+            "instanceName": "UPPER_PAD",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          },
+          {
+            "id": 60,
+            "name": "NE152000211",
+            "partNumber": "NE152000211",
+            "instanceName": "UPR_PAD_STEEL_01",
+            "size": "Unknown",
+            "qty": 1,
+            "material": "STEEL",
+            "isStd": false
+          }
+        ],
+        "exporting": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+               0                         1                         2        3                4              5   6
+BOM  —  MFG ITEM                       NaN                       NaN      NaN              NaN            NaN NaN
+        ITEM NO.               DESCRIPTION               PART NUMBER MATERIAL             SIZE HEAT TREATMENT QTY
+             100              MAN ASSEMBLY              MAN ASSEMBLY    STEEL   100 x 100 x 40           NONE   1
+             101            LOWER ASSEMBLY            LOWER ASSEMBLY    STEEL   100 x 100 x 40           NONE   1
+             102            001_LOWER SHOE            001_LOWER SHOE    STEEL 1090 x 910 x 320           NONE   1
+             103              LWR STD PART              LWR STD PART    STEEL   100 x 100 x 40           NONE   1
+             105   614-TRANSPORTAION STRAP   614-TRANSPORTAION STRAP    STEEL    10 x 40 x 200           NONE   4
+             106      000_LIFTER_DIA_100MM      000_LIFTER_DIA_100MM    STEEL   100 x 100 x 40           NONE   4
+             110          LWR NON STD PART          LWR NON STD PART    STEEL   100 x 100 x 40           NONE   1
+             111 000_LOWER_FLANGE_STEEL_01 000_LOWER_FLANGE_STEEL_01    STEEL  150 x 100 x 145           NONE   1
+             112 000_LOWER_FLANGE_STEEL_02 000_LOWER_FLANGE_STEEL_02    STEEL  140 x 100 x 145           NONE   1
+             113 000_LOWER_FLANGE_STEEL_03 000_LOWER_FLANGE_STEEL_03    STEEL   75 x 180 x 110           NONE   1
+             114 000_LOWER_FLANGE_STEEL_04 000_LOWER_FLANGE_STEEL_04    STEEL   85 x 180 x 110           NONE   1
+             119      ASSY_LOWER_PAD_ST_01      ASSY_LOWER_PAD_ST_01    STEEL   100 x 100 x 40           NONE   1
+             120       002_LOWER_PAD_ST_01       002_LOWER_PAD_ST_01    STEEL  213 x 522 x 192           NONE   1
+             121       LOWER PAD STD PARTS       LOWER PAD STD PARTS    STEEL   100 x 100 x 40           NONE   1
+             122         LOWER PAD ADAPTER         LOWER PAD ADAPTER    STEEL   75 x 180 x 110           NONE   2
+             125   LOWER PAD NON STD PARTS   LOWER PAD NON STD PARTS    STEEL   100 x 100 x 40           NONE   1
+             126             HITTING BLOCK             HITTING BLOCK    STEEL  DIA 55.0 x 20.0           NONE   4
+             127        509_PART GAUGE PIN        509_PART GAUGE PIN    STEEL  DIA 10.0 x 35.0           NONE   2
+             128            UPPER ASSEMBLY            UPPER ASSEMBLY    STEEL   100 x 100 x 40           NONE   1
+             129            002_UPPER SHOE            002_UPPER SHOE    STEEL 1090 x 910 x 365           NONE   1
+             130              UPR STD PART              UPR STD PART    STEEL   100 x 100 x 40           NONE   1
+             132      716_02_SETTING PLATE      716_02_SETTING PLATE    STEEL     50 x 95 x 20           NONE   4
+             133          UPR NON STD PART          UPR NON STD PART    STEEL   100 x 100 x 40           NONE   1
+             134 203_UPPER_FLANGE_STEEL_01 203_UPPER_FLANGE_STEEL_01    STEEL  150 x 100 x 145           NONE   1
+             135 204_UPPER_FLANGE_STEEL_02 204_UPPER_FLANGE_STEEL_02    STEEL  160 x 310 x 163           NONE   1
+             136  000_EJECTION PIN NON STD  000_EJECTION PIN NON STD    STEEL  DIA 20.0 x 82.0           NONE   2
+             137                  Product1                  Product1    STEEL   100 x 100 x 40           NONE   1
+             138                     Part1                     Part1    STEEL   75 x 180 x 110           NONE   1
