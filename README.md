@@ -9,14 +9,15 @@ Local AI copilot for CATIA V5 sheet metal design.
 - **Session Memory**: Multi-turn conversation support for complex design workflows.
 - **Standalone Executable**: Single-file distribution for easy local use.
 - **Accurate BOM Extraction (v2.0.0)**: Multi-body bounding box union for precise stock sizes, including CATProduct sub-assembly support and hyper-robust SPA tracking.
+- **Elective Measurement Methods (v2.1.0)**: Choose between high-speed **Rough Stock** scraping and robust **STL (Nuclear)** isolation directly in the BOM list.
+- **Stability and Accuracy (v2.2.0)**: Fixed critical WebSocket crashes, corrected STL bounding box calculation logic, and added robust fallback search for deep assemblies.
 - **Robust Part Identification**: Improved PartNumber resolution using reference document names to prevent mismatches from duplicate instance naming.
-- **Improved Measurement Reliability (v2.0.0)**: Non-destructive "Context Breaker" strategy for reliable STEP file measurement without session corruption.
 - **STD/MFG Classification**: Toggle parts as Standard or Manufactured in the BOM editor; exports to separate Excel worksheets.
 
 ## Installation
 1. Ensure **CATIA V5** is installed and running.
-2. Download the latest `CADMation_Copilot.exe` from the Releases (or build it yourself).
-3. Run the executable and open `http://localhost:8000` in your browser.
+2. Download the latest standalone exe from Releases (or build it yourself).
+3. Run the executable. It will start the local server and open the UI automatically.
 
 ## Development
 ### Backend
@@ -31,6 +32,11 @@ Local AI copilot for CATIA V5 sheet metal design.
 1. `cd frontend`
 2. `npm install`
 3. Run: `npm run dev`
+
+## Building a Standalone EXE
+- Build the frontend: `cd frontend` → `npm run build`
+- Build the EXE: `cd backend` → `python build_standalone_exe.py`
+- Output: `dist/CADMation_Standalone.exe`
 
 ## License
 MIT

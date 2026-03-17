@@ -8,7 +8,13 @@ CATIA integration endpoints.
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.services.catia_bridge import catia_bridge
 import json
+import logging
 import asyncio
+
+# Per-item measurement timeout (seconds); prevents hanging on Rough Stock / CATIA Search
+BOM_MEASURE_TIMEOUT = 90
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/catia", tags=["CATIA"])
 
@@ -94,33 +100,88 @@ def create_drawing(part_name: str = None):
     """Triggers the creation of an automated 2D drawing for the active Part."""
     return drafting_service.create_automated_drawing(part_name)
 
+def _resolve_product_for_measure(product, part_number: str, instance_name: str):
+    """Resolve to a single instance; never return an assembly when multiple instances of same part exist."""
+    try:
+        if not hasattr(product, "Products") or product.Products.Count == 0:
+            return product
+        pn = (getattr(product, "PartNumber", "") or "").strip()
+        name = getattr(product, "Name", "") or ""
+        if pn == part_number and name == instance_name:
+            return product
+        first_matching = None
+        for i in range(1, product.Products.Count + 1):
+            child = product.Products.Item(i)
+            try:
+                c_pn = (getattr(child, "PartNumber", "") or "").strip()
+                c_name = getattr(child, "Name", "") or ""
+                if c_pn == part_number:
+                    if first_matching is None:
+                        first_matching = child
+                    if c_name == instance_name or not instance_name:
+                        return child
+                if hasattr(child, "Products") and child.Products.Count > 0:
+                    deeper = _resolve_product_for_measure(child, part_number, instance_name)
+                    if deeper is not None:
+                        return deeper
+            except Exception:
+                continue
+        return first_matching if first_matching is not None else product
+    except Exception:
+        return product
+
+
 @router.websocket("/bom/calculate/ws")
 async def bom_calculate_ws(websocket: WebSocket):
     await websocket.accept()
+    cancelled_ref = [False]
+    disconnect_task = None
+
+    async def wait_for_disconnect():
+        try:
+            while not cancelled_ref[0]:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            cancelled_ref[0] = True
+            logger.info("BOM calculate: client disconnected (cancel).")
+
     try:
         data = await websocket.receive_text()
         payload = json.loads(data)
-        # payload expected: { "items": [ { "id": "PART_REF", "qty": 5, "instances": [...] }, ... ] }
+        # payload expected: { "items": [...], "method": "STL" | "ROUGH_STOCK" }
         selected_items = payload.get("items", [])
+        method = payload.get("method", "AUTO")
         
         if not selected_items:
             await websocket.send_text(json.dumps({"error": "No items selected"}))
             await websocket.close()
             return
 
+        disconnect_task = asyncio.create_task(wait_for_disconnect())
         caa = catia_bridge.get_application()
         
         results = []
+        retry_candidates = []
         total = len(selected_items)
-        measurement_cache = {} # Cache bounding boxes by Part Number
+        
+        from app.services.geometry_service import geometry_service
+        geometry_service.clear_cache()
+        
+        measurement_cache = {}
         
         for idx, item in enumerate(selected_items):
+            if cancelled_ref[0]:
+                break
             # Refresh doc reference in case user switched windows
             doc = caa.ActiveDocument
             
             item_id = item.get("id")
             qty = item.get("qty", 1)
-            instance_name = item.get("instanceName") or item.get("instances", [f"{item_id}.1"])[0] 
+            instances = item.get("instances") or []
+            instance_name = item.get("instanceName") or (item.get("instances") or [f"{item_id}.1"])[0]
+            effective_method = method
+            if method in ("ROUGH_STOCK", "AUTO") and (qty > 1 or len(instances) > 1):
+                effective_method = "STL"
             
             progress = int(((idx + 1) / total) * 100)
             
@@ -128,12 +189,12 @@ async def bom_calculate_ws(websocket: WebSocket):
             bom_service._log_op(msg)
             await websocket.send_text(json.dumps({"progress": progress, "log": msg}))
             
-            # Check cache first
-            if item_id in measurement_cache:
+            cache_key = f"{item_id}|{instance_name}|{effective_method}"
+            if cache_key in measurement_cache:
                 msg = f"-> Using cached data for {item_id}"
                 bom_service._log_op(msg)
                 await websocket.send_text(json.dumps({"log": msg}))
-                bbox = measurement_cache[item_id]
+                bbox = measurement_cache[cache_key]
             else:
                 # Find and measure
                 bbox = {"stock_size": "Unknown"}
@@ -142,45 +203,67 @@ async def bom_calculate_ws(websocket: WebSocket):
                     if ".CATPART" in doc.Name.upper():
                         obj = doc
                     else:
-                        def find_obj(p, name):
-                            p_name = getattr(p, "Name", "")
-                            p_pn = ""
-                            try: p_pn = p.PartNumber
-                            except: pass
-                            
-                            # Exact Name or Part Number match
-                            if p_name == name or p_pn == name: return p
-                            # Partial match (heuristic)
-                            if name in p_name: return p
-                            
+                        sel = caa.ActiveDocument.Selection
+                        sel.Clear()
+                        try:
+                            search_query = f"Product.'Part Number'='{item_id}',all"
+                            sel.Search(search_query)
+                            if sel.Count > 0:
+                                obj = sel.Item(1).Value
+                                for i in range(1, sel.Count + 1):
+                                    test_obj = sel.Item(i).Value
+                                    if test_obj.Name == instance_name:
+                                        obj = test_obj
+                                        break
+                                # If we got an assembly, resolve to the specific part so we don't measure full assembly
+                                obj = _resolve_product_for_measure(obj, item_id, instance_name)
+                        except Exception as se:
+                            logger.warning(f"Search failed for {item_id}: {se}")
                             try:
-                                for i in range(1, p.Products.Count + 1):
-                                    res = find_obj(p.Products.Item(i), name)
-                                    if res: return res
-                            except: pass
-                            return None
-                        
-                        # First try exact instance name
-                        obj = find_obj(doc.Product, instance_name)
-                        if not obj:
-                            # Then try part number
-                            obj = find_obj(doc.Product, item_id)
+                                fallback_queries = []
+                                if instance_name:
+                                    fallback_queries.append(f"Name='*{instance_name}*',all")
+                                fallback_queries.append(f"Name='*{item_id}*',all")
+                                for search_query in fallback_queries:
+                                    sel.Clear()
+                                    logger.info(f"Fallback search: {search_query}")
+                                    sel.Search(search_query)
+                                    if sel.Count > 0:
+                                        obj = sel.Item(1).Value
+                                        obj = _resolve_product_for_measure(obj, item_id, instance_name)
+                                        logger.info(f"Fallback found {sel.Count} items, picked {obj.Name}")
+                                        break
+                            except Exception as fe:
+                                logger.error(f"Fallback search also failed: {fe}")
                     
                     if obj:
-                        msg = f"-> Resolved {item_id} to {obj.Name}. Measuring..."
+                        try:
+                            resolved_name = getattr(obj, "Name", None) or instance_name
+                        except Exception:
+                            resolved_name = instance_name
+                        if effective_method != method:
+                            msg = (
+                                f"-> Grouped duplicates detected for {item_id}; "
+                                f"using {effective_method} to avoid combined Rough Stock."
+                            )
+                            bom_service._log_op(msg)
+                            await websocket.send_text(json.dumps({"log": msg}))
+                        msg = f"-> Resolved {item_id} to {resolved_name}. Measuring..."
                         bom_service._log_op(msg)
                         await websocket.send_text(json.dumps({"log": msg}))
-                        
-                        from app.services.geometry_service import geometry_service
-                        bbox = geometry_service.get_bounding_box(obj, fast_mode=False)
-                        
-                        measurement_cache[item_id] = bbox
+                        # NOTE: _resolve_to_part can block on some COM objects; GeometryService resolves internally.
+                        try:
+                            bbox = geometry_service.get_bounding_box(obj, method=effective_method, fast_mode=False) or {"stock_size": "Not Measurable"}
+                        except Exception as e:
+                            msg = f"-> Error measuring {item_id}: {e}"
+                            bom_service._log_op(msg)
+                            await websocket.send_text(json.dumps({"log": msg}))
+                            bbox = {"stock_size": "Not Measurable"}
+                        measurement_cache[cache_key] = bbox
                         res_size = bbox.get('stock_size', 'Not Measurable')
                         msg = f"-> Result for {item_id}: {res_size}"
-                        
                         if "Fallback" in res_size or "Not Measurable" in res_size:
-                            msg = f"-> WARNING: Measurement failed for {item_id} (Resolved to {obj.Name})."
-                        
+                            msg = f"-> WARNING: Measurement failed for {item_id} (Resolved to {resolved_name})."
                         bom_service._log_op(msg)
                         await websocket.send_text(json.dumps({"log": msg}))
                     else:
@@ -193,24 +276,35 @@ async def bom_calculate_ws(websocket: WebSocket):
                     bom_service._log_op(msg)
                     await websocket.send_text(json.dumps({"log": msg}))
             
-            results.append({
-                "id": idx + 1,
-                "name": item_id,
-                "partNumber": item_id,
-                "instanceName": instance_name,
-                "size": bbox.get("stock_size", "Not Measurable"),
-                "qty": qty,
-                "material": "STEEL",
-                "isStd": any(x in item_id.upper() for x in ("MISUMI", "DIN", "ISO", "STANDARD"))
-            })
+            measured_row = bom_service.build_measured_row(
+                {
+                    **item,
+                    "id": idx + 1,
+                    "name": item_id,
+                    "partNumber": item.get("partNumber", item_id),
+                    "instanceName": instance_name,
+                    "qty": qty,
+                    "instances": instances,
+                },
+                bbox,
+                effective_method,
+            )
+            results.append(measured_row)
+            if (
+                effective_method == "ROUGH_STOCK"
+                and bbox.get("stock_size", "Not Measurable") == "Not Measurable"
+            ):
+                retry_candidates.append(bom_service.build_retry_candidate(measured_row))
             await asyncio.sleep(0.01)
 
-        bom_service._log_op("BOM Calculation complete.")
-        await websocket.send_text(json.dumps({
-            "status": "done",
-            "results": results,
-            "log": "Calculation complete! Finalizing results..."
-        }))
+        bom_service._log_op("BOM Calculation complete." if not cancelled_ref[0] else "BOM calculation cancelled by client.")
+        if not cancelled_ref[0]:
+            await websocket.send_text(json.dumps({
+                "status": "done",
+                "results": results,
+                "retryCandidates": retry_candidates,
+                "log": "Calculation complete! Finalizing results..."
+            }))
         
     except WebSocketDisconnect:
         logger.info("BOM calculation websocket disconnected.")
@@ -220,6 +314,20 @@ async def bom_calculate_ws(websocket: WebSocket):
             await websocket.send_text(json.dumps({"error": str(e)}))
         except: pass
     finally:
+        cancelled_ref[0] = True
+        if disconnect_task is not None:
+            if disconnect_task.done():
+                try:
+                    disconnect_task.result()
+                except Exception:
+                    pass
+            else:
+                disconnect_task.cancel()
+                try:
+                    await disconnect_task
+                except asyncio.CancelledError:
+                    pass
         try:
             await websocket.close()
-        except: pass
+        except Exception:
+            pass

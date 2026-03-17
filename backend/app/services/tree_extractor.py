@@ -7,6 +7,67 @@ from app.services.geometry_service import geometry_service
 logger = logging.getLogger(__name__)
 
 class TreeExtractor:
+    def _safe_attr(self, obj, attr: str, default=""):
+        try:
+            value = getattr(obj, attr, default)
+            return value if value not in (None, "") else default
+        except Exception:
+            return default
+
+    def _get_reference_doc_info(self, child) -> Dict[str, Any]:
+        info = {
+            "referenceKey": "",
+            "sourceDocPath": "",
+            "sourceDocumentName": "",
+            "isPartDocument": False,
+            "referenceDoc": None,
+        }
+        try:
+            ref_doc = child.ReferenceProduct.Parent
+            info["referenceDoc"] = ref_doc
+            info["sourceDocumentName"] = self._safe_attr(ref_doc, "Name", "")
+            info["sourceDocPath"] = self._safe_attr(ref_doc, "FullName", "")
+            info["isPartDocument"] = bool(
+                hasattr(ref_doc, "Part") or ".CATPART" in info["sourceDocumentName"].upper()
+            )
+            info["referenceKey"] = info["sourceDocPath"] or info["sourceDocumentName"]
+        except Exception:
+            pass
+        return info
+
+    def _extract_document_metadata(self, doc, display_name: str) -> Dict[str, Any]:
+        metadata = {
+            "projectName": display_name,
+            "documentName": getattr(doc, "Name", display_name),
+            "woNo": display_name,
+            "customer": "",
+            "toolType": "",
+            "toolSize": "",
+        }
+        try:
+            product = getattr(doc, "Product", None)
+            if product is not None:
+                metadata["projectName"] = getattr(product, "PartNumber", "") or display_name
+                params = getattr(product, "Parameters", None)
+                if params:
+                    for param in params:
+                        pname = getattr(param, "Name", "").upper()
+                        getter = getattr(param, "ValueAsString", None)
+                        value = getter() if callable(getter) else ""
+                        if not value:
+                            continue
+                        if "CUSTOMER" in pname:
+                            metadata["customer"] = value
+                        elif "TOOL" in pname and "TYPE" in pname:
+                            metadata["toolType"] = value
+                        elif "TOOL" in pname and "SIZE" in pname:
+                            metadata["toolSize"] = value
+                        elif "WO" in pname:
+                            metadata["woNo"] = value
+        except Exception:
+            pass
+        return metadata
+
     def get_full_tree(self, include_props=False, check_visibility=False) -> Dict[str, Any] | None:
         """EntryPoint: Extracts the active document's tree."""
         logger.info(f"TreeExtractor: Starting full tree extraction (visibility={check_visibility})...")
@@ -36,12 +97,14 @@ class TreeExtractor:
                 props = self._get_part_properties(part) if include_props else {}
                 return {
                     "name": display_name, "type": "Part", "properties": props,
+                    "metadata": self._extract_document_metadata(doc, display_name),
                     "children": self._parse_part(part, doc, check_visibility=check_visibility)
                 }
             elif is_product:
                 product = doc.Product
                 return {
                     "name": display_name, "type": "Product",
+                    "metadata": self._extract_document_metadata(doc, display_name),
                     "children": self._parse_product(product, doc, include_props=include_props, check_visibility=check_visibility)
                 }
             else:
@@ -54,7 +117,8 @@ class TreeExtractor:
         """Extracts properties for a CATPart."""
         props = {}
         try:
-            bbox_data = geometry_service.get_bounding_box(part)
+            # Tree/export scans must avoid Rough Stock UI to stay deterministic.
+            bbox_data = geometry_service.get_bounding_box(part, method="SPA")
             props["stock_size"] = bbox_data.get("stock_size", "Not Measurable")
             props["material"] = "STEEL"
             props["heat_treatment"] = "NONE"
@@ -72,15 +136,12 @@ class TreeExtractor:
 
     def _get_product_properties(self, product) -> Dict[str, Any]:
         """Extracts properties for a sub-assembly."""
-        props = {}
-        try:
-            bbox_data = geometry_service.get_product_bounding_box(product)
-            props["stock_size"] = bbox_data.get("stock_size", "Not Measurable")
-            props["material"] = "N/A"
-            props["heat_treatment"] = "N/A"
-        except:
-            props["stock_size"] = "Not Measurable"
-        return props
+        return {
+            "stock_size": "Not Measurable",
+            "material": "N/A",
+            "heat_treatment": "N/A",
+            "measurement_confidence": "low",
+        }
 
     def _is_hidden(self, sel, obj) -> bool:
         """Check if a CATIA object is in No-Show mode.
@@ -129,40 +190,45 @@ class TreeExtractor:
                     continue
 
                 item_props = {}
-                
-                # Recursive children
-                sub = self._parse_product(child, doc, depth + 1, max_depth, include_props, check_visibility)
-                
-                try:
-                    ref_doc = child.ReferenceProduct.Parent
-                    is_p = bool(hasattr(ref_doc, "Part") or ".CATPART" in getattr(ref_doc, "Name", "").upper())
-                    
-                    if is_p:
-                        if include_props: item_props = self._get_part_properties(ref_doc.Part)
-                        sub.extend(self._parse_part(ref_doc.Part, doc, check_visibility))
-                    else:
-                        if include_props: item_props = self._get_product_properties(child)
-                except:
-                    item_props = {"stock_size": "Not Measurable"}
+                ref_info = self._get_reference_doc_info(child)
+                is_leaf_part = ref_info["isPartDocument"]
+                child_name = self._safe_attr(child, "Name", "")
+                child_part_number = self._safe_attr(child, "PartNumber", "").strip()
+                if not child_part_number:
+                    child_part_number = (ref_info["sourceDocumentName"] or child_name).split(".")[0].strip()
+
+                parent_name = self._safe_attr(product, "Name", "")
+                sub = []
+
+                if is_leaf_part and ref_info["referenceDoc"] is not None:
+                    try:
+                        part_obj = ref_info["referenceDoc"].Part
+                        if include_props:
+                            item_props = self._get_part_properties(part_obj)
+                        sub = self._parse_part(part_obj, doc, check_visibility)
+                    except Exception:
+                        item_props = {"stock_size": "Not Measurable"}
+                else:
+                    if include_props:
+                        item_props = self._get_product_properties(child)
+                    sub = self._parse_product(child, doc, depth + 1, max_depth, include_props, check_visibility)
 
                 # Part Number (Reference Name) resolution
-                try: 
-                    pn = child.PartNumber.strip()
-                    if not pn:
-                         # Try to get from filename if property is empty
-                         try: pn = child.ReferenceProduct.Parent.Name.split(".")[0].strip()
-                         except: pn = ""
-                except: 
-                    try: pn = child.ReferenceProduct.Parent.Name.split(".")[0].strip()
-                    except: pn = child.Name.split(".")[0].strip()
+                pn = child_part_number or child_name.split(".")[0].strip()
 
-                if not pn:
-                     pn = child.Name.split(".")[0].strip()
+                node_type = "Component" if is_leaf_part else "Assembly"
+                origin_type = "leaf_part" if is_leaf_part else "assembly_container"
 
                 children.append({
-                    "name": child.Name,
+                    "name": child_name,
                     "partNumber": pn,
-                    "type": "Component",
+                    "type": node_type,
+                    "originType": origin_type,
+                    "isLeaf": is_leaf_part,
+                    "referenceKey": ref_info["referenceKey"] or f"{pn}|{child_name}",
+                    "sourceDocPath": ref_info["sourceDocPath"],
+                    "sourceDocumentName": ref_info["sourceDocumentName"],
+                    "parentAssembly": parent_name,
                     "properties": item_props,
                     "children": sub
                 })

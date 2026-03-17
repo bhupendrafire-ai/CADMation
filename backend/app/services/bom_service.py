@@ -1,64 +1,130 @@
 import logging
 import os
-import pandas as pd
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
+from app.services.bom_rules import canonicalize_row
+from app.services.bom_schema import build_size_payload, ensure_list
 from app.services.catia_bridge import catia_bridge
 from app.services.tree_extractor import tree_extractor
 
 logger = logging.getLogger(__name__)
 
-# STD part name keywords for classification
-STD_KEYWORDS = ("MISUMI", "FIBRO", "DIN", "ISO", "STANDARD", "PUNCH", "PILLAR")
+OUTPUT_DIR = r"H:\CADMation\BOM_Outputs"
 
 
 class BOMService:
     def _log_op(self, msg: str):
         """Logs an operation with timestamp to a dedicated file."""
-        output_dir = r"H:\CADMation\BOM_Outputs"
-        os.makedirs(output_dir, exist_ok=True)
-        log_file = os.path.join(output_dir, "operations.log")
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        log_file = os.path.join(OUTPUT_DIR, "operations.log")
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         line = f"[{ts}] {msg}\n"
         try:
-            with open(log_file, "a") as f:
-                f.write(line)
-        except: pass
+            with open(log_file, "a", encoding="utf-8") as file_obj:
+                file_obj.write(line)
+        except Exception:
+            pass
         logger.info(f"BOM_OP: {msg}")
 
-    def get_bom_items(self) -> List[Dict[str, Any]]:
-        """Returns a flat list of BOM items from the active CATIA tree for the editor."""
-        self._log_op("Starting full BOM scan (properties included)...")
-        tree = tree_extractor.get_full_tree(include_props=True, check_visibility=True)
-        if not tree or "error" in tree:
-            return []
+    def _is_bom_candidate(self, node: Dict[str, Any]) -> bool:
+        origin_type = node.get("originType")
+        if origin_type == "assembly_container":
+            return False
+        return node.get("type") in ("Part", "Component") or origin_type in {"leaf_part", "std_leaf", "unknown_leaf"}
 
-        items = []
-        self._collect_items(tree, items)
-        return items
+    def _normalize_sheet_category(self, row: Dict[str, Any]) -> str:
+        category = row.get("exportBucket") or row.get("sheetCategory") or "Steel"
+        if category in {"STD-MISUMI", "STD-OTHER"}:
+            return "STD"
+        if category in {"Steel", "MS", "Casting", "STD"}:
+            return category
+        return "Steel"
 
-    def get_bom_fast_list(self) -> List[Dict[str, Any]]:
-        """Returns a fast list of and parts/components from the tree, grouped by Part Number."""
-        self._log_op("Starting fast BOM scan (selectable list)...")
-        tree = tree_extractor.get_full_tree(include_props=False, check_visibility=True)
-        if not tree or "error" in tree:
-            return []
-            
-        # Grouped by Part Number (Reference Name)
-        grouped_items = {}
-        self._collect_fast_items(tree, grouped_items)
-        
-        # Convert to list for frontend
-        return list(grouped_items.values())
+    def _extract_document_metadata(self, fallback_name: str = "BOM") -> Dict[str, str]:
+        metadata = {
+            "title": "CADMation Production BOM",
+            "date": datetime.now().strftime("%d/%m/%Y"),
+            "woNo": fallback_name,
+            "customer": "-",
+            "toolType": "-",
+            "toolSize": "-",
+            "projectName": fallback_name,
+        }
+        try:
+            caa = catia_bridge.get_application()
+            if not caa:
+                return metadata
+            doc = caa.ActiveDocument
+            doc_name = getattr(doc, "Name", fallback_name).split(".")[0]
+            metadata["projectName"] = doc_name or fallback_name
+            metadata["woNo"] = doc_name or fallback_name
+            product = getattr(doc, "Product", None)
+            if product is not None:
+                metadata["projectName"] = getattr(product, "PartNumber", "") or doc_name or fallback_name
+                try:
+                    params = getattr(product, "Parameters", None)
+                    if params:
+                        for param in params:
+                            pname = getattr(param, "Name", "").upper()
+                            value = getattr(param, "ValueAsString", lambda: "")()
+                            if not value:
+                                continue
+                            if "CUSTOMER" in pname:
+                                metadata["customer"] = value
+                            elif "TOOL" in pname and "TYPE" in pname:
+                                metadata["toolType"] = value
+                            elif "TOOL" in pname and "SIZE" in pname:
+                                metadata["toolSize"] = value
+                            elif "WO" in pname:
+                                metadata["woNo"] = value
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return metadata
+
+    def _build_row_from_node(self, node: Dict[str, Any], index: int) -> Dict[str, Any]:
+        props = node.get("properties") or {}
+        part_number = node.get("partNumber", node.get("name", "").split(".")[0]).strip()
+        return canonicalize_row(
+            {
+                "id": node.get("id", index),
+                "name": node.get("name", part_number),
+                "partNumber": part_number,
+                "instanceName": node.get("name", part_number),
+                "qty": node.get("qty", 1),
+                "instances": node.get("instances") or [node.get("name", part_number)],
+                "selected": node.get("selected", True),
+                "material": props.get("material", node.get("material", "")),
+                "size": props.get("stock_size", node.get("size", "Not Measurable")),
+                "millingSize": node.get("millingSize", props.get("stock_size", node.get("size", "Not Measurable"))),
+                "rmSize": node.get("rmSize"),
+                "heatTreatment": props.get("heat_treatment", node.get("heatTreatment", "NONE")),
+                "methodUsed": node.get("methodUsed", props.get("method_used", "UNKNOWN")),
+                "isStd": node.get("isStd", False),
+                "manufacturer": node.get("manufacturer", ""),
+                "description": node.get("description", ""),
+                "remark": node.get("remark", ""),
+                "sheetCategory": node.get("sheetCategory", ""),
+                "catalogCode": node.get("catalogCode", ""),
+                "machiningStock": node.get("machiningStock", 0),
+                "roundingMm": node.get("roundingMm", 0),
+                "validationFlags": node.get("validationFlags", []),
+                "measurementConfidence": node.get("measurementConfidence", ""),
+                "originType": node.get("originType", ""),
+                "parentAssembly": node.get("parentAssembly", ""),
+                "referenceKey": node.get("referenceKey", ""),
+                "sourceDocPath": node.get("sourceDocPath", ""),
+                "sourceDocumentName": node.get("sourceDocumentName", ""),
+            }
+        )
 
     def _collect_fast_items(self, node: Dict[str, Any], out: Dict[str, Dict[str, Any]]):
-        """Builds a lightweight grouped list for selection."""
         name = node.get("name", "")
         node_type = node.get("type")
-        # Use formal partNumber if available, else heuristic
         part_number = node.get("partNumber", name.split(".")[0]).strip()
-        
-        if node_type in ("Part", "Component"):
+        if self._is_bom_candidate(node):
             if part_number in out:
                 out[part_number]["qty"] += 1
                 if name not in out[part_number]["instances"]:
@@ -67,238 +133,453 @@ class BOMService:
                 out[part_number] = {
                     "id": part_number,
                     "name": part_number,
-                    "instanceName": name, # Representative name
+                    "partNumber": part_number,
+                    "instanceName": name,
                     "type": node_type,
                     "qty": 1,
                     "selected": True,
-                    "instances": [name]
+                    "instances": [name],
+                    "originType": node.get("originType", ""),
+                    "parentAssembly": node.get("parentAssembly", ""),
+                    "referenceKey": node.get("referenceKey", ""),
+                    "sourceDocPath": node.get("sourceDocPath", ""),
                 }
-            
         for child in node.get("children", []):
             self._collect_fast_items(child, out)
 
     def _collect_items(self, node: Dict[str, Any], out: List[Dict[str, Any]]):
-        """Flattens tree into a single list; includes components even with default props."""
-        name = node.get("name", "")
-        node_type = node.get("type")
-        props = node.get("properties") or {}
-
-        if node_type in ("Part", "Component"):
-            # Extract Part Number and Instance Name
-            instance_name = name
-            part_number = node.get("partNumber", name.split(".")[0]).strip()
-            
-            is_std = any(x in name.upper() for x in STD_KEYWORDS)
-            item = {
-                "id": len(out) + 1,
-                "name": name,
-                "partNumber": part_number,
-                "instanceName": instance_name,
-                "material": props.get("material", "STEEL"),
-                "size": props.get("stock_size", "Not Measurable"),
-                "heatTreatment": props.get("heat_treatment", "NONE"),
-                "qty": 1,
-                "isStd": is_std,
-                "manufacturer": "MISUMI" if is_std else "",
-            }
-            out.append(item)
-
+        if self._is_bom_candidate(node):
+            out.append(self._build_row_from_node(node, len(out) + 1))
         for child in node.get("children", []):
             self._collect_items(child, out)
 
-    def generate_excel_bom(self, edited_items: List[Dict[str, Any]] | None = None) -> str | None:
-        """
-        Generates Excel BOM: from edited_items if provided, else from current CATIA tree.
-        Returns the absolute path to the generated file.
-        """
-        if edited_items is not None:
-            return self._write_excel_from_edited(edited_items)
+    def _rollup_key(self, row: Dict[str, Any]) -> tuple:
+        return (
+            row.get("classification"),
+            row.get("sheetCategory"),
+            row.get("catalogCode"),
+            row.get("partNumber"),
+            row.get("description"),
+            row.get("material"),
+            row.get("manufacturer"),
+            row.get("millingSize"),
+            row.get("rmSize"),
+            row.get("remark"),
+            row.get("heatTreatment"),
+            row.get("exportBucket"),
+            row.get("reviewStatus"),
+            row.get("discrepancyType"),
+            row.get("originType"),
+        )
 
-        logger.info("BOMService: Starting Excel BOM generation from tree...")
-        tree = tree_extractor.get_full_tree(include_props=True)
+    def _rollup_rows(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        grouped: Dict[tuple, Dict[str, Any]] = {}
+        for row in rows:
+            canonical = canonicalize_row(row)
+            canonical["sheetCategory"] = self._normalize_sheet_category(canonical)
+            canonical["exportBucket"] = canonical["sheetCategory"]
+            key = self._rollup_key(canonical)
+            if key not in grouped:
+                grouped[key] = {**canonical}
+                grouped[key]["instances"] = ensure_list(canonical.get("instances")) or [canonical.get("instanceName")]
+                continue
+            target = grouped[key]
+            target["qty"] += canonical.get("qty", 1)
+            target["instances"] = sorted(set(target.get("instances", []) + ensure_list(canonical.get("instances"))))
+            target["validationFlags"] = sorted(set(target.get("validationFlags", []) + canonical.get("validationFlags", [])))
+            for weight_field in ("rmWeightKg", "finishWeightKg"):
+                current = target.get(weight_field) or 0
+                incoming = canonical.get(weight_field) or 0
+                target[weight_field] = round(current + incoming, 3)
+        return sorted(
+            grouped.values(),
+            key=lambda row: (
+                row.get("sheetCategory", ""),
+                row.get("parentAssembly", ""),
+                row.get("description", ""),
+                row.get("partNumber", ""),
+            ),
+        )
+
+    def build_measured_row(self, base_item: Dict[str, Any], bbox: Dict[str, Any], effective_method: str) -> Dict[str, Any]:
+        row = {
+            **base_item,
+            "partNumber": base_item.get("partNumber") or base_item.get("id") or base_item.get("name"),
+            "size": bbox.get("stock_size", "Not Measurable"),
+            "millingSize": bbox.get("stock_size", "Not Measurable"),
+            "methodUsed": bbox.get("method_used", effective_method),
+            "material": base_item.get("material", "STEEL"),
+            "qty": base_item.get("qty", 1),
+            "instances": base_item.get("instances") or [base_item.get("instanceName")],
+            "originType": base_item.get("originType", "leaf_part"),
+            "parentAssembly": base_item.get("parentAssembly", ""),
+            "referenceKey": base_item.get("referenceKey", ""),
+            "sourceDocPath": base_item.get("sourceDocPath", ""),
+            "rawDims": bbox.get("rawDims", []),
+            "orderedDims": bbox.get("orderedDims", []),
+            "stockForm": bbox.get("stockForm", ""),
+            "measurementConfidence": bbox.get("measurement_confidence", bbox.get("measurementConfidence", "")),
+        }
+        return canonicalize_row(row)
+
+    def build_retry_candidate(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        return canonicalize_row(
+            {
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "partNumber": item.get("partNumber") or item.get("id"),
+                "instanceName": item.get("instanceName"),
+                "instances": item.get("instances") or [item.get("instanceName")],
+                "qty": item.get("qty", 1),
+                "selected": True,
+                "material": item.get("material", "STEEL"),
+                "size": item.get("size", "Not Measurable"),
+                "methodUsed": item.get("methodUsed", "ROUGH_STOCK"),
+                "isStd": item.get("isStd", False),
+                "manufacturer": item.get("manufacturer", ""),
+                "description": item.get("description", ""),
+                "remark": item.get("remark", ""),
+                "sheetCategory": item.get("sheetCategory", ""),
+                "originType": item.get("originType", ""),
+                "parentAssembly": item.get("parentAssembly", ""),
+                "referenceKey": item.get("referenceKey", ""),
+                "sourceDocPath": item.get("sourceDocPath", ""),
+            }
+        )
+
+    def get_bom_items(self) -> List[Dict[str, Any]]:
+        self._log_op("Starting full BOM scan (properties included)...")
+        tree = tree_extractor.get_full_tree(include_props=True, check_visibility=True)
         if not tree or "error" in tree:
-            logger.error(f"BOMService: Failed to get tree data: {tree.get('error')}")
-            return None
+            return []
+        items: List[Dict[str, Any]] = []
+        self._collect_items(tree, items)
+        return self._rollup_rows(items)
 
-        mfg_items = []
-        std_items = []
-        self._process_node(tree, mfg_items, std_items)
-        return self._write_excel(mfg_items, std_items, tree.get("name", "BOM"))
+    def get_bom_fast_list(self) -> List[Dict[str, Any]]:
+        self._log_op("Starting fast BOM scan (selectable list)...")
+        tree = tree_extractor.get_full_tree(include_props=False, check_visibility=True)
+        if not tree or "error" in tree:
+            return []
+        grouped_items: Dict[str, Dict[str, Any]] = {}
+        self._collect_fast_items(tree, grouped_items)
+        rows = [canonicalize_row(item) for item in grouped_items.values()]
+        for row in rows:
+            if not row.get("isStd"):
+                row["material"] = ""
+        return rows
+
+    def generate_excel_bom(self, edited_items: List[Dict[str, Any]] | None = None, check_visibility: bool = False) -> str | None:
+        rows = edited_items if edited_items is not None else self.get_bom_items()
+        if not rows:
+            logger.warning("BOMService: No rows available for Excel generation.")
+            return None
+        rows = [canonicalize_row(row) for row in rows if row.get("keepInExport", row.get("selected", True))]
+        if not rows:
+            logger.warning("BOMService: All rows were filtered out before export.")
+            return None
+        project_name = rows[0].get("projectName", "BOM") if rows else "BOM"
+        metadata = self._extract_document_metadata(project_name)
+        return self._write_excel(self._rollup_rows(rows), metadata)
 
     def save_excel_bom(self, items: List[Dict[str, Any]]) -> str | None:
-        """Saves BOM from designer-edited items (selected only); uses RM Size when provided."""
-        return self._write_excel_from_edited(items)
+        return self.generate_excel_bom(edited_items=items)
 
-    def _write_excel_from_edited(self, items: List[Dict[str, Any]]) -> str | None:
-        """Builds MFG/STD lists from edited items (selected only) and writes Excel."""
-        selected = [i for i in items if i.get("selected", True)]
-        if not selected:
-            logger.warning("BOMService: No items selected for export.")
-            return None
+    def _build_summary_rows(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        summary: Dict[str, Dict[str, Any]] = {}
+        for row in rows:
+            key = self._normalize_sheet_category(row)
+            if key not in summary:
+                summary[key] = {"category": key, "qty": 0, "rmWeightKg": 0.0, "finishWeightKg": 0.0}
+            summary[key]["qty"] += row.get("qty", 0)
+            summary[key]["rmWeightKg"] += row.get("rmWeightKg") or 0.0
+            summary[key]["finishWeightKg"] += row.get("finishWeightKg") or 0.0
+        return sorted(summary.values(), key=lambda item: item["category"])
 
-        mfg_items = []
-        std_items = []
-        for idx, row in enumerate(selected, start=100):
-            base = {
-                "ITEM NO.": idx,
-                "INSTANCE NAME": row.get("instanceName", row.get("name", "")),
-                "PART NUMBER": row.get("partNumber", row.get("name", "").split(".")[0]),
-                "QTY": int(row.get("qty", 1)),
-            }
-            if row.get("isStd"):
-                base["MANUFACTURER"] = row.get("manufacturer", "MISUMI")
-                std_items.append(base)
-            else:
-                base["MATERIAL"] = row.get("material", "STEEL")
-                base["SIZE"] = row.get("rmSize", row.get("size", "Not Measurable"))
-                base["HEAT TREATMENT"] = row.get("heatTreatment", "NONE")
-                mfg_items.append(base)
+    def _apply_styles(self, ws, title_fill, header_fill, thin_border, center_align, left_align, title_font, header_font, data_font):
+        for cell in ws[1]:
+            cell.font = title_font
+            cell.fill = title_fill
+            cell.alignment = center_align
+            cell.border = thin_border
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+            is_section_row = row[0].row > 10 and row[0].value and all(cell.value in (None, "") for cell in row[1:])
+            for cell in row:
+                if cell.row in (9, 10):
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = center_align
+                elif is_section_row:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = left_align if cell.column == 1 else center_align
+                elif cell.row > 10:
+                    cell.font = data_font
+                    cell.alignment = center_align if cell.column in {1, 8, 9, 13, 14, 15} else left_align
+                cell.border = thin_border
 
-        project_name = "BOM"
-        return self._write_excel(mfg_items, std_items, project_name)
+    def _write_summary_sheet(self, wb, metadata: Dict[str, str], summary_rows: List[Dict[str, Any]], all_rows: List[Dict[str, Any]]):
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
-    def _write_excel(
-        self,
-        mfg_items: List[Dict[str, Any]],
-        std_items: List[Dict[str, Any]],
-        project_name: str,
-    ) -> str | None:
-        """Writes professionally formatted MFG and STD sheets to Excel."""
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from openpyxl.utils import get_column_letter
-
-        mfg_cols = ["ITEM NO.", "INSTANCE NAME", "PART NUMBER", "MATERIAL", "SIZE", "HEAT TREATMENT", "QTY"]
-        std_cols = ["ITEM NO.", "INSTANCE NAME", "PART NUMBER", "MANUFACTURER", "QTY"]
-
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-        name_base = project_name.split(".")[0]
-        filename = f"{name_base}_BOM_{timestamp}.xlsx"
-        output_dir = r"H:\CADMation\BOM_Outputs"
-        os.makedirs(output_dir, exist_ok=True)
-        file_path = os.path.join(output_dir, filename)
-
-        # ── Style definitions ──
+        ws = wb.create_sheet(title="Sheet1")
         thin_border = Border(
             left=Side(style="thin", color="B0B0B0"),
             right=Side(style="thin", color="B0B0B0"),
             top=Side(style="thin", color="B0B0B0"),
             bottom=Side(style="thin", color="B0B0B0"),
         )
-        # Title row: large, bold, dark background
-        title_font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
         title_fill = PatternFill(start_color="1F3864", end_color="1F3864", fill_type="solid")
-        title_align = Alignment(horizontal="center", vertical="center")
-
-        # Column header row: medium bold, slightly lighter blue
-        header_font = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
         header_fill = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid")
-        header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-        # Data rows
+        title_font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
+        header_font = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
         data_font = Font(name="Calibri", size=10)
-        data_align_left = Alignment(horizontal="left", vertical="center")
-        data_align_center = Alignment(horizontal="center", vertical="center")
-        # Alternating row stripe (very light blue-gray)
-        stripe_fill = PatternFill(start_color="EDF2F9", end_color="EDF2F9", fill_type="solid")
-        # Columns that should be center-aligned
-        center_cols_mfg = {"ITEM NO.", "QTY"}
-        center_cols_std = {"ITEM NO.", "QTY"}
+        center = Alignment(horizontal="center", vertical="center")
+        left = Alignment(horizontal="left", vertical="center")
+
+        ws.merge_cells("A1:N1")
+        ws["A1"] = metadata["title"]
+        ws["A3"] = "BOM"
+        ws["B3"] = metadata["date"]
+        ws["A4"] = "WO No :"
+        ws["B4"] = metadata["woNo"]
+        ws["A5"] = "Customer :"
+        ws["B5"] = metadata["customer"]
+        ws["A6"] = "Tool Type :"
+        ws["B6"] = metadata["toolType"]
+        ws["A7"] = "Tool Size :"
+        ws["B7"] = metadata["toolSize"]
+        ws["A8"] = "Summary"
+
+        headers = ["Sr. No.", "Category", "Qty", "RM Weight (kg)", "Finish Weight (kg)"]
+        for idx, header in enumerate(headers, start=1):
+            ws.cell(row=9, column=idx, value=header)
+
+        for row_idx, row in enumerate(summary_rows, start=10):
+            ws.cell(row=row_idx, column=1, value=row_idx - 9)
+            ws.cell(row=row_idx, column=2, value=row["category"])
+            ws.cell(row=row_idx, column=3, value=row["qty"])
+            ws.cell(row=row_idx, column=4, value=round(row["rmWeightKg"], 3))
+            ws.cell(row=row_idx, column=5, value=round(row["finishWeightKg"], 3))
+
+        ws["H3"] = f"BOM Summary - {metadata['projectName']}"
+        ws["H4"] = "Total Rows"
+        ws["I4"] = len(all_rows)
+        ws["H5"] = "STD Rows"
+        ws["I5"] = sum(1 for row in all_rows if row.get("isStd"))
+        ws["H6"] = "MFG Rows"
+        ws["I6"] = sum(1 for row in all_rows if not row.get("isStd"))
+
+        for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=9):
+            for cell in row:
+                if cell.row == 1:
+                    cell.font = title_font
+                    cell.fill = title_fill
+                    cell.alignment = center
+                elif cell.row in (8, 9):
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = center
+                else:
+                    cell.font = data_font
+                    cell.alignment = left if cell.column in {1, 2, 8} else center
+                cell.border = thin_border
+
+        for col_letter, width in {"A": 16, "B": 24, "C": 12, "D": 18, "E": 18, "H": 22, "I": 14}.items():
+            ws.column_dimensions[col_letter].width = width
+
+    def _write_mfg_sheet(self, wb, metadata: Dict[str, str], sheet_name: str, rows: List[Dict[str, Any]]):
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+        ws = wb.create_sheet(title=sheet_name)
+        thin_border = Border(
+            left=Side(style="thin", color="B0B0B0"),
+            right=Side(style="thin", color="B0B0B0"),
+            top=Side(style="thin", color="B0B0B0"),
+            bottom=Side(style="thin", color="B0B0B0"),
+        )
+        title_fill = PatternFill(start_color="1F3864", end_color="1F3864", fill_type="solid")
+        header_fill = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid")
+        title_font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
+        header_font = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
+        data_font = Font(name="Calibri", size=10)
+        center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+        ws.merge_cells("A1:O1")
+        ws["A1"] = metadata["title"]
+        ws["A3"] = "BOM"
+        ws["B3"] = metadata["date"]
+        ws["A4"] = "WO No :"
+        ws["B4"] = metadata["woNo"]
+        ws["A5"] = "Customer :"
+        ws["B5"] = metadata["customer"]
+        ws["A6"] = "Tool Type :"
+        ws["B6"] = metadata["toolType"]
+        ws["A7"] = "Tool Size :"
+        ws["B7"] = metadata["toolSize"]
+        ws["A8"] = sheet_name
+
+        merges = ["A9:A10", "B9:B10", "C9:C10", "D9:D10", "E9:E10", "F9:H9", "I9:I10", "J9:J10", "K9:M9", "N9:N10", "O9:O10"]
+        for merge in merges:
+            ws.merge_cells(merge)
+        ws["A9"] = "Sr. No."
+        ws["B9"] = "Description"
+        ws["C9"] = "Part Number"
+        ws["D9"] = "RM"
+        ws["E9"] = "Remark"
+        ws["F9"] = "Milling Size"
+        ws["I9"] = "Qty"
+        ws["J9"] = "Method"
+        ws["K9"] = "RM Size"
+        ws["N9"] = "RM Weight"
+        ws["O9"] = "Flags"
+        ws["F10"] = "L"
+        ws["G10"] = "W"
+        ws["H10"] = "H"
+        ws["K10"] = "L"
+        ws["L10"] = "W"
+        ws["M10"] = "H"
+
+        current_row = 11
+        current_section = None
+        serial = 1
+        for row in rows:
+            next_section = row.get("parentAssembly") or sheet_name
+            if next_section != current_section:
+                ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=15)
+                section_cell = ws.cell(row=current_row, column=1, value=next_section)
+                section_cell.font = header_font
+                section_cell.fill = header_fill
+                section_cell.alignment = left
+                current_row += 1
+                current_section = next_section
+
+            ws.cell(row=current_row, column=1, value=f"{metadata['woNo']}-{serial:03d}")
+            ws.cell(row=current_row, column=2, value=row.get("description"))
+            ws.cell(row=current_row, column=3, value=row.get("partNumber"))
+            ws.cell(row=current_row, column=4, value=row.get("material"))
+            ws.cell(row=current_row, column=5, value=row.get("remark"))
+            ws.cell(row=current_row, column=6, value=row.get("L"))
+            ws.cell(row=current_row, column=7, value=row.get("W"))
+            ws.cell(row=current_row, column=8, value=row.get("H"))
+            ws.cell(row=current_row, column=9, value=row.get("qty"))
+            ws.cell(row=current_row, column=10, value=row.get("methodUsed"))
+            ws.cell(row=current_row, column=11, value=row.get("rmL"))
+            ws.cell(row=current_row, column=12, value=row.get("rmW"))
+            ws.cell(row=current_row, column=13, value=row.get("rmH"))
+            ws.cell(row=current_row, column=14, value=row.get("rmWeightKg"))
+            ws.cell(row=current_row, column=15, value=", ".join(row.get("validationFlags", [])))
+            if row.get("_MERGE_LW"):
+                ws.merge_cells(start_row=current_row, start_column=6, end_row=current_row, end_column=7)
+            if row.get("rmMergeLW"):
+                ws.merge_cells(start_row=current_row, start_column=11, end_row=current_row, end_column=12)
+            current_row += 1
+            serial += 1
+
+        self._apply_styles(ws, title_fill, header_fill, thin_border, center, left, title_font, header_font, data_font)
+        widths = {"A": 16, "B": 28, "C": 22, "D": 12, "E": 18, "F": 11, "G": 11, "H": 11, "I": 8, "J": 12, "K": 11, "L": 11, "M": 11, "N": 12, "O": 24}
+        for col, width in widths.items():
+            ws.column_dimensions[col].width = width
+        ws.freeze_panes = "A11"
+
+    def _write_std_sheet(self, wb, metadata: Dict[str, str], sheet_name: str, rows: List[Dict[str, Any]]):
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+        ws = wb.create_sheet(title=sheet_name)
+        thin_border = Border(
+            left=Side(style="thin", color="B0B0B0"),
+            right=Side(style="thin", color="B0B0B0"),
+            top=Side(style="thin", color="B0B0B0"),
+            bottom=Side(style="thin", color="B0B0B0"),
+        )
+        title_fill = PatternFill(start_color="1F3864", end_color="1F3864", fill_type="solid")
+        header_fill = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid")
+        title_font = Font(name="Calibri", bold=True, size=14, color="FFFFFF")
+        header_font = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
+        data_font = Font(name="Calibri", size=10)
+        center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+        ws.merge_cells("A1:G1")
+        ws["A1"] = metadata["title"]
+        ws["A3"] = "BOM"
+        ws["B3"] = metadata["date"]
+        ws["A4"] = "WO No :"
+        ws["B4"] = metadata["woNo"]
+        ws["A5"] = "Customer :"
+        ws["B5"] = metadata["customer"]
+        ws["A6"] = "Tool Type :"
+        ws["B6"] = metadata["toolType"]
+        ws["A7"] = "Tool Size :"
+        ws["B7"] = metadata["toolSize"]
+        ws["A8"] = sheet_name
+
+        headers = ["Sr. No.", "Description", "Type", "Manufacturer", "Catalog Code", "Qty", "Flags"]
+        for idx, header in enumerate(headers, start=1):
+            ws.cell(row=9, column=idx, value=header)
+
+        for row_idx, row in enumerate(rows, start=10):
+            ws.cell(row=row_idx, column=1, value=f"{metadata['woNo']}-{300 + row_idx - 9}")
+            ws.cell(row=row_idx, column=2, value=row.get("description"))
+            ws.cell(row=row_idx, column=3, value="STD")
+            ws.cell(row=row_idx, column=4, value=row.get("manufacturer"))
+            ws.cell(row=row_idx, column=5, value=row.get("catalogCode") or row.get("partNumber"))
+            ws.cell(row=row_idx, column=6, value=row.get("qty"))
+            ws.cell(row=row_idx, column=7, value=", ".join(row.get("validationFlags", [])))
+
+        for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=7):
+            for cell in row:
+                if cell.row == 1:
+                    cell.font = title_font
+                    cell.fill = title_fill
+                    cell.alignment = center
+                elif cell.row in (8, 9):
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = center
+                else:
+                    cell.font = data_font
+                    cell.alignment = center if cell.column in {1, 3, 6} else left
+                cell.border = thin_border
+
+        for col, width in {"A": 16, "B": 26, "C": 10, "D": 16, "E": 20, "F": 8, "G": 22}.items():
+            ws.column_dimensions[col].width = width
+        ws.freeze_panes = "A10"
+
+    def _write_excel(self, rows: List[Dict[str, Any]], metadata: Dict[str, str]) -> str | None:
+        from openpyxl import Workbook
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        name_base = metadata.get("projectName", "BOM").split(".")[0]
+        filename = f"{name_base}_BOM_{timestamp}.xlsx"
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        file_path = os.path.join(OUTPUT_DIR, filename)
 
         try:
             wb = Workbook()
-            # Remove default sheet
             wb.remove(wb.active)
 
-            for sheet_label, columns, items in [
-                ("MFG ITEM", mfg_cols, mfg_items),
-                ("STD ITEM", std_cols, std_items),
-            ]:
-                ws = wb.create_sheet(title=sheet_label)
-                num_cols = len(columns)
-                center_set = center_cols_mfg if sheet_label == "MFG ITEM" else center_cols_std
+            self._write_summary_sheet(wb, metadata, self._build_summary_rows(rows), rows)
+            categories = {}
+            for row in rows:
+                category = self._normalize_sheet_category(row)
+                categories.setdefault(category, []).append({**row, "sheetCategory": category, "exportBucket": category})
 
-                # ── Row 1: Title row (merged across all columns) ──
-                ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=num_cols)
-                title_cell = ws.cell(row=1, column=1, value=f"{name_base}  —  {sheet_label}")
-                title_cell.font = title_font
-                title_cell.fill = title_fill
-                title_cell.alignment = title_align
-                ws.row_dimensions[1].height = 32
-
-                # ── Row 2: Column headers ──
-                for col_idx, col_name in enumerate(columns, start=1):
-                    cell = ws.cell(row=2, column=col_idx, value=col_name)
-                    cell.font = header_font
-                    cell.fill = header_fill
-                    cell.alignment = header_align
-                    cell.border = thin_border
-                ws.row_dimensions[2].height = 24
-
-                # ── Data rows ──
-                for row_idx, item in enumerate(items, start=3):
-                    is_striped = (row_idx - 3) % 2 == 1
-                    for col_idx, col_name in enumerate(columns, start=1):
-                        value = item.get(col_name, "")
-                        cell = ws.cell(row=row_idx, column=col_idx, value=value)
-                        cell.font = data_font
-                        cell.border = thin_border
-                        cell.alignment = data_align_center if col_name in center_set else data_align_left
-                        if is_striped:
-                            cell.fill = stripe_fill
-                    ws.row_dimensions[row_idx].height = 20
-
-                # ── Auto-fit column widths ──
-                for col_idx in range(1, num_cols + 1):
-                    col_letter = get_column_letter(col_idx)
-                    # Measure header + all data values
-                    max_len = len(columns[col_idx - 1])
-                    for row in ws.iter_rows(min_row=3, min_col=col_idx, max_col=col_idx):
-                        for cell in row:
-                            if cell.value:
-                                max_len = max(max_len, len(str(cell.value)))
-                    ws.column_dimensions[col_letter].width = min(max_len + 4, 40)
-
-                # Freeze panes below the header row
-                ws.freeze_panes = "A3"
+            for sheet_name in ["Steel", "MS", "Casting", "STD"]:
+                if sheet_name not in categories:
+                    continue
+                if sheet_name == "STD":
+                    self._write_std_sheet(wb, metadata, sheet_name, categories[sheet_name])
+                else:
+                    self._write_mfg_sheet(wb, metadata, sheet_name, categories[sheet_name])
 
             wb.save(file_path)
             self._log_op(f"BOM exported successfully to: {file_path}")
-            logger.info(f"BOMService: Professional BOM written to {file_path}")
+            logger.info(f"BOMService: Production BOM written to {file_path}")
             return file_path
-        except Exception as e:
-            logger.error(f"BOMService: Failed to write Excel: {e}")
+        except Exception as exc:
+            logger.error(f"BOMService: Failed to write Excel: {exc}")
             return None
 
-    def _process_node(self, node: Dict[str, Any], mfg: List[Dict], std: List[Dict]):
-        """Recursively flattens the tree into MFG and STD lists."""
-        name = node.get("name", "")
-        props = node.get("properties") or {}
 
-        if node.get("type") in ["Part", "Component"]:
-            instance_name = name
-            instance_name = name
-            # Use the partNumber already resolved by TreeExtractor
-            part_number = node.get("partNumber", "").strip() or name.split(".")[0].strip()
-            
-            item_data = {
-                "ITEM NO.": len(mfg) + len(std) + 100,
-                "INSTANCE NAME": instance_name,
-                "PART NUMBER": part_number,
-                "QTY": 1,
-            }
-            is_std = any(x in name.upper() for x in STD_KEYWORDS)
-            if is_std:
-                item_data["MANUFACTURER"] = "MISUMI"
-                std.append(item_data)
-            else:
-                item_data["MATERIAL"] = props.get("material", "STEEL")
-                item_data["SIZE"] = props.get("stock_size", "Not Measurable")
-                item_data["HEAT TREATMENT"] = props.get("heat_treatment", "NONE")
-                mfg.append(item_data)
-
-        for child in node.get("children", []):
-            self._process_node(child, mfg, std)
-
-# Singleton
 bom_service = BOMService()

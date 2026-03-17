@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 're
 import BOMEditor from './BOMEditor'
 import BOMSelectionList from './BOMSelectionList'
 
-const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, onBomExport }, ref) => {
+const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, onBomExport, onInteractiveAction, onBomSelectionComplete }, ref) => {
     const [input, setInput] = useState('')
     const messagesEndRef = useRef(null)
     const textareaRef = useRef(null)
@@ -73,11 +73,8 @@ const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, on
                         {msg.interactive && msg.interactive.type === 'bom-selector' && (
                             <BOMSelectionList
                                 items={msg.interactive.items}
-                                onCalculationComplete={(results) => {
-                                    onUpdateBomMessage?.(i, {
-                                        items: results,
-                                        exporting: false
-                                    })
+                                onCalculationComplete={(payload) => {
+                                    onBomSelectionComplete?.(i, payload)
                                 }}
                             />
                         )}
@@ -87,7 +84,13 @@ const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, on
                                 {msg.interactive.options.map((opt) => (
                                     <button
                                         key={opt.id}
-                                        onClick={() => onSendMessage(opt.value || opt.label)}
+                                        onClick={() => {
+                                            if (opt.action) {
+                                                onInteractiveAction?.(i, opt.action)
+                                                return
+                                            }
+                                            onSendMessage(opt.value || opt.label)
+                                        }}
                                         className={`text-xs px-3 py-1.5 rounded-lg border transition-all active:scale-95 ${
                                             opt.primary 
                                             ? 'bg-white text-black border-white hover:bg-neutral-200' 

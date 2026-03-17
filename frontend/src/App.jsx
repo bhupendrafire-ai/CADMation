@@ -4,6 +4,7 @@ import ChatWindow from './components/ChatWindow'
 import SpecTree from './components/SpecTree'
 import StatusIndicator from './components/StatusIndicator'
 import ChatSidebar from './components/ChatSidebar'
+import { measureBomItems } from './utils/bomMeasurement'
 
 function App() {
   const [isConnected, setIsConnected] = useState(false)
@@ -180,6 +181,100 @@ function App() {
     ])
   }
 
+  const mergeBomResults = (existingItems, retryResults) => {
+    const retryByKey = new Map(
+      (retryResults || []).map((row) => [`${row.partNumber}|${row.instanceName}`, row])
+    )
+    return (existingItems || []).map((row) => {
+      const key = `${row.partNumber}|${row.instanceName}`
+      return retryByKey.has(key) ? { ...row, ...retryByKey.get(key) } : row
+    })
+  }
+
+  const handleBomSelectionComplete = (messageIndex, payload) => {
+    const results = payload?.results || []
+    const retryCandidates = payload?.retryCandidates || []
+
+    handleUpdateBomMessage(messageIndex, {
+      items: results,
+      exporting: false,
+    })
+
+    if (!retryCandidates.length) return
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'ai',
+        content: `${retryCandidates.length} item(s) could not be measured via Rough Stock. Retry those item(s) with STL?`,
+        interactive: {
+          type: 'choice',
+          options: [
+            {
+              id: 'retry-stl',
+              label: 'Retry failed items with STL',
+              primary: true,
+              action: {
+                type: 'retry-bom-failures-stl',
+                targetMessageIndex: messageIndex,
+                items: retryCandidates,
+              },
+            },
+            {
+              id: 'skip-stl',
+              label: 'Keep current results',
+              action: {
+                type: 'dismiss-bom-failure-retry',
+              },
+            },
+          ],
+        },
+      },
+    ])
+  }
+
+  const handleInteractiveAction = async (_messageIndex, action) => {
+    if (!action?.type) return
+
+    if (action.type === 'dismiss-bom-failure-retry') {
+      setMessages((prev) => [...prev, { role: 'ai', content: 'STL retry skipped. Current BOM results are unchanged.' }])
+      return
+    }
+
+    if (action.type === 'retry-bom-failures-stl') {
+      setMessages((prev) => [...prev, { role: 'ai', content: 'Retrying failed BOM items with STL...' }])
+      try {
+        const data = await measureBomItems({
+          items: action.items || [],
+          method: 'STL',
+        })
+        setMessages((prev) => {
+          const next = [...prev]
+          const targetMsg = next[action.targetMessageIndex]
+          if (targetMsg?.bomEditor) {
+            next[action.targetMessageIndex] = {
+              ...targetMsg,
+              bomEditor: {
+                ...targetMsg.bomEditor,
+                items: mergeBomResults(targetMsg.bomEditor.items, data.results || []),
+              },
+            }
+          }
+          return next
+        })
+        setMessages((prev) => [
+          ...prev,
+          { role: 'ai', content: `STL retry completed for ${action.items?.length || 0} item(s).` },
+        ])
+      } catch (err) {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'ai', content: `STL retry failed: ${err.message}` },
+        ])
+      }
+    }
+  }
+
   const handleUpdateBomMessage = (messageIndex, bomData) => {
     setMessages((prev) =>
       prev.map((m, i) => {
@@ -273,6 +368,8 @@ function App() {
           onSendMessage={handleSendMessage}
           onUpdateBomMessage={handleUpdateBomMessage}
           onBomExport={handleBomExport}
+          onInteractiveAction={handleInteractiveAction}
+          onBomSelectionComplete={handleBomSelectionComplete}
         />
 
         <ChatSidebar

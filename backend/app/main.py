@@ -8,15 +8,31 @@ The server runs locally alongside an active CATIA V5 session.
 import logging
 import os
 
-# Configure logging to write to a file for persistent debugging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.FileHandler("cadmation.log"),
-        logging.StreamHandler()
-    ]
-)
+# Configure logging to write to a file in a writable location
+import sys
+if getattr(sys, 'frozen', False):
+    # If running as EXE, log to the application folder or temp
+    log_dir = os.path.dirname(sys.executable)
+else:
+    log_dir = os.path.dirname(os.path.abspath(__file__))
+    log_dir = os.path.abspath(os.path.join(log_dir, ".."))
+
+log_file = os.path.join(log_dir, "cadmation.log")
+
+try:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[
+            logging.FileHandler(log_file, mode='a', encoding='utf-8'),
+            logging.StreamHandler()
+        ]
+    )
+except Exception as e:
+    # Fallback to stream only if file fails
+    logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
+    print(f"Logging to file failed: {e}")
+
 logger = logging.getLogger(__name__)
 
 from contextlib import asynccontextmanager
