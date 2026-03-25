@@ -3,6 +3,9 @@ import win32gui
 import win32con
 import time
 import re
+import math
+import os
+import shutil
 import logging
 import threading
 import pythoncom
@@ -12,13 +15,534 @@ logger = logging.getLogger(__name__)
 # Rough Stock iteration tuning (balanced defaults).
 MAX_RS_PASSES_PER_PART = 2
 EXHAUSTIVE_RS_MEASUREMENT = False
-BODY_NAME_TOOL_PATTERNS = ("TOOL", "CUT", "DIE", "STAMP", "PUNCH")
+
+# When set, skip SPA-in-axis path and use legacy dialog scraping only.
+_DISABLE_AXIS_FRAME_STOCK = os.environ.get("CADMATION_DISABLE_AXIS_FRAME_STOCK", "").strip() in ("1", "true", "yes")
+
+# When set, measure Rough Stock in the current window (no Open/Close of the CATPart).
+_IN_PLACE_ROUGH_STOCK = True # Forced True as per user request to disable new windows
+
+# Delay after Selection.Add(body) before scraping Rough Stock dialog (CATIA compute time).
+_SCRAPE_PRE_DELAY_SEC = 4.0
+
+# Re-select / re-wait when WM_GETTEXT on the ListBox is stale ("EdtPartBody") or shows another part\body.
+_RS_BODY_LABEL_MATCH_ATTEMPTS = max(1, int(os.environ.get("CADMATION_RS_BODY_LABEL_ATTEMPTS", "5") or "5"))
+
+# Re-read DX/DY/DZ until unchanged (CATIA sometimes updates Z spinners after X/Y).
+_RS_DIM_SETTLE_ATTEMPTS = max(1, int(os.environ.get("CADMATION_RS_DIM_SETTLE_ATTEMPTS", "8") or "8"))
+_RS_DIM_SETTLE_PAUSE_SEC = float(os.environ.get("CADMATION_RS_DIM_SETTLE_PAUSE", "0.75") or "0.75")
+
+# Default: Bodies.Item(1), then Item(2), … — first with Shapes/HybridShapes wins (no body-name Search).
+_RS_BODY_MODE = os.environ.get("CADMATION_RS_BODY_RESOLUTION", "auto").strip().lower()
+
+# Axis systems matching these names (substring, case-insensitive) are used for stock extents before UI scraping.
+_PREFERRED_AXIS_SUBSTRINGS = (
+    "INSERTION_AXIS",
+    "INSERTION AXIS",
+    "INSERTION",
+    "MACHINING_AXIS",
+    "MACHINING AXIS",
+    "STOCK_AXIS",
+    "STOCK AXIS",
+    "AP_AXIS",
+    "PART_AXIS",
+)
 
 # Global flag to control the monitor thread
 _monitor_active = False
 _monitor_thread = None
 
 class RoughStockService:
+    @staticmethod
+    def _body_is_empty_for_rough_stock(body):
+        """True if no Part-Design / hybrid content under the body (COM only, not by name)."""
+        if body is None:
+            return True
+        try:
+            sh = getattr(body, "Shapes", None)
+            if sh is not None and sh.Count > 0:
+                return False
+        except Exception:
+            pass
+        try:
+            hy = getattr(body, "HybridShapes", None)
+            if hy is not None and hy.Count > 0:
+                return False
+        except Exception:
+            pass
+        return True
+
+    @staticmethod
+    def _ordered_bodies(root_part):
+        coll = getattr(root_part, "Bodies", None)
+        if coll is None or coll.Count < 1:
+            return []
+        return [coll.Item(i) for i in range(1, coll.Count + 1)]
+
+    @staticmethod
+    def _first_nonempty_body_sequential(root_part):
+        """Bodies.Item(1), then Item(2), … — first with Shapes or HybridShapes."""
+        ordered = RoughStockService._ordered_bodies(root_part)
+        for idx, b in enumerate(ordered, start=1):
+            if not RoughStockService._body_is_empty_for_rough_stock(b):
+                logger.info(
+                    "Rough Stock: using Bodies.Item(%s) — first slot with geometry (scanned upward).",
+                    idx,
+                )
+                return b
+        return None
+
+    @staticmethod
+    def _preferred_main_body(root_part):
+        """Plate/die templates: use MAIN_BODY when it exists and has solid/hybrid content."""
+        for b in RoughStockService._ordered_bodies(root_part):
+            nm = (getattr(b, "Name", "") or "").strip().upper().replace(" ", "_")
+            if nm == "MAIN_BODY" and not RoughStockService._body_is_empty_for_rough_stock(b):
+                return b
+        return None
+
+    @staticmethod
+    def _bodies_for_rough_stock(root_part):
+        """Default: sequential scan Item(1), Item(2), … for first non-empty body. Optional CADMATION_RS_BODY_RESOLUTION."""
+        out = []
+        if root_part is None:
+            return out
+        try:
+            ordered = RoughStockService._ordered_bodies(root_part)
+            if not ordered:
+                return out
+            n = len(ordered)
+            non_empty = [b for b in ordered if not RoughStockService._body_is_empty_for_rough_stock(b)]
+            mode = _RS_BODY_MODE
+
+            if mode.startswith("index:"):
+                try:
+                    k = int(mode.split(":", 1)[1].strip())
+                except ValueError:
+                    k = 1
+                k = max(1, min(k, n))
+                out.append(ordered[k - 1])
+                return out
+            if mode == "first_tree":
+                out.append(ordered[0])
+                return out
+            if mode == "last_tree":
+                out.append(ordered[-1])
+                return out
+            if mode == "all":
+                use = non_empty if non_empty else ordered
+                out.extend(use)
+                return out
+            if mode in ("last", "last_non_empty", "last_if_multiple"):
+                pick = non_empty[-1] if non_empty else ordered[-1]
+                out.append(pick)
+                return out
+            # auto, first, first_non_empty: prefer MAIN_BODY before first sequential non-empty
+            if mode in ("auto", "first", "first_non_empty", "first_nonempty"):
+                pref = RoughStockService._preferred_main_body(root_part)
+                if pref is not None:
+                    out.append(pref)
+                    logger.info(
+                        "Rough Stock: using %r (preferred over first tree slot with geometry).",
+                        getattr(pref, "Name", ""),
+                    )
+                    return out
+            # unknown / default → Item(1) then Item(2) … first non-empty
+            pick = RoughStockService._first_nonempty_body_sequential(root_part)
+            out.append(pick if pick is not None else ordered[0])
+        except Exception as e:
+            logger.error("Rough Stock: _bodies_for_rough_stock failed: %s", e)
+        return out
+
+    @staticmethod
+    def _same_catia_document(doc_a, doc_b):
+        if doc_a is None or doc_b is None:
+            return False
+        try:
+            fa = RoughStockService._norm_fs_path(getattr(doc_a, "FullName", "") or "")
+            fb = RoughStockService._norm_fs_path(getattr(doc_b, "FullName", "") or "")
+            return bool(fa and fa == fb)
+        except Exception:
+            return False
+
+    @staticmethod
+    def _search_name_escape(s):
+        return (s or "").replace("'", "''")
+
+    @staticmethod
+    def _selection_hit_is_wrong_for_rough_stock(hit_value, target_body) -> bool:
+        """Search can return Inertia / Measure / Volume analysis nodes instead of the solid body."""
+        if hit_value is None:
+            return True
+        try:
+            nm = (getattr(hit_value, "Name", "") or "").upper().replace(" ", "")
+            if "INERTIA" in nm or "INERTIAVOLUME" in nm or "MEASURE" in nm:
+                return True
+        except Exception:
+            pass
+        try:
+            if target_body is not None and RoughStockService._com_same_object(hit_value, target_body):
+                return False
+        except Exception:
+            pass
+        return False
+
+    @staticmethod
+    def _try_select_body_via_part_reference(sel, root_part, target_body) -> bool:
+        """Match manual tree pick: Part body reference, not a global Search hit (avoids InertiaVolume.*)."""
+        if sel is None or root_part is None or target_body is None:
+            return False
+        try:
+            sel.Clear()
+        except Exception:
+            pass
+        try:
+            ref = root_part.CreateReferenceFromObject(target_body)
+            sel.Add(ref)
+            if sel.Count >= 1:
+                return True
+        except Exception:
+            pass
+        try:
+            sel.Clear()
+            sel.Add(target_body)
+            if sel.Count >= 1:
+                return True
+        except Exception:
+            pass
+        return False
+
+    @staticmethod
+    def _com_same_object(a, b) -> bool:
+        if a is None or b is None:
+            return False
+        if a is b:
+            return True
+        try:
+            oa, ob = getattr(a, "_oleobj_", None), getattr(b, "_oleobj_", None)
+            return oa is not None and oa == ob
+        except Exception:
+            return False
+
+    @staticmethod
+    def _root_product_of_tree_node(prod):
+        curr = prod
+        for _ in range(200):
+            try:
+                p = curr.Parent
+            except Exception:
+                break
+            if p is None:
+                break
+            curr = p
+        return curr
+
+    @staticmethod
+    def _document_containing_product_instance(catia, target_product):
+        """CATProduct window that owns this tree node (ActiveDocument is often the wrong tab)."""
+        if target_product is None or catia is None:
+            return None
+
+        def subtree_has(root, want, depth):
+            if depth > 200:
+                return False
+            if RoughStockService._com_same_object(root, want):
+                return True
+            try:
+                ch = root.Products
+                for i in range(1, ch.Count + 1):
+                    if subtree_has(ch.Item(i), want, depth + 1):
+                        return True
+            except Exception:
+                pass
+            return False
+
+        try:
+            tree_root = RoughStockService._root_product_of_tree_node(target_product)
+            for di in range(1, catia.Documents.Count + 1):
+                d = catia.Documents.Item(di)
+                doc_root = getattr(d, "Product", None)
+                if doc_root is None:
+                    continue
+                if RoughStockService._com_same_object(doc_root, tree_root):
+                    return d
+            for di in range(1, catia.Documents.Count + 1):
+                d = catia.Documents.Item(di)
+                root = getattr(d, "Product", None)
+                if root is None:
+                    continue
+                if subtree_has(root, target_product, 0):
+                    return d
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _apply_rough_stock_body_selection(
+        catia, root_part, scope_product, anchor_asm_doc, target_body
+    ):
+        """
+        Body is always chosen by index/emptiness first; CATIA Rough Stock still needs instance-scoped
+        Search under the Product for the command field to update (Add alone often leaves 'No Selection').
+        """
+        if target_body is None:
+            return False
+        body_nm = getattr(target_body, "Name", "") or ""
+        part_nm = (getattr(root_part, "Name", "") or "").strip() if root_part else ""
+        part_doc = None
+        try:
+            if root_part is not None:
+                part_doc = root_part.Parent
+        except Exception:
+            part_doc = None
+        if part_doc is None:
+            try:
+                par = getattr(target_body, "Parent", None)
+                if par is not None and getattr(par, "Bodies", None) is not None:
+                    part_doc = par.Parent
+            except Exception:
+                pass
+        if part_doc is None:
+            logger.warning("Rough Stock: cannot resolve CATPart document for selection.")
+            return False
+
+        # 1) Assembly BOM: Add(instance) + Search ,in — only way Rough Stock UI reliably picks up the body
+        if scope_product is not None and body_nm:
+            doc_owning_tree = None
+            try:
+                doc_owning_tree = RoughStockService._document_containing_product_instance(
+                    catia, scope_product
+                )
+            except Exception:
+                pass
+            seen_anchor_fp = set()
+            anchors_ordered = []
+            for cand in (doc_owning_tree, anchor_asm_doc):
+                if cand is None:
+                    continue
+                fp = RoughStockService._norm_fs_path(getattr(cand, "FullName", "") or "")
+                if fp and fp in seen_anchor_fp:
+                    continue
+                if fp:
+                    seen_anchor_fp.add(fp)
+                anchors_ordered.append(cand)
+
+            be = RoughStockService._search_name_escape(body_nm)
+            for anchor in anchors_ordered:
+                try:
+                    try:
+                        anchor.Activate()
+                    except Exception:
+                        try:
+                            catia.ActiveDocument = anchor
+                        except Exception:
+                            continue
+                    time.sleep(0.18)
+                    sel = catia.ActiveDocument.Selection
+                    scoped_ok = False
+                    for pattern in (
+                        f"Name='{be}',Type=Body,in",
+                        f"Name='{be}',in",
+                    ):
+                        try:
+                            sel.Clear()
+                            sel.Add(scope_product)
+                            sel.Search(pattern)
+                            if sel.Count > 0:
+                                v = sel.Item(1).Value
+                                if RoughStockService._selection_hit_is_wrong_for_rough_stock(
+                                    v, target_body
+                                ):
+                                    logger.warning(
+                                        "Rough Stock: scoped Search hit %r looks like analysis, not body.",
+                                        getattr(v, "Name", "?"),
+                                    )
+                                    continue
+                                sel.Clear()
+                                sel.Add(v)
+                                logger.info(
+                                    "Rough Stock: assembly-scoped Search bound body to command (under %r).",
+                                    getattr(scope_product, "Name", "?"),
+                                )
+                                scoped_ok = True
+                                break
+                        except Exception as se:
+                            logger.debug("Rough Stock: scoped Search %s: %s", pattern, se)
+                    if scoped_ok:
+                        return True
+                except Exception as e:
+                    logger.debug("Rough Stock: assembly scoped selection (anchor): %s", e)
+
+        # 2) Target CATPart: under assembly instance, Search in .CATPart updates Rough Stock; Part ref alone often leaves stale dialog.
+        if body_nm:
+            try:
+                try:
+                    part_doc.Activate()
+                except Exception:
+                    try:
+                        catia.ActiveDocument = part_doc
+                    except Exception:
+                        pass
+                time.sleep(0.15)
+                sel = catia.ActiveDocument.Selection
+                be = RoughStockService._search_name_escape(body_nm)
+                if scope_product is None and RoughStockService._try_select_body_via_part_reference(
+                    sel, root_part, target_body
+                ):
+                    logger.info(
+                        "Rough Stock: Part body reference for Rough Stock UI (%r) (standalone part).",
+                        body_nm,
+                    )
+                    return True
+                for pattern in (
+                    f"Name='{be}',Type=Body,all",
+                    f"Name='{be}',all",
+                ):
+                    try:
+                        sel.Clear()
+                        sel.Search(pattern)
+                        if sel.Count > 0:
+                            v = sel.Item(1).Value
+                            if RoughStockService._selection_hit_is_wrong_for_rough_stock(
+                                v, target_body
+                            ):
+                                logger.warning(
+                                    "Rough Stock: in-doc Search hit %r rejected; inertia/measure?",
+                                    getattr(v, "Name", "?"),
+                                )
+                                continue
+                            sel.Clear()
+                            sel.Add(v)
+                            logger.info(
+                                "Rough Stock: in-document body Search bound for Rough Stock UI (%r).",
+                                body_nm,
+                            )
+                            return True
+                    except Exception as se:
+                        logger.debug("Rough Stock: in-doc body Search %s: %s", pattern, se)
+                if RoughStockService._try_select_body_via_part_reference(
+                    sel, root_part, target_body
+                ):
+                    logger.info(
+                        "Rough Stock: Part body reference fallback for Rough Stock UI (%r).",
+                        body_nm,
+                    )
+                    return True
+            except Exception as e:
+                logger.debug("Rough Stock: in-doc body path: %s", e)
+
+        if part_nm and body_nm:
+            try:
+                try:
+                    part_doc.Activate()
+                except Exception:
+                    try:
+                        catia.ActiveDocument = part_doc
+                    except Exception:
+                        pass
+                time.sleep(0.12)
+                sel = catia.ActiveDocument.Selection
+                composite = RoughStockService._search_name_escape(f"{part_nm}\\{body_nm}")
+                for pattern in (
+                    f"Name='{composite}',Type=Body,all",
+                    f"Name='{composite}',all",
+                ):
+                    try:
+                        sel.Clear()
+                        sel.Search(pattern)
+                        if sel.Count > 0:
+                            v = sel.Item(1).Value
+                            if RoughStockService._selection_hit_is_wrong_for_rough_stock(
+                                v, target_body
+                            ):
+                                continue
+                            sel.Clear()
+                            sel.Add(v)
+                            logger.info("Rough Stock: composite Search bound body for Rough Stock UI.")
+                            return True
+                    except Exception as se:
+                        logger.debug("Rough Stock: composite Search %s: %s", pattern, se)
+            except Exception as e:
+                logger.debug("Rough Stock: composite path: %s", e)
+
+        if scope_product is not None:
+            try:
+                part_doc.Activate()
+            except Exception:
+                try:
+                    catia.ActiveDocument = part_doc
+                except Exception:
+                    logger.warning(
+                        "Rough Stock: assembly scope set; could not activate target CATPart for last-resort bind."
+                    )
+                    return False
+            time.sleep(0.15)
+            try:
+                ad = catia.ActiveDocument
+            except Exception:
+                ad = None
+            if ad is None or not RoughStockService._same_catia_document(ad, part_doc):
+                logger.warning(
+                    "Rough Stock: assembly scope set; active document is not target CATPart — "
+                    "skipping Add(body) to avoid stale Rough Stock values."
+                )
+                return False
+            try:
+                sel = ad.Selection
+                rp = root_part or getattr(target_body, "Parent", None)
+                if rp is not None:
+                    try:
+                        sel.Clear()
+                        sel.Add(rp.CreateReferenceFromObject(target_body))
+                        if sel.Count >= 1:
+                            logger.warning(
+                                "Rough Stock: assembly Search failed; Part reference with CATPart active."
+                            )
+                            return True
+                    except Exception:
+                        pass
+                sel.Clear()
+                sel.Add(target_body)
+                if sel.Count >= 1:
+                    logger.warning(
+                        "Rough Stock: assembly Search failed; Add(body) with target CATPart active "
+                        "(verify dimensions match this part)."
+                    )
+                    return True
+            except Exception as e:
+                logger.warning("Rough Stock: scoped last-resort Add failed: %s", e)
+            return False
+
+        # 3) Direct COM (standalone CATPart / no assembly scope — Add may still update the command)
+        try:
+            try:
+                part_doc.Activate()
+            except Exception:
+                try:
+                    catia.ActiveDocument = part_doc
+                except Exception as ex:
+                    logger.warning("Rough Stock: Part document Activate failed: %s", ex)
+            time.sleep(0.12)
+            sel = catia.ActiveDocument.Selection
+            rp = root_part or getattr(target_body, "Parent", None)
+            if rp is not None:
+                try:
+                    sel.Clear()
+                    sel.Add(rp.CreateReferenceFromObject(target_body))
+                    if sel.Count >= 1:
+                        logger.info("Rough Stock: Selection.Add(Part reference) fallback OK.")
+                        return True
+                except Exception:
+                    pass
+            sel.Clear()
+            sel.Add(target_body)
+            if sel.Count >= 1:
+                logger.info("Rough Stock: Selection.Add(body) fallback OK.")
+                return True
+        except Exception as e:
+            logger.warning("Rough Stock: Selection.Add fallback failed: %s", e)
+        return False
+
     @staticmethod
     def start_dialog_monitor(interval=0.5):
         """Starts a background thread to clear CATIA popups."""
@@ -87,154 +611,602 @@ class RoughStockService:
             pass
 
     @staticmethod
-    def get_rough_stock_dims(catia=None, target_obj=None, stay_open=False):
+    def _vec_norm(v):
+        l = math.sqrt(sum(x * x for x in v))
+        if l < 1e-18:
+            return None
+        return [x / l for x in v]
+
+    @staticmethod
+    def _vec_cross(a, b):
+        return [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
+
+    @staticmethod
+    def _bbox_corners_mm_from_spa_m(bb6):
+        """SPA GetBoundaryBox: xmin,xmax, ymin,ymax, zmin,zmax in meters -> 8 corners in mm."""
+        sx = bb6[0] * 1000.0
+        ex = bb6[1] * 1000.0
+        sy = bb6[2] * 1000.0
+        ey = bb6[3] * 1000.0
+        sz = bb6[4] * 1000.0
+        ez = bb6[5] * 1000.0
+        corners = []
+        for x in (sx, ex):
+            for y in (sy, ey):
+                for z in (sz, ez):
+                    corners.append([x, y, z])
+        return corners
+
+    @staticmethod
+    def _extent_along_unit_axes(corners_mm, origin_mm, ex, ey, ez):
+        """Min/max projection of (corner - origin) onto orthonormal ex,ey,ez; returns (dx,dy,dz) mm."""
+        lx, ly, lz = [], [], []
+        for c in corners_mm:
+            d = [c[i] - origin_mm[i] for i in range(3)]
+            lx.append(d[0] * ex[0] + d[1] * ex[1] + d[2] * ex[2])
+            ly.append(d[0] * ey[0] + d[1] * ey[1] + d[2] * ey[2])
+            lz.append(d[0] * ez[0] + d[1] * ez[1] + d[2] * ez[2])
+        return max(lx) - min(lx), max(ly) - min(ly), max(lz) - min(lz)
+
+    @staticmethod
+    def _get_axis_orthonormal_basis_mm(axis_obj):
+        """Origin + X,Y,Z unit vectors; origin in mm (CATIA Part axis APIs are typically mm)."""
+        try:
+            o = [0.0, 0.0, 0.0]
+            axis_obj.GetOrigin(o)
+        except Exception:
+            return None
+        vx, vy = [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]
+        try:
+            axis_obj.GetVectors(vx, vy)
+        except Exception:
+            try:
+                axis_obj.XAxis.GetDirection(vx)
+                axis_obj.YAxis.GetDirection(vy)
+            except Exception:
+                return None
+        ex = RoughStockService._vec_norm(vx)
+        ey0 = RoughStockService._vec_norm(vy)
+        if not ex or not ey0:
+            return None
+        ez = RoughStockService._vec_norm(RoughStockService._vec_cross(ex, ey0))
+        if not ez:
+            return None
+        ey = RoughStockService._vec_norm(RoughStockService._vec_cross(ez, ex))
+        if not ey:
+            return None
+        return (o, ex, ey, ez)
+
+    @staticmethod
+    def _axis_name_matches(name, substrings):
+        u = (name or "").upper().replace(" ", "_")
+        for s in substrings:
+            t = s.upper().replace(" ", "_")
+            if t in u or u == t:
+                return True
+        return False
+
+    @staticmethod
+    def _find_preferred_axis_system(part):
+        """Prefer machining / insertion axis so stock matches Rough Stock with that frame (not absolute)."""
+        if part is None:
+            return None
+        extra = os.environ.get("CADMATION_STOCK_AXIS_SUBSTRING", "").strip().upper()
+        subs = list(_PREFERRED_AXIS_SUBSTRINGS)
+        if extra:
+            subs.insert(0, extra)
+        try:
+            coll = part.AxisSystems
+            for i in range(1, coll.Count + 1):
+                ax = coll.Item(i)
+                nm = getattr(ax, "Name", "") or ""
+                if RoughStockService._axis_name_matches(nm, subs):
+                    return ax
+        except Exception:
+            pass
+        try:
+            coll = part.AxisSystems
+            for i in range(1, coll.Count + 1):
+                ax = coll.Item(i)
+                nm = (getattr(ax, "Name", "") or "").upper()
+                if "INSERTION" in nm and "AXIS" in nm.replace(" ", ""):
+                    return ax
+        except Exception:
+            pass
+        return RoughStockService._find_axis_in_hybrid_bodies(part, subs)
+
+    @staticmethod
+    def _find_axis_in_hybrid_bodies(part, substrings):
+        seen = set()
+
+        def walk_hb(hb, depth):
+            if depth > 12 or id(hb) in seen:
+                return None
+            seen.add(id(hb))
+            try:
+                for i in range(1, hb.HybridShapes.Count + 1):
+                    hs = hb.HybridShapes.Item(i)
+                    nm = getattr(hs, "Name", "") or ""
+                    if not RoughStockService._axis_name_matches(nm, substrings):
+                        if "INSERTION" not in nm.upper() or "AXIS" not in nm.upper().replace(" ", ""):
+                            continue
+                    try:
+                        o = [0.0, 0.0, 0.0]
+                        hs.GetOrigin(o)
+                        return hs
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            try:
+                for j in range(1, hb.HybridBodies.Count + 1):
+                    r = walk_hb(hb.HybridBodies.Item(j), depth + 1)
+                    if r:
+                        return r
+            except Exception:
+                pass
+            return None
+
+        try:
+            for i in range(1, part.HybridBodies.Count + 1):
+                r = walk_hb(part.HybridBodies.Item(i), 0)
+                if r:
+                    return r
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _try_spa_bbox_in_preferred_axis(catia, root_part, bodies):
         """
-        Extracts DX, DY, DZ from CATIA's 'Rough Stock' dialog.
-        High-reliability version: Performs selection BEFORE triggering the command.
+        Same extents as Rough Stock when an axis is set: AABB of the body in that axis frame.
+        Avoids dialog scraping with an empty axis field (absolute / wrong BOM sizes).
+        """
+        if _DISABLE_AXIS_FRAME_STOCK or not root_part or not bodies:
+            return None
+        axis = RoughStockService._find_preferred_axis_system(root_part)
+        if not axis:
+            logger.info("Rough Stock: no preferred axis system; using dialog scrape (absolute frame).")
+            return None
+        basis = RoughStockService._get_axis_orthonormal_basis_mm(axis)
+        if not basis:
+            logger.warning("Rough Stock: could not read axis basis; falling back to dialog scrape.")
+            return None
+        o_mm, ex, ey, ez = basis
+        try:
+            part_doc = root_part.Parent
+            spa = part_doc.GetWorkbench("SPAWorkbench")
+        except Exception as e:
+            logger.debug(f"SPA axis-frame path failed opening workbench: {e}")
+            return None
+        dx_max = dy_max = dz_max = 0.0
+        for body in bodies[: max(1, MAX_RS_PASSES_PER_PART)]:
+            try:
+                sel = part_doc.Selection
+                sel.Clear()
+                sel.Add(body)
+                if sel.Count < 1:
+                    continue
+                m = spa.GetMeasurable(sel.Item(1).Value)
+                bb = [0.0] * 6
+                m.GetBoundaryBox(bb)
+                corners = RoughStockService._bbox_corners_mm_from_spa_m(bb)
+                ddx, ddy, ddz = RoughStockService._extent_along_unit_axes(corners, o_mm, ex, ey, ez)
+                if ddx > dx_max:
+                    dx_max = ddx
+                if ddy > dy_max:
+                    dy_max = ddy
+                if ddz > dz_max:
+                    dz_max = ddz
+            except Exception as e:
+                logger.debug(f"SPA axis-frame measure failed for body: {e}")
+                continue
+        if dx_max > 0.001 and dy_max > 0.001 and dz_max > 0.001:
+            logger.info(
+                f"Rough Stock: SPA extents in axis '{getattr(axis, 'Name', '?')}' "
+                f"= {dx_max:.3f} x {dy_max:.3f} x {dz_max:.3f} mm (dialog axis not automated)."
+            )
+            return dx_max, dy_max, dz_max
+        return None
+
+    @staticmethod
+    def _try_spa_axis_aligned_bbox_mm(catia, root_part, bodies):
+        """
+        SPA GetBoundaryBox in document/world order (xmin,xmax, ymin,ymax, zmin,zmax in m).
+        Matches flat-plate thickness vs Rough Stock when dialog shows inconsistent Z vs XY.
+        """
+        if _DISABLE_AXIS_FRAME_STOCK or not root_part or not bodies:
+            return None
+        try:
+            part_doc = root_part.Parent
+            spa = part_doc.GetWorkbench("SPAWorkbench")
+        except Exception:
+            return None
+        dx_max = dy_max = dz_max = 0.0
+        for body in bodies[: max(1, MAX_RS_PASSES_PER_PART)]:
+            try:
+                sel = part_doc.Selection
+                sel.Clear()
+                sel.Add(body)
+                if sel.Count < 1:
+                    continue
+                m = spa.GetMeasurable(sel.Item(1).Value)
+                bb = [0.0] * 6
+                m.GetBoundaryBox(bb)
+                dx = abs(bb[1] - bb[0]) * 1000.0
+                dy = abs(bb[3] - bb[2]) * 1000.0
+                dz = abs(bb[5] - bb[4]) * 1000.0
+                if dx > dx_max:
+                    dx_max = dx
+                if dy > dy_max:
+                    dy_max = dy
+                if dz > dz_max:
+                    dz_max = dz
+            except Exception:
+                continue
+        if dx_max > 0.001 and dy_max > 0.001 and dz_max > 0.001:
+            asc = sorted((dx_max, dy_max, dz_max))
+            lo, mid, hi = asc[0], asc[1], asc[2]
+            # Cube-like parts: keep dialog scrape (matches LOWER STEEL path).
+            if hi / max(lo, 0.01) < 6.0:
+                return None
+            logger.info(
+                "Rough Stock: SPA world extents sorted %.3f ≤ %.3f ≤ %.3f mm → stock L×W×T %.3f × %.3f × %.3f.",
+                lo,
+                mid,
+                hi,
+                hi,
+                mid,
+                lo,
+            )
+            return hi, mid, lo
+        return None
+
+    @staticmethod
+    def _norm_fs_path(p):
+        if not p:
+            return ""
+        try:
+            return os.path.normcase(os.path.normpath(os.path.abspath(p)))
+        except Exception:
+            return (p or "").strip()
+
+    @staticmethod
+    def _resolve_catpart_path_from_target(target_obj):
+        """Filesystem path to the CATPart backing this Product/Part, or None."""
+        if target_obj is None:
+            return None
+        # BOM websocket passes ActiveDocument when the window is a .CATPart (see catia.py).
+        try:
+            if getattr(target_obj, "Part", None) is not None:
+                fn = getattr(target_obj, "FullName", "") or ""
+                if fn.lower().endswith(".catpart") and os.path.isfile(fn):
+                    return os.path.abspath(fn)
+        except Exception:
+            pass
+        try:
+            _ = target_obj.Bodies
+            doc = target_obj.Parent
+            fn = getattr(doc, "FullName", "") or ""
+            if fn.lower().endswith(".catpart") and os.path.isfile(fn):
+                return os.path.abspath(fn)
+        except Exception:
+            pass
+        try:
+            ref = getattr(target_obj, "ReferenceProduct", None)
+            if ref:
+                parent = getattr(ref, "Parent", None)
+                fn = getattr(parent, "FullName", "") or ""
+                if fn.lower().endswith(".catpart") and os.path.isfile(fn):
+                    return os.path.abspath(fn)
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _find_open_document_by_path(catia, path):
+        want = RoughStockService._norm_fs_path(path)
+        if not want:
+            return None
+        try:
+            for i in range(1, catia.Documents.Count + 1):
+                d = catia.Documents.Item(i)
+                fn = RoughStockService._norm_fs_path(getattr(d, "FullName", "") or "")
+                if fn == want:
+                    return d
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _run_rough_stock_measurement(
+        catia,
+        target_obj,
+        stay_open=False,
+        scope_product=None,
+        anchor_asm_doc=None,
+    ):
+        """Core path: resolve bodies, optional SPA-in-axis, then Creates rough stock + scrape."""
+        logger.info("Rough Stock: resolving targets...")
+        root_part, selection_targets = RoughStockService._resolve_targets_via_selection(
+            catia, target_obj
+        )
+        logger.info(f"Rough Stock: resolved {len(selection_targets)} target(s)")
+
+        if len(selection_targets) > 10:
+            selection_targets = selection_targets[:10]
+
+        axis_dims = RoughStockService._try_spa_bbox_in_preferred_axis(
+            catia, root_part, selection_targets
+        )
+        if axis_dims is not None:
+            logger.info("Rough Stock: using axis-aligned SPA extents (preferred over unset dialog axis).")
+            return axis_dims
+
+        world_dims = RoughStockService._try_spa_axis_aligned_bbox_mm(
+            catia, root_part, selection_targets
+        )
+        if world_dims is not None:
+            logger.info("Rough Stock: using SPA world AABB (skips unreliable dialog Z for plates).")
+            return world_dims
+
+        RoughStockService.start_dialog_monitor()
+        hw = RoughStockService._find_window()
+        if not hw:
+            logger.info("Triggering command 'c:Creates rough stock'...")
+            shell = win32com.client.Dispatch("WScript.Shell")
+            shell.AppActivate("CATIA")
+            time.sleep(0.5)
+            shell.SendKeys("{ESC}{ESC}c:Creates rough stock{ENTER}", 0)
+
+            for _ in range(10):
+                time.sleep(0.5)
+                hw = RoughStockService._find_window()
+                if hw:
+                    break
+
+            if not hw:
+                logger.info("Fallback: Triggering 'c:Rough Stock'...")
+                shell.SendKeys("{ESC}{ESC}c:Rough Stock{ENTER}", 0)
+                for _ in range(10):
+                    time.sleep(0.5)
+                    hw = RoughStockService._find_window()
+                    if hw:
+                        break
+
+            if not hw:
+                logger.warning("Rough Stock window did not appear.")
+                return None, None, None
+
+        dx_max, dy_max, dz_max = 0.0, 0.0, 0.0
+        passes = 0
+        pass_cap = max(MAX_RS_PASSES_PER_PART, len(selection_targets))
+
+        logger.info(
+            "Measuring %s body slot(s) (index policy=%s, no body-name Search).",
+            len(selection_targets),
+            _RS_BODY_MODE,
+        )
+        for slot_idx, target in enumerate(selection_targets, start=1):
+            try:
+                if not EXHAUSTIVE_RS_MEASUREMENT and passes >= pass_cap:
+                    logger.info(
+                        "Reached pass_cap=%s; stopping further Rough Stock passes for this part.",
+                        pass_cap,
+                    )
+                    break
+
+                try:
+                    win32gui.ShowWindow(hw, win32con.SW_RESTORE)
+                    win32gui.SetForegroundWindow(hw)
+                    time.sleep(0.1)
+                except Exception:
+                    pass
+
+                logger.info("Rough Stock: body slot %s/%s", slot_idx, len(selection_targets))
+                ok = RoughStockService._apply_rough_stock_body_selection(
+                    catia,
+                    root_part,
+                    scope_product,
+                    anchor_asm_doc,
+                    target,
+                )
+                if not ok:
+                    logger.warning(
+                        "Rough Stock: could not select body slot %s/%s; skipping.",
+                        slot_idx,
+                        len(selection_targets),
+                    )
+                    continue
+
+                time.sleep(_SCRAPE_PRE_DELAY_SEC)
+                logger.info("Rough Stock: scraping after slot %s/%s...", slot_idx, len(selection_targets))
+                dx, dy, dz = RoughStockService._scrape_current_window_dims(hw)
+                logger.info(f"Scrape results: {dx} x {dy} x {dz}")
+
+                if dx and dx > dx_max:
+                    dx_max = dx
+                if dy and dy > dy_max:
+                    dy_max = dy
+                if dz and dz > dz_max:
+                    dz_max = dz
+
+                passes += 1
+
+                if (
+                    not EXHAUSTIVE_RS_MEASUREMENT
+                    and passes >= pass_cap
+                    and (dx_max + dy_max + dz_max) > 0.1
+                ):
+                    logger.info(
+                        "Collected non-zero Rough Stock dimensions within pass limit; "
+                        "short-circuiting remaining targets."
+                    )
+                    break
+
+            except Exception as e:
+                logger.error(f"Error measuring target: {e}")
+
+        if not stay_open:
+            try:
+                win32gui.PostMessage(hw, win32con.WM_CLOSE, 0, 0)
+            except Exception:
+                pass
+
+        return (
+            dx_max if dx_max > 0.001 else None,
+            dy_max if dy_max > 0.001 else None,
+            dz_max if dz_max > 0.001 else None,
+        )
+
+    @staticmethod
+    def _measure_in_isolated_catpart_window(catia, target_obj, path, stay_open=False):
+        """Same isolation as STL: temp copy + Open so CATIA always uses a fresh document window."""
+        prev_doc = None
+        we_opened = False
+        iso_doc = None
+        temp_file_copy = ""
+        try:
+            try:
+                prev_doc = catia.ActiveDocument
+            except Exception:
+                pass
+
+            try:
+                temp_dir = str(os.environ.get("TEMP", "C:\\Temp"))
+                os.makedirs(temp_dir, exist_ok=True)
+                ts = int(time.time() * 1000)
+                temp_file_copy = os.path.join(temp_dir, f"cadm_rs_{ts}.CATPart")
+                shutil.copy2(path, temp_file_copy)
+                logger.info(f"Rough Stock: opening temp CATPart (STL-style isolation): {temp_file_copy}")
+                iso_doc = catia.Documents.Open(temp_file_copy)
+                we_opened = True
+            except Exception as copy_err:
+                logger.warning(
+                    f"Rough Stock: temp copy/open failed ({copy_err}); trying direct Open."
+                )
+                temp_file_copy = ""
+                iso_doc = RoughStockService._find_open_document_by_path(catia, path)
+                if iso_doc is None:
+                    iso_doc = catia.Documents.Open(path)
+                    we_opened = True
+                else:
+                    logger.info("Rough Stock: reusing already-open CATPart.")
+
+            try:
+                catia.ActiveDocument = iso_doc
+            except Exception:
+                pass
+            time.sleep(0.35)
+
+            res = RoughStockService._run_rough_stock_measurement(catia, iso_doc.Part, stay_open)
+
+            if res == (None, None, None):
+                logger.warning(
+                    "Rough Stock: isolated document produced no dimensions; falling back to original window."
+                )
+                if we_opened and iso_doc is not None:
+                    try:
+                        iso_doc.Close(False)
+                    except Exception:
+                        pass
+                    we_opened = False
+                    iso_doc = None
+                if prev_doc is not None:
+                    try:
+                        catia.ActiveDocument = prev_doc
+                    except Exception:
+                        pass
+                prev_skip = prev_doc
+                prev_doc = None
+                res = RoughStockService._run_rough_stock_measurement(catia, target_obj, stay_open)
+                prev_doc = prev_skip
+
+            return res
+        except Exception as e:
+            logger.warning(f"Rough Stock isolated-window path failed: {e}; falling back to in-place.")
+            return RoughStockService._run_rough_stock_measurement(catia, target_obj, stay_open)
+        finally:
+            RoughStockService.close_window()
+            if we_opened and not stay_open and iso_doc is not None:
+                try:
+                    iso_doc.Close(False)
+                except Exception as e:
+                    logger.warning(f"Rough Stock: could not close isolated document: {e}")
+            if temp_file_copy and os.path.isfile(temp_file_copy):
+                try:
+                    os.remove(temp_file_copy)
+                except Exception:
+                    pass
+            if prev_doc is not None:
+                try:
+                    catia.ActiveDocument = prev_doc
+                except Exception:
+                    pass
+
+    @staticmethod
+    def get_rough_stock_dims(
+        catia=None,
+        target_obj=None,
+        stay_open=False,
+        isolate_part_window=None,
+        scope_product=None,
+    ):
+        """
+        DX, DY, DZ from Rough Stock (and SPA-in-axis shortcut when applicable).
+
+        Body solids: default scans Bodies.Item(1), Item(2), … and uses the first with geometry
+        (Shapes/HybridShapes). Override via CADMATION_RS_BODY_RESOLUTION. Set CADMATION_ROUGH_STOCK_IN_PLACE=1
+        to skip isolated CATPart open/close when that path is enabled.
         """
         try:
             if not catia:
                 from app.services.catia_bridge import catia_bridge
                 catia = catia_bridge.catia_bridge.get_application()
 
-            logger.info("Rough Stock: resolving targets...")
-            # 1. Resolve target objects (Selection-first structural detection)
-            root_part, selection_targets = RoughStockService._resolve_targets_via_selection(
-                catia, target_obj
+            anchor_asm_doc = None
+            if scope_product is not None:
+                try:
+                    anchor_asm_doc = catia.ActiveDocument
+                except Exception:
+                    pass
+
+            if isolate_part_window is None:
+                isolate_part_window = not _IN_PLACE_ROUGH_STOCK
+
+            path = None
+            if isolate_part_window and target_obj is not None:
+                path = RoughStockService._resolve_catpart_path_from_target(target_obj)
+
+            if isolate_part_window and path and os.path.isfile(path):
+                return RoughStockService._measure_in_isolated_catpart_window(
+                    catia, target_obj, path, stay_open
+                )
+
+            if isolate_part_window and (not path or not os.path.isfile(path or "")):
+                logger.info(
+                    "Rough Stock: no on-disk CATPart path (or file missing); measuring in current window."
+                )
+            return RoughStockService._run_rough_stock_measurement(
+                catia,
+                target_obj,
+                stay_open,
+                scope_product=scope_product,
+                anchor_asm_doc=anchor_asm_doc,
             )
-            logger.info(f"Rough Stock: resolved {len(selection_targets)} target(s)")
-
-            if len(selection_targets) > 10:
-                selection_targets = selection_targets[:10]
-
-            # 2. Trigger the command
-            RoughStockService.start_dialog_monitor()
-            hw = RoughStockService._find_window()
-            if not hw:
-                logger.info("Triggering command 'c:Creates rough stock'...")
-                shell = win32com.client.Dispatch("WScript.Shell")
-                shell.AppActivate("CATIA")
-                time.sleep(0.5)
-                shell.SendKeys("{ESC}{ESC}c:Creates rough stock{ENTER}", 0)
-
-                for i in range(10):
-                    time.sleep(0.5)
-                    hw = RoughStockService._find_window()
-                    if hw: break
-                
-                if not hw:
-                    logger.info("Fallback: Triggering 'c:Rough Stock'...")
-                    shell.SendKeys("{ESC}{ESC}c:Rough Stock{ENTER}", 0)
-                    for i in range(10):
-                        time.sleep(0.5)
-                        hw = RoughStockService._find_window()
-                        if hw: break
-
-                if not hw:
-                    logger.warning("Rough Stock window did not appear.")
-                    return None, None, None
-
-            # 3. Iterate and Search Targets
-            dx_max, dy_max, dz_max = 0.0, 0.0, 0.0
-            passes = 0
-
-            logger.info(f"Measuring {len(selection_targets)} targets via Search...")
-            for target in selection_targets:
-                try:
-                    if not EXHAUSTIVE_RS_MEASUREMENT and passes >= MAX_RS_PASSES_PER_PART:
-                        logger.info(
-                            f"Reached MAX_RS_PASSES_PER_PART={MAX_RS_PASSES_PER_PART}; "
-                            "stopping further Rough Stock passes for this part."
-                        )
-                        break
-
-                    # Rule 4: Window Restore
-                    try:
-                        win32gui.ShowWindow(hw, win32con.SW_RESTORE)
-                        win32gui.SetForegroundWindow(hw)
-                        time.sleep(0.1)
-                    except: pass
-
-                    sel = catia.ActiveDocument.Selection
-                    sel.Clear()
-                    
-                    target_name = getattr(target, 'Name', 'Unknown')
-
-                    logger.info(f"Triggering Rough Stock via Search for: {target_name}")
-                    # Prefer searching by both name and type to avoid hitting products,
-                    # but always finish with a name-only pattern as a fallback.
-                    search_patterns = []
-                    if root_part is not None:
-                        search_patterns.append(f"Name='{target_name}',Type=Body,all")
-                        search_patterns.append(f"Name='{target_name}',Type=Part,all")
-                    # Always include a loose, name-only pattern last as a safety net.
-                    search_patterns.append(f"Name='{target_name}',all")
-
-                    match_count = 0
-                    for pattern in search_patterns:
-                        try:
-                            sel.Clear()
-                            logger.info(f"Selection.Search pattern: {pattern}")
-                            sel.Search(pattern)
-                            match_count = sel.Count
-                            logger.info(f"Selection.Search pattern '{pattern}' returned {match_count} result(s).")
-                            if match_count > 0:
-                                first_match = sel.Item(1).Value
-                                sel.Clear()
-                                sel.Add(first_match)
-                                match_count = 1
-                                break
-                        except Exception as se:
-                            logger.error(f"Selection.Search failed for pattern '{pattern}': {se}")
-
-                    if match_count == 0:
-                        logger.warning(f"No selection results for target '{target_name}'. Skipping measurement for this target.")
-                        continue
-                    
-                    # Rule 3: Wait at least 2.0s
-                    time.sleep(2.5) 
-                    logger.info(f"Scraping dimensions for {target_name}...")
-                    dx, dy, dz = RoughStockService._scrape_current_window_dims(hw)
-                    logger.info(f"Scrape results: {dx} x {dy} x {dz}")
-
-                    if dx and dx > dx_max:
-                        dx_max = dx
-                    if dy and dy > dy_max:
-                        dy_max = dy
-                    if dz and dz > dz_max:
-                        dz_max = dz
-
-                    passes += 1
-
-                    # Early exit once we have a stable, non-trivial box in balanced mode.
-                    if (
-                        not EXHAUSTIVE_RS_MEASUREMENT
-                        and passes >= MAX_RS_PASSES_PER_PART
-                        and (dx_max + dy_max + dz_max) > 0.1
-                    ):
-                        logger.info(
-                            "Collected non-zero Rough Stock dimensions within pass limit; "
-                            "short-circuiting remaining targets."
-                        )
-                        break
-
-                except Exception as e:
-                    logger.error(f"Error measuring target: {e}")
-
-            # 4. Finalize
-            if not stay_open:
-                try:
-                    win32gui.PostMessage(hw, win32con.WM_CLOSE, 0, 0)
-                except: pass
-
-            return dx_max if dx_max > 0.001 else None, dy_max if dy_max > 0.001 else None, dz_max if dz_max > 0.001 else None
         except Exception as e:
             logger.error(f"Rough Stock process failed: {e}")
             return None, None, None
 
     @staticmethod
     def _resolve_targets_via_selection(catia, target_obj, max_targets=10):
-        """Resolve a CATIA target into a root part and measurement targets using Selection.Search."""
+        """
+        Resolve root Part, then pick body via sequential Item(1), Item(2), … first non-empty (default).
+        """
         selection_targets = []
         root_part = None
 
@@ -254,6 +1226,23 @@ class RoughStockService:
             return None, [target_obj] if target_obj is not None else []
 
         logger.info(f"Rough Stock _resolve_targets: input={target_name}")
+
+        # Input is already a Body / shape under a Part — use that Part's Bodies index policy.
+        try:
+            par = getattr(target_obj, "Parent", None)
+            if par is not None and getattr(par, "Bodies", None) is not None:
+                bc = par.Bodies
+                if bc is not None and bc.Count > 0:
+                    slots = RoughStockService._bodies_for_rough_stock(par)
+                    if slots:
+                        logger.info(
+                            "Rough Stock: target under Part %r; %s body slot(s) by index.",
+                            getattr(par, "Name", "?"),
+                            len(slots),
+                        )
+                        return par, slots[:max_targets]
+        except Exception:
+            pass
 
         # Try to add the object to the selection, but do not depend on this working.
         sel.Clear()
@@ -308,131 +1297,22 @@ class RoughStockService:
             except Exception:
                 logger.warning("Failed to resolve root Part via ActiveDocument.Part.")
 
-        # 4. Resolve candidate bodies. Prefer anti-operand rule, but fall back to simpler heuristics and search.
         if root_part is not None:
             try:
-                all_bodies = []
-                body_names = set()
-                try:
-                    bodies = root_part.Bodies
-                    for i in range(1, bodies.Count + 1):
-                        b = bodies.Item(i)
-                        all_bodies.append(b)
-                        body_names.add(b.Name)
-                except Exception as e:
-                    logger.error(f"Failed to enumerate Bodies on root_part: {e}")
-
-                consumed = set()
-                if all_bodies:
-                    for b in all_bodies:
-                        try:
-                            shapes = b.Shapes
-                        except Exception:
-                            continue
-                        for j in range(1, getattr(shapes, "Count", 0) + 1):
-                            try:
-                                s = shapes.Item(j)
-                            except Exception:
-                                continue
-                            for prop in ["Body", "Operand", "TargetBody", "FirstOperand", "SecondOperand"]:
-                                try:
-                                    op = getattr(s, prop)
-                                    if getattr(op, "Name", None) in body_names:
-                                        consumed.add(op.Name)
-                                except Exception:
-                                    continue
-
-                for b in all_bodies:
-                    name = getattr(b, "Name", "")
-                    if name in consumed:
-                        continue
-                    # Skip obvious tool/operand bodies by name in balanced mode.
-                    if not EXHAUSTIVE_RS_MEASUREMENT and any(
-                        pat in name.upper() for pat in BODY_NAME_TOOL_PATTERNS
-                    ):
-                        continue
-                    selection_targets.append(b)
-
-                if selection_targets:
-                    logger.info(
-                        f"Anti-operand body resolution selected bodies: "
-                        f"{[getattr(b, 'Name', 'Unknown') for b in selection_targets]}"
-                    )
+                bodies = root_part.Bodies
+                if bodies is not None and bodies.Count > 0:
+                    slots = RoughStockService._bodies_for_rough_stock(root_part)
+                    if slots:
+                        logger.info(
+                            "Rough Stock: %s body slot(s) on Part (mode=%s).",
+                            len(slots),
+                            _RS_BODY_MODE,
+                        )
+                        return root_part, slots[:max_targets]
+                logger.warning("Rough Stock: Part has no Bodies.")
             except Exception as e:
-                logger.error(f"Anti-operand body resolution failed: {e}")
+                logger.error(f"Rough Stock: failed to read Part.Bodies: {e}")
 
-            # Heuristic fallbacks if anti-operand did not yield anything.
-            if not selection_targets:
-                logger.info("Anti-operand rule produced no bodies; applying heuristic body selection.")
-                # Try root_part.MainBody if available.
-                try:
-                    main_body = getattr(root_part, "MainBody", None)
-                    if main_body is not None:
-                        selection_targets.append(main_body)
-                        logger.info(
-                            f"Using MainBody as selection target: "
-                            f"{getattr(main_body, 'Name', 'Unknown')}"
-                        )
-                except Exception:
-                    pass
-
-            if not selection_targets:
-                # Fallback: first body, if any.
-                try:
-                    bodies = root_part.Bodies
-                    if bodies.Count > 0:
-                        b = bodies.Item(1)
-                        selection_targets.append(b)
-                        logger.info(
-                            f"Using first body as selection target: "
-                            f"{getattr(b, 'Name', 'Unknown')}"
-                        )
-                except Exception as e:
-                    logger.error(f"Failed to select first body as fallback: {e}")
-
-            if not selection_targets:
-                logger.warning(
-                    "No bodies selected from resolved Part; skipping document-wide body search to avoid clubbing multiple parts."
-                )
-
-        # 5. Narrow and de-duplicate targets in balanced mode.
-        if selection_targets and not EXHAUSTIVE_RS_MEASUREMENT:
-            part_name = getattr(root_part, "Name", "") if root_part is not None else ""
-            primary = []
-            secondary = []
-            for b in selection_targets:
-                name = getattr(b, "Name", "")
-                if hasattr(root_part, "MainBody") and b is getattr(root_part, "MainBody", None):
-                    primary.append(b)
-                    continue
-                if part_name and part_name.upper() in name.upper():
-                    secondary.append(b)
-
-            narrowed = primary or secondary
-            if narrowed:
-                logger.info(
-                    "Balanced mode: narrowing selection_targets to primary bodies: "
-                    f"{[getattr(b, 'Name', 'Unknown') for b in narrowed]}"
-                )
-                selection_targets = narrowed
-
-            # De-duplicate by (part_name, body_name).
-            seen = set()
-            deduped = []
-            for b in selection_targets:
-                name = getattr(b, "Name", "")
-                key = (part_name, name)
-                if key in seen:
-                    continue
-                seen.add(key)
-                deduped.append(b)
-            if len(deduped) != len(selection_targets):
-                logger.info(
-                    f"De-duplicated selection_targets from {len(selection_targets)} to {len(deduped)}."
-                )
-            selection_targets = deduped
-
-        # 6. As a last resort, use the literal input.
         if not selection_targets:
             logger.info("Falling back to literal target object for rough stock measurement.")
             if target_obj is not None:
@@ -447,7 +1327,352 @@ class RoughStockService:
         return root_part, selection_targets
 
     @staticmethod
-    def _scrape_current_window_dims(hw):
+    def open_rough_stock_dialog(catia=None):
+        """Phase 1: Just triggers the command and waits for the window."""
+        try:
+            if not catia:
+                from app.services.catia_bridge import catia_bridge
+                catia = catia_bridge.catia_bridge.get_application()
+            
+            hw = RoughStockService._find_window()
+            if not hw:
+                logger.info("Rough Stock dialog not detected. Waiting for user to open it manually (interactive mode)...")
+                # Removed SendKeys to satisfy 'disable opening new windows' request.
+                # Use a smaller loop just in case the user opens it while we check.
+                for _ in range(5):
+                    time.sleep(1)
+                    hw = RoughStockService._find_window()
+                    if hw: break
+            
+            if hw:
+                win32gui.SetForegroundWindow(hw)
+                return hw
+            return None
+        except Exception as e:
+            logger.error(f"Failed to open Rough Stock dialog: {e}")
+            return None
+
+    @staticmethod
+    def _norm_rs_body_label(s):
+        if not s:
+            return ""
+        t = s.strip().replace("/", "\\")
+        while "\\\\" in t:
+            t = t.replace("\\\\", "\\")
+        return " ".join(t.upper().split())
+
+    @staticmethod
+    def _expected_part_body_labels(root_part, target_body):
+        part_nm = (getattr(root_part, "Name", "") or "").strip()
+        body_nm = (getattr(target_body, "Name", "") or "").strip()
+        raw = []
+        if part_nm and body_nm:
+            raw.append(f"{part_nm}\\{body_nm}")
+            raw.append(f"{part_nm.replace(' ', '_')}\\{body_nm}")
+        elif body_nm:
+            raw.append(body_nm)
+        return [RoughStockService._norm_rs_body_label(x) for x in raw if x]
+
+    @staticmethod
+    def _part_body_truncated_garbage(shown):
+        """LB_GETTEXT sometimes returns '20' or 'LO'; never treat as a real path."""
+        s = (shown or "").strip()
+        if not s or s == "EdtPartBody":
+            return False
+        return len(s) <= 4 and "\\" not in s and "/" not in s
+
+    @staticmethod
+    def _part_body_label_matches(shown, root_part, target_body):
+        if RoughStockService._part_body_truncated_garbage(shown):
+            return True
+        if not shown or (shown.strip() == "EdtPartBody"):
+            return False
+        exp = RoughStockService._expected_part_body_labels(root_part, target_body)
+        if not exp:
+            return True
+        norm = RoughStockService._norm_rs_body_label(shown)
+        if norm in exp:
+            return True
+        for e in exp:
+            if e and (norm.endswith(e) or e.endswith(norm)):
+                return True
+        body_u = RoughStockService._norm_rs_body_label(getattr(target_body, "Name", "") or "")
+        return bool(body_u and body_u in norm and "\\" in norm)
+
+    @staticmethod
+    def _wm_gettext_upto(hwnd, max_chars=2048):
+        import ctypes
+
+        try:
+            buf = ctypes.create_unicode_buffer(max_chars)
+            n = win32gui.SendMessage(hwnd, win32con.WM_GETTEXT, max_chars, buf)
+            if n and n > 0:
+                return (buf.value or "").strip()
+        except Exception:
+            pass
+        return (win32gui.GetWindowText(hwnd) or "").strip()
+
+    @staticmethod
+    def _scrape_part_body_to_offset_text(hw):
+        """CATIA often stores the path on the ListBox via LB_GETTEXT (all items) or a large WM_GETTEXT."""
+        import ctypes
+
+        LB_GETCOUNT = 0x018B
+        LB_GETTEXT = 0x0189
+        LB_GETTEXTLEN = 0x019A
+        LB_GETCURSEL = 0x0188
+        CB_GETCURSEL = 0x0147
+        CB_GETLBTEXT = 0x0148
+        CB_GETLBTEXTLEN = 0x0149
+
+        def _lb_err(v):
+            return v in (-1, 0xFFFFFFFF)
+
+        def listbox_all_lines(hwnd):
+            out = []
+            try:
+                cnt = win32gui.SendMessage(hwnd, LB_GETCOUNT, 0, 0)
+                if _lb_err(cnt) or cnt <= 0:
+                    return out
+                for i in range(int(cnt)):
+                    ln = win32gui.SendMessage(hwnd, LB_GETTEXTLEN, i, 0)
+                    if _lb_err(ln) or ln > 4096:
+                        continue
+                    buf = ctypes.create_unicode_buffer(ln + 1)
+                    win32gui.SendMessage(hwnd, LB_GETTEXT, i, buf)
+                    t = (buf.value or "").strip()
+                    if t:
+                        out.append(t)
+            except Exception:
+                pass
+            return out
+
+        def listbox_cur_line(hwnd):
+            try:
+                sel_i = win32gui.SendMessage(hwnd, LB_GETCURSEL, 0, 0)
+                if _lb_err(sel_i):
+                    sel_i = 0
+                cnt = win32gui.SendMessage(hwnd, LB_GETCOUNT, 0, 0)
+                if _lb_err(cnt) or cnt <= 0 or sel_i >= cnt:
+                    return ""
+                ln = win32gui.SendMessage(hwnd, LB_GETTEXTLEN, sel_i, 0)
+                if _lb_err(ln):
+                    return ""
+                buf = ctypes.create_unicode_buffer(max(ln + 1, 512))
+                win32gui.SendMessage(hwnd, LB_GETTEXT, sel_i, buf)
+                return (buf.value or "").strip()
+            except Exception:
+                return ""
+
+        def combobox_line(hwnd):
+            try:
+                sel_i = win32gui.SendMessage(hwnd, CB_GETCURSEL, 0, 0)
+                if _lb_err(sel_i):
+                    sel_i = 0
+                ln = win32gui.SendMessage(hwnd, CB_GETLBTEXTLEN, sel_i, 0)
+                if _lb_err(ln):
+                    return ""
+                buf = ctypes.create_unicode_buffer(max(ln + 1, 512))
+                win32gui.SendMessage(hwnd, CB_GETLBTEXT, sel_i, buf)
+                return (buf.value or "").strip()
+            except Exception:
+                return ""
+
+        def pick_best(candidates):
+            cands = [c.strip() for c in candidates if c and str(c).strip() not in ("EdtPartBody", "")]
+            if not cands:
+                return ""
+            path_like = [c for c in cands if "\\" in c or "/" in c or "BODY" in c.upper()]
+            pool = path_like if path_like else cands
+            return max(pool, key=len)
+
+        best = ""
+        controls = []
+
+        def callback(hwnd, results):
+            if not win32gui.IsWindowVisible(hwnd):
+                return True
+            results.append((hwnd, win32gui.GetClassName(hwnd)))
+            return True
+
+        try:
+            win32gui.EnumChildWindows(hw, callback, controls)
+        except Exception:
+            return ""
+
+        for hwnd, cls in controls:
+            if cls == "Static":
+                st = RoughStockService._wm_gettext_upto(hwnd, 1024)
+                if st and ("\\" in st or "/" in st) and len(st) > 6:
+                    return st.strip()
+
+        for hwnd, cls in controls:
+            if cls == "ListBox":
+                big = RoughStockService._wm_gettext_upto(hwnd, 2048)
+                if big and big != "EdtPartBody" and ("\\" in big or "/" in big):
+                    return big.strip()
+                merged = listbox_all_lines(hwnd)
+                s = pick_best(merged) or listbox_cur_line(hwnd) or big
+                if s and s != "EdtPartBody" and ("\\" in s or "/" in s or "BODY" in s.upper()):
+                    return s
+                if s and s != "EdtPartBody" and len(s) > len(best):
+                    best = s
+            elif cls == "ComboBox":
+                s = combobox_line(hwnd) or RoughStockService._wm_gettext_upto(hwnd, 2048)
+                if s and ("\\" in s or "/" in s or "BODY" in s.upper()):
+                    return s
+                if len(s) > len(best):
+                    best = s
+        return best
+
+    @staticmethod
+    def measure_body_in_dialog(
+        catia, target_obj, hw, scope_product=None, anchor_asm_doc=None
+    ):
+        """Phase 2: Selects the target body in the active dialog and scrapes dimensions."""
+        try:
+            if not hw or not win32gui.IsWindow(hw):
+                hw = RoughStockService._find_window() or hw
+            if not hw or not win32gui.IsWindow(hw):
+                return None, None, None
+
+            root_part, selection_targets = RoughStockService._resolve_targets_via_selection(
+                catia, target_obj
+            )
+            if not selection_targets:
+                return None, None, None
+
+            target = selection_targets[0]
+
+            try:
+                win32gui.ShowWindow(hw, win32con.SW_RESTORE)
+                win32gui.SetForegroundWindow(hw)
+                time.sleep(0.1)
+            except Exception:
+                pass
+
+            if not RoughStockService._apply_rough_stock_body_selection(
+                catia,
+                root_part,
+                scope_product,
+                anchor_asm_doc,
+                target,
+            ):
+                return None, None, None
+
+            # Same numbers as Rough Stock with a machining axis set (dialog axis is not automated via COM).
+            axis_dims = RoughStockService._try_spa_bbox_in_preferred_axis(
+                catia, root_part, selection_targets
+            )
+            if axis_dims is not None:
+                return axis_dims
+
+            world_dims = RoughStockService._try_spa_axis_aligned_bbox_mm(
+                catia, root_part, selection_targets
+            )
+            if world_dims is not None:
+                return world_dims
+
+            for body_try in range(_RS_BODY_LABEL_MATCH_ATTEMPTS):
+                if body_try > 0:
+                    RoughStockService._apply_rough_stock_body_selection(
+                        catia,
+                        root_part,
+                        scope_product,
+                        anchor_asm_doc,
+                        target,
+                    )
+                time.sleep(_SCRAPE_PRE_DELAY_SEC)
+                shown = RoughStockService._scrape_part_body_to_offset_text(hw)
+                logger.info("Rough Stock: Part body to offset (read): %r", shown)
+                if RoughStockService._part_body_label_matches(shown, root_part, target):
+                    if body_try > 0:
+                        logger.info(
+                            "Rough Stock: Part body field matched target after %s re-select(s): %r",
+                            body_try,
+                            shown,
+                        )
+                    break
+                logger.warning(
+                    "Rough Stock: Part body field %r does not match %s\\%s — re-selecting (%s/%s).",
+                    shown,
+                    getattr(root_part, "Name", "?"),
+                    getattr(target, "Name", "?"),
+                    body_try + 1,
+                    _RS_BODY_LABEL_MATCH_ATTEMPTS,
+                )
+            else:
+                logger.warning(
+                    "Rough Stock: Part body field never matched after %s tries; scraping dialog anyway.",
+                    _RS_BODY_LABEL_MATCH_ATTEMPTS,
+                )
+
+            dx, dy, dz = RoughStockService._scrape_dims_until_settled(hw)
+            return dx, dy, dz
+            
+        except Exception as e:
+            logger.error(f"Interactive measurement failed for {getattr(target_obj, 'Name', 'obj')}: {e}")
+            return None, None, None
+
+    @staticmethod
+    def _dx_dy_dz_from_edit_window_positions(edit_hw_text):
+        """
+        Stock grid is 3×3 (min/max/delta per axis). Child enum order is not row-major — use (top,left).
+        """
+        if len(edit_hw_text) < 9:
+            return None
+        scored = []
+        for h, txt in edit_hw_text:
+            try:
+                left, top, _r, _b = win32gui.GetWindowRect(h)
+                scored.append((top, left, txt))
+            except Exception:
+                continue
+        if len(scored) < 9:
+            return None
+        scored.sort(key=lambda x: (x[0], x[1]))
+        span = max(s[0] for s in scored) - min(s[0] for s in scored)
+        y_tol = max(22, min(45, int(span / 4) + 10)) if span > 0 else 28
+        rows = []
+        cur = []
+        row_anchor = None
+        for top, l, txt in scored:
+            if row_anchor is None or abs(top - row_anchor) <= y_tol:
+                cur.append((l, top, txt))
+                row_anchor = top if row_anchor is None else (row_anchor + top) / 2.0
+            else:
+                cur.sort(key=lambda x: x[0])
+                rows.append(cur)
+                cur = [(l, top, txt)]
+                row_anchor = top
+        if cur:
+            cur.sort(key=lambda x: x[0])
+            rows.append(cur)
+        if len(rows) < 3:
+            return None
+        # Three stock bands ordered by vertical position; take the lowest three (X/Y/Z block).
+        rows.sort(key=lambda r: sum(c[1] for c in r) / max(len(r), 1))
+        use = rows[-3:]
+        texts = []
+        for row in use:
+            if len(row) < 3:
+                return None
+            row = sorted(row, key=lambda x: x[0])
+            if len(row) > 3:
+                row = row[-3:]
+            texts.append([c[2] for c in row])
+        try:
+            dx = RoughStockService._parse_mm(texts[0][2])
+            dy = RoughStockService._parse_mm(texts[1][2])
+            dz = RoughStockService._parse_mm(texts[2][2])
+        except Exception:
+            return None
+        if dx is None or dy is None or dz is None:
+            return None
+        return float(dx), float(dy), float(dz)
+
+    @staticmethod
+    def _scrape_current_window_dims(hw, read_passes=5, log_controls=True):
         """Helper to scrape the Edit controls of an open Rough Stock window."""
         import ctypes
         try:
@@ -456,7 +1681,8 @@ class RoughStockService:
             time.sleep(0.1)
         except: pass
 
-        for attempt in range(5):
+        read_passes = max(1, int(read_passes or 1))
+        for attempt in range(read_passes):
             controls = []
             def callback(hwnd, results):
                 if not win32gui.IsWindowVisible(hwnd): return True
@@ -472,32 +1698,89 @@ class RoughStockService:
                 return True
 
             win32gui.EnumChildWindows(hw, callback, controls)
-            edits = [t for h, c, t in controls if c == "Edit"]
-            
-            if edits:
-                # Log RAW results with repr to see hidden characters
+            if log_controls:
+                raw_parts = [f"{c}:{repr(t)}" for _h, c, t in controls if t is not None and str(t).strip()]
+                if raw_parts:
+                    joined = " | ".join(raw_parts)
+                    logger.info(
+                        "Rough Stock dialog raw control texts (attempt %s, %s controls): %s",
+                        attempt,
+                        len(controls),
+                        joined[:4000] + ("..." if len(joined) > 4000 else ""),
+                    )
+            edits_hw = [(h, t) for h, c, t in controls if c == "Edit"]
+            edits = [t for _h, t in edits_hw]
+
+            if edits and log_controls:
                 logger.info(f"Scrape Attempt {attempt}: RAW Edits: {[repr(e) for e in edits]}")
                 
             if len(edits) >= 9:
                 all_vals = [RoughStockService._parse_mm(e) for e in edits]
-                logger.info(f"Rough Stock Edits Parsed: {all_vals}")
-                
-                # Check default indices 2, 5, 8 (DX, DY, DZ usually)
+                if log_controls:
+                    logger.info(f"Rough Stock Edits Parsed: {all_vals}")
+
+                spatial = RoughStockService._dx_dy_dz_from_edit_window_positions(edits_hw)
+                if spatial is not None and sum(spatial) > 0.1:
+                    if log_controls:
+                        logger.info(
+                            "Captured dimensions from 3×3 edit layout (screen order): %s",
+                            list(spatial),
+                        )
+                    return spatial[0], spatial[1], spatial[2]
+
+                # Legacy: enum order (often wrong on newer CATIA layouts)
                 vals = [all_vals[2], all_vals[5], all_vals[8]]
                 vals = [v if v is not None else 0.0 for v in vals]
                 
                 if sum(vals) > 0.1:
-                    logger.info(f"Captured dimensions from indices 2,5,8: {vals}")
+                    if log_controls:
+                        logger.info(f"Captured dimensions from indices 2,5,8: {vals}")
                     return vals[0], vals[1], vals[2]
                 
-                # Fallback: check all for non-zero values
                 non_zero = sorted([v for v in all_vals if v is not None and v > 0.001], reverse=True)
                 if len(non_zero) >= 3:
-                    logger.info(f"Captured dimensions from max sorted edits: {non_zero[:3]}")
+                    if log_controls:
+                        logger.info(f"Captured dimensions from max sorted edits: {non_zero[:3]}")
                     return non_zero[0], non_zero[1], non_zero[2]
 
             time.sleep(0.4)
         return None, None, None
+
+    @staticmethod
+    def _scrape_dims_until_settled(hw):
+        """Repeat dimension scrape until two consecutive reads match (Z often lags X/Y)."""
+        last = None
+        chosen = None
+        for i in range(_RS_DIM_SETTLE_ATTEMPTS):
+            if i > 0:
+                time.sleep(_RS_DIM_SETTLE_PAUSE_SEC)
+            quiet = i > 0
+            cur = RoughStockService._scrape_current_window_dims(
+                hw, read_passes=1 if quiet else 5, log_controls=not quiet
+            )
+            if cur[0] is None:
+                continue
+            if last is not None:
+                deltas = (
+                    abs(cur[0] - last[0]),
+                    abs(cur[1] - last[1]),
+                    abs(cur[2] - last[2]),
+                )
+                if max(deltas) < 0.05:
+                    logger.info(
+                        "Rough Stock: dimensions settled after %s read(s): DX/DY/DZ=%s",
+                        i + 1,
+                        list(cur),
+                    )
+                    return cur
+            last = cur
+            chosen = cur
+        if chosen is not None:
+            logger.info(
+                "Rough Stock: dimensions did not fully settle; using last read DX/DY/DZ=%s",
+                list(chosen),
+            )
+        return chosen if chosen is not None else (None, None, None)
 
     @staticmethod
     def close_window():
@@ -515,7 +1798,8 @@ class RoughStockService:
             # This turns "1 4 5 . 0 m m" into "145.0mm"
             clean_text = "".join(text.split()).replace("\x00", "")
             
-            match = re.search(r"([-+]?\d*\.\d+|\d+)", clean_text)
+            # Prefer signed number as one token (old pattern let \d+ match after '-' and drop the sign).
+            match = re.search(r"([-+]?(?:\d+\.\d+|\d+))", clean_text)
             if match:
                 return float(match.group(1))
         except:

@@ -1,21 +1,17 @@
+import win32gui
 
-import win32com.client
-import pythoncom
+def enum_windows_callback(hwnd, titles):
+    if win32gui.IsWindowVisible(hwnd):
+        title = win32gui.GetWindowText(hwnd)
+        if title:
+            titles.append(title)
 
-def list_windows():
-    pythoncom.CoInitialize()
-    try:
-        caa = win32com.client.GetActiveObject("CATIA.Application")
-        print(f"Windows Count: {caa.Windows.Count}")
-        for i in range(1, caa.Windows.Count + 1):
-            win = caa.Windows.Item(i)
-            print(f"Window {i}: {win.Caption}")
-            
-        print(f"Active Window: {caa.ActiveWindow.Caption}")
-        print(f"CATIA Caption: {caa.Caption}")
-        
-    except Exception as e:
-        print(f"Error: {e}")
+def main():
+    titles = []
+    win32gui.EnumWindows(enum_windows_callback, titles)
+    print("--- Visible Windows ---")
+    for t in sorted(titles):
+        print(t)
 
 if __name__ == "__main__":
-    list_windows()
+    main()

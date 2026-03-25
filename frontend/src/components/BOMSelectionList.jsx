@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { flushSync } from 'react-dom'
 import { startBomMeasurement } from '../utils/bomMeasurement'
 import { getNameSuggestions } from '../utils/bomNaming'
 
-const DEFAULT_METHOD = 'ROUGH_STOCK'
+const DEFAULT_METHOD = 'STL'
 
 function normalizeRows(items) {
   return (items || []).map((item) => {
@@ -17,23 +18,166 @@ function normalizeRows(items) {
       manufacturer: item.manufacturer || (isStd ? 'MISUMI' : ''),
       description: item.description || getNameSuggestions(item)[0] || item.instanceName || item.name,
       material: item.material || '',
+      measurementBodyName: item.measurementBodyName || '',
+      bodyNameOptions: Array.isArray(item.bodyNameOptions) ? item.bodyNameOptions : [],
+      _bodyFetchPending: false,
+      measureBodyColumnHint: item.measureBodyColumnHint || '',
     }
   })
 }
 
-export default function BOMSelectionList({ items: initialItems, onCalculationComplete }) {
+export default function BOMSelectionList({ items: initialItems, onAction, onCalculationComplete }) {
   const [items, setItems] = useState(() => normalizeRows(initialItems))
   const [calculating, setCalculating] = useState(false)
   const [progress, setProgress] = useState(0)
   const [logs, setLogs] = useState([])
+  const [pendingAction, setPendingAction] = useState(null)
   const [selectorError, setSelectorError] = useState('')
+  const [bodyListError, setBodyListError] = useState('')
+  const [measureMethod, setMeasureMethod] = useState(DEFAULT_METHOD)
   const wsRef = useRef(null)
   const logEndRef = useRef(null)
   const cancelledRef = useRef(false)
+  const itemsRef = useRef(items)
 
   useEffect(() => {
     setItems(normalizeRows(initialItems))
   }, [initialItems])
+
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
+
+  const bodyFetchKey = useMemo(
+    () =>
+      items
+        .filter((i) => i.selected)
+        .map((i) => `${i.id}|${i.instanceName}`)
+        .sort()
+        .join(';'),
+    [items],
+  )
+
+  useEffect(() => {
+    if (!bodyFetchKey) {
+      setBodyListError('')
+      setItems((prev) =>
+        prev.map((r) => ({ ...r, _bodyFetchPending: false, measureBodyColumnHint: '' })),
+      )
+      return undefined
+    }
+    setItems((prev) =>
+      prev.map((row) =>
+        row.selected ? { ...row, _bodyFetchPending: true, measureBodyColumnHint: '' } : row,
+      ),
+    )
+    const payloadItems = itemsRef.current
+      .filter((i) => i.selected)
+      .map((i) => ({
+        id: i.id,
+        partNumber: i.partNumber,
+        instanceName: i.instanceName,
+        sourceRowId: i.sourceRowId,
+        instances: i.instances,
+        sourceDocPath: i.sourceDocPath,
+        name: i.name,
+      }))
+    const ac = new AbortController()
+    const t = setTimeout(() => {
+      fetch('/api/catia/bom/part-bodies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: payloadItems }),
+        signal: ac.signal,
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data || data.error) {
+            setBodyListError(data?.error || 'Could not load body lists from CATIA')
+            setItems((prev) =>
+              prev.map((row) =>
+                row.selected
+                  ? {
+                      ...row,
+                      _bodyFetchPending: false,
+                      bodyNameOptions: [],
+                      measureBodyColumnHint: data?.error || 'CATIA error',
+                    }
+                  : row,
+              ),
+            )
+            return
+          }
+          setBodyListError('')
+          const map = new Map()
+          for (const res of data.results || []) {
+            const sid = res.sourceRowId || `${res.id}|${res.instanceName || ''}`
+            map.set(sid, res)
+            map.set(`${res.id}|${res.instanceName || ''}`, res)
+            if (res.partNumber)
+              map.set(`${res.partNumber}|${res.instanceName || ''}`, res)
+          }
+          const hintFor = (e) =>
+            e === 'unresolved'
+              ? 'Not found — open the CATProduct or correct source path'
+              : e === 'no_bodies'
+                ? 'Part has no bodies'
+                : e || ''
+          setItems((prev) =>
+            prev.map((row) => {
+              if (!row.selected) {
+                return { ...row, _bodyFetchPending: false }
+              }
+              const inst = row.instanceName || ''
+              const r =
+                map.get(row.sourceRowId) ||
+                map.get(`${row.id}|${inst}`) ||
+                map.get(`${row.partNumber}|${inst}`)
+              if (!r) {
+                return {
+                  ...row,
+                  bodyNameOptions: [],
+                  _bodyFetchPending: false,
+                  measureBodyColumnHint: 'No match — refresh BOM list',
+                }
+              }
+              const opts = Array.isArray(r.bodies) ? r.bodies : []
+              let mb = row.measurementBodyName || ''
+              if (opts.length === 1) mb = opts[0]
+              else if (opts.length > 1 && mb && !opts.includes(mb)) mb = ''
+              const hint = opts.length === 0 && r.error ? hintFor(r.error) : ''
+              return {
+                ...row,
+                bodyNameOptions: opts,
+                measurementBodyName: mb,
+                _bodyFetchPending: false,
+                measureBodyColumnHint: hint,
+              }
+            }),
+          )
+        })
+        .catch((e) => {
+          if (e.name === 'AbortError') return
+          setBodyListError('Body list request failed')
+          setItems((prev) =>
+            prev.map((row) =>
+              row.selected
+                ? {
+                    ...row,
+                    _bodyFetchPending: false,
+                    bodyNameOptions: [],
+                    measureBodyColumnHint: 'Request failed',
+                  }
+                : row,
+            ),
+          )
+        })
+    }, 450)
+    return () => {
+      clearTimeout(t)
+      ac.abort()
+    }
+  }, [bodyFetchKey])
 
   useEffect(() => {
     if (calculating && logEndRef.current) {
@@ -85,6 +229,11 @@ export default function BOMSelectionList({ items: initialItems, onCalculationCom
     }))
   }
 
+  const updateMeasurementBody = (id, value) => {
+    setSelectorError('')
+    updateItem(id, (item) => ({ ...item, measurementBodyName: value }))
+  }
+
   const validateBeforeMeasurement = (selectedItems) => {
     const missingMaterialRows = selectedItems.filter((item) => !item.isStd && ['Steel', 'Casting'].includes(item.sheetCategory) && !`${item.material || ''}`.trim())
     if (missingMaterialRows.length) {
@@ -103,23 +252,49 @@ export default function BOMSelectionList({ items: initialItems, onCalculationCom
       return
     }
 
+    const ambiguousBody = selectedItems.filter(
+      (it) => (it.bodyNameOptions?.length || 0) > 1 && !`${it.measurementBodyName || ''}`.trim(),
+    )
+    if (ambiguousBody.length) {
+      setSelectorError(
+        `Choose a measure body for ${ambiguousBody.length} part(s) with multiple bodies (Measure body column).`,
+      )
+      return
+    }
+
     setCalculating(true)
     setProgress(0)
     setLogs(['Connecting to measure engine...'])
     setSelectorError('')
+    setPendingAction(null)
     cancelledRef.current = false
 
     const ws = startBomMeasurement({
       items: selectedItems,
-      method: DEFAULT_METHOD,
+      method: measureMethod,
+      onAction: (action, data, ws) => {
+        console.log(`[BOMSelectionList] Action received: ${action}`, data);
+        setPendingAction({ type: action, data, ws });
+        onAction?.(action, data, ws);
+      },
       onOpen: () => {
-        setLogs((prev) => [...prev, 'Starting measurement process (Rough Stock default)...'])
+        if (cancelledRef.current) return
+        flushSync(() => {
+          setLogs((prev) => [
+            ...prev,
+            `Starting measurement (${measureMethod === 'STL' ? 'STL — temp part window' : 'Rough Stock'})...`,
+          ])
+        })
       },
       onProgress: (nextProgress) => {
-        if (!cancelledRef.current) setProgress(nextProgress)
+        if (!cancelledRef.current) {
+          flushSync(() => setProgress(nextProgress))
+        }
       },
       onLog: (log) => {
-        if (!cancelledRef.current) setLogs((prev) => [...prev, log])
+        if (!cancelledRef.current) {
+          flushSync(() => setLogs((prev) => [...prev, log]))
+        }
       },
       onDone: (data) => {
         if (cancelledRef.current) return
@@ -154,6 +329,13 @@ export default function BOMSelectionList({ items: initialItems, onCalculationCom
     setLogs((prev) => (prev.length > 50 ? ['Cancelled.'] : [...prev, 'Cancelled by user.']))
   }
 
+  const handleActionConfirm = (command, extra = {}) => {
+    if (!pendingAction?.ws) return;
+    pendingAction.ws.send(JSON.stringify({ command, ...extra }));
+    setLogs(prev => [...prev, `✅ User confirmed: ${command} ${extra.bodyName || ''}`]);
+    setPendingAction(null);
+  }
+
   if (calculating) {
     return (
       <div className="mt-4 p-4 rounded-xl border border-white/10 bg-black/40 space-y-4">
@@ -171,6 +353,38 @@ export default function BOMSelectionList({ items: initialItems, onCalculationCom
         <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
           <div className="h-full bg-white transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
+
+        {pendingAction && (
+          <div className="p-3 rounded-lg bg-white/5 border border-amber-500/35 ring-2 ring-amber-500/30 shadow-[0_0_24px_rgba(245,158,11,0.2)] animate-pulse animate-in fade-in slide-in-from-top-2">
+            <p className="text-xs font-semibold text-amber-200 mb-2 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              Manual Action Required
+            </p>
+            <p className="text-[11px] text-white/70 mb-3">{pendingAction.data?.log || 'Please interact with CATIA as requested.'}</p>
+            
+            <div className="flex flex-wrap gap-2">
+              {pendingAction.type === 'REQUIRE_AXIS_SELECTION' && (
+                <button
+                  onClick={() => handleActionConfirm('AXIS_CONFIRMED')}
+                  className="px-4 py-2 bg-white text-black text-[11px] font-bold rounded-lg hover:bg-neutral-200 transition-all shadow-lg active:scale-95 flex items-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  Confirm Axis Selected
+                </button>
+              )}
+              {pendingAction.type === 'REQUIRE_BODY_SELECTION' && (pendingAction.data?.candidates || []).map((name) => (
+                <button
+                  key={name}
+                  onClick={() => handleActionConfirm('BODY_SELECTED', { bodyName: name })}
+                  className="px-3 py-1.5 text-[11px] font-medium rounded-lg border transition-all active:scale-95 bg-white/5 text-white/80 border-white/15 hover:bg-white/10"
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <p className="text-[10px] text-white/30">First part may take time. You can Cancel to stop.</p>
         <div className="text-[10px] text-white/40 font-mono h-32 overflow-y-auto bg-black/40 p-2 rounded border border-white/5 custom-scrollbar">
           {logs.map((entry, i) => (
@@ -191,7 +405,7 @@ export default function BOMSelectionList({ items: initialItems, onCalculationCom
         <div className="flex flex-col">
           <span className="text-xs font-semibold text-white/70">Classify Parts Before Measuring</span>
           <span className="text-[10px] mt-1 text-white/40">
-            Choose MFG/STD, route MFG rows into Steel/MS/Casting, rename parts, and enter material for Steel/Casting.
+            Choose MFG/STD, route MFG rows into Steel/MS/Casting, rename parts, enter material for Steel/Casting, and pick a measure body when more than one exists.
           </span>
         </div>
         <div className="flex gap-2">
@@ -206,6 +420,11 @@ export default function BOMSelectionList({ items: initialItems, onCalculationCom
           {selectorError}
         </div>
       )}
+      {bodyListError && !selectorError && (
+        <div className="px-3 py-2 text-[11px] text-rose-300/90 bg-rose-500/10 border-b border-rose-500/20">
+          {bodyListError}
+        </div>
+      )}
 
       <div className="overflow-x-auto max-h-[55vh] overflow-y-auto">
         <table className="w-full text-[11px] border-collapse">
@@ -217,6 +436,7 @@ export default function BOMSelectionList({ items: initialItems, onCalculationCom
               <th className="text-left py-2 px-2 min-w-[100px]">Type</th>
               <th className="text-left py-2 px-2 min-w-[110px]">Sheet</th>
               <th className="text-left py-2 px-2 min-w-[120px]">Material / Vendor</th>
+              <th className="text-left py-2 px-2 min-w-[140px]">Measure body</th>
               <th className="text-left py-2 px-2 w-16">Qty</th>
             </tr>
           </thead>
@@ -269,6 +489,37 @@ export default function BOMSelectionList({ items: initialItems, onCalculationCom
                       className={`w-full min-w-[120px] text-[11px] border rounded px-2 py-1 ${!item.isStd && ['Steel', 'Casting'].includes(item.sheetCategory) && !`${item.material || ''}`.trim() ? 'bg-red-500/10 border-red-500/30' : 'bg-white/5 border-white/10'}`}
                     />
                   </td>
+                  <td className="py-2 px-2 align-top">
+                    {!item.selected ? (
+                      <span className="text-white/25 text-[10px]">—</span>
+                    ) : item._bodyFetchPending ? (
+                      <span className="text-white/35 text-[10px]">Loading…</span>
+                    ) : (item.bodyNameOptions?.length || 0) === 0 ? (
+                      <span
+                        className="text-rose-300/85 text-[10px] leading-snug block max-w-[168px]"
+                        title={item.measureBodyColumnHint || 'No bodies loaded'}
+                      >
+                        {item.measureBodyColumnHint || '—'}
+                      </span>
+                    ) : (item.bodyNameOptions?.length || 0) === 1 ? (
+                      <span className="text-[10px] text-white/60 font-mono truncate block max-w-[160px]" title={item.bodyNameOptions[0]}>
+                        {item.bodyNameOptions[0]}
+                      </span>
+                    ) : (
+                      <select
+                        value={item.measurementBodyName || ''}
+                        onChange={(e) => updateMeasurementBody(item.id, e.target.value)}
+                        className="w-full max-w-[180px] text-[10px] bg-white/5 border border-white/10 rounded px-2 py-1"
+                      >
+                        <option value="">Auto (BOM name match)</option>
+                        {item.bodyNameOptions.map((bn) => (
+                          <option key={bn} value={bn}>
+                            {bn}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </td>
                   <td className="py-2 px-2 text-white/60">{item.qty || 1}</td>
                 </tr>
               )
@@ -277,15 +528,40 @@ export default function BOMSelectionList({ items: initialItems, onCalculationCom
         </table>
       </div>
 
-      <div className="p-3 border-t border-white/10 flex justify-end">
+      <div className="p-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] text-white/40 uppercase tracking-wide">Measure with</span>
+          <button
+            type="button"
+            onClick={() => setMeasureMethod('STL')}
+            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+              measureMethod === 'STL'
+                ? 'bg-emerald-500/25 text-emerald-200 border-emerald-500/50'
+                : 'bg-white/5 text-white/50 border-white/10 hover:border-white/25'
+            }`}
+          >
+            STL (default)
+          </button>
+          <button
+            type="button"
+            onClick={() => setMeasureMethod('ROUGH_STOCK')}
+            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+              measureMethod === 'ROUGH_STOCK'
+                ? 'bg-amber-500/25 text-amber-200 border-amber-500/50'
+                : 'bg-white/5 text-white/50 border-white/10 hover:border-white/25'
+            }`}
+          >
+            Rough Stock
+          </button>
+        </div>
         <button
           onClick={startCalculation}
-          className="bg-white text-black text-xs font-bold px-4 py-2 rounded-lg hover:bg-neutral-200 transition-all active:scale-95 flex items-center gap-2"
+          className="bg-white text-black text-xs font-bold px-4 py-2 rounded-lg hover:bg-neutral-200 transition-all active:scale-95 flex items-center gap-2 shrink-0"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
           </svg>
-          Calculate Dimensions
+          Calculate dimensions
         </button>
       </div>
     </div>

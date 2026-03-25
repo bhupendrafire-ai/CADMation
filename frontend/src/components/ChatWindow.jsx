@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 're
 import BOMEditor from './BOMEditor'
 import BOMSelectionList from './BOMSelectionList'
 
-const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, onBomExport, onInteractiveAction, onBomSelectionComplete }, ref) => {
+const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, onBomExport, onInteractiveAction, onMeasurementAction, onBomSelectionComplete }, ref) => {
     const [input, setInput] = useState('')
     const messagesEndRef = useRef(null)
     const textareaRef = useRef(null)
@@ -73,6 +73,7 @@ const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, on
                         {msg.interactive && msg.interactive.type === 'bom-selector' && (
                             <BOMSelectionList
                                 items={msg.interactive.items}
+                                onAction={onMeasurementAction}
                                 onCalculationComplete={(payload) => {
                                     onBomSelectionComplete?.(i, payload)
                                 }}

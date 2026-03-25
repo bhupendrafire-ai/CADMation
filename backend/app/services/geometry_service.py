@@ -33,31 +33,143 @@ class GeometryService:
         self._measurement_cache = {}
         logger.info("GeometryService: Measurement cache cleared.")
 
+    def _measurement_cache_key(self, raw_pop: Any, method: str) -> str:
+        """Disambiguate same Part.Name across different CATPart documents (and bodies without PartNumber)."""
+        obj_name = getattr(raw_pop, "Name", "Unknown")
+        pn = (getattr(raw_pop, "PartNumber", None) or "").strip()
+        doc_fp = ""
+        try:
+            doc = getattr(raw_pop, "Parent", None)
+            if doc is not None:
+                fp = (getattr(doc, "FullName", None) or "").strip()
+                if fp:
+                    doc_fp = os.path.normcase(os.path.normpath(os.path.abspath(fp)))
+        except Exception:
+            pass
+        parts = [doc_fp, pn, obj_name, method]
+        return "::".join(p if p else "-" for p in parts)
+
     def _resolve_to_part(self, obj: Any) -> Any:
-        """Resolve a Product to its Part (geometry owner). Avoids measuring assembly as one."""
+        """Resolve to PartDesign Part (owns .Bodies). Assembly Product -> ReferenceProduct.Parent.Part."""
+        # Regression guard: keep ReferenceProduct.Parent.Part; see tests/test_part_resolution_contract.py and .cursor/rules/catia-part-resolution-regression.mdc
         try:
             raw = self._get_com(obj)
             if not raw:
                 return obj
-            start_t = time.time()
-            while raw:
+
+            def _part_has_bodies(o) -> bool:
                 try:
-                    if getattr(raw, "Bodies", None) is not None:
-                        return raw
+                    return getattr(o, "Bodies", None) is not None
                 except Exception:
-                    pass
-                if (time.time() - start_t) > 0.75:
-                    # If COM traversal stalls, bail out quickly and let callers handle Product directly.
-                    return obj
+                    return False
+
+            if _part_has_bodies(raw):
+                return raw
+
+            try:
+                p = getattr(raw, "Part", None)
+                if p is not None and _part_has_bodies(p):
+                    return p
+            except Exception:
+                pass
+
+            # Instance under CATProduct -> linked CATPart's Part (was missing before; Bodies stayed empty on Product).
+            try:
                 ref = getattr(raw, "ReferenceProduct", None)
+                if ref is not None:
+                    doc = getattr(ref, "Parent", None)
+                    part = getattr(doc, "Part", None) if doc is not None else None
+                    if part is not None and _part_has_bodies(part):
+                        return part
+            except Exception:
+                pass
+
+            try:
+                par = getattr(raw, "Parent", None)
+                for _ in range(30):
+                    if par is None:
+                        break
+                    if _part_has_bodies(par):
+                        return par
+                    par = getattr(par, "Parent", None)
+            except Exception:
+                pass
+
+            start_t = time.time()
+            cur = raw
+            while cur:
+                if _part_has_bodies(cur):
+                    return cur
+                if (time.time() - start_t) > 0.75:
+                    break
+                ref = getattr(cur, "ReferenceProduct", None)
                 if not ref:
-                    return raw
-                raw = ref
+                    break
+                cur = ref
             return obj
         except Exception:
             return obj
 
-    def get_bounding_box(self, part_or_product: Any, method: str = "AUTO", fast_mode: bool = False, stay_open: bool = False) -> Dict[str, Any]:
+    def _product_instance_holding_part(self, caa: Any, part: Any) -> Any:
+        """Open CATProduct docs: Product node whose linked CATPart path + internal Part.Name match (Rough Stock Search ,in)."""
+        try:
+            part = self._get_com(part)
+            pdoc = getattr(part, "Parent", None)
+            target_fp = os.path.normcase(
+                os.path.normpath(os.path.abspath(getattr(pdoc, "FullName", "") or ""))
+            )
+            if not target_fp:
+                return None
+            part_nm = getattr(part, "Name", "") or ""
+            found = [None]
+
+            def walk(prod, depth):
+                if depth > 80 or found[0] is not None:
+                    return
+                try:
+                    ref = prod.ReferenceProduct
+                    link_doc = ref.Parent
+                    fp = os.path.normcase(
+                        os.path.normpath(os.path.abspath(getattr(link_doc, "FullName", "") or ""))
+                    )
+                    if fp == target_fp and getattr(link_doc, "Part", None) is not None:
+                        if (getattr(link_doc.Part, "Name", "") or "") == part_nm:
+                            found[0] = prod
+                            return
+                except Exception:
+                    pass
+                try:
+                    ch = prod.Products
+                    for i in range(1, ch.Count + 1):
+                        walk(ch.Item(i), depth + 1)
+                except Exception:
+                    pass
+
+            try:
+                for di in range(1, caa.Documents.Count + 1):
+                    d = caa.Documents.Item(di)
+                    root = getattr(d, "Product", None)
+                    if root is None:
+                        continue
+                    walk(root, 0)
+                    if found[0] is not None:
+                        return found[0]
+                    found[0] = None
+            except Exception:
+                pass
+            return found[0]
+        except Exception:
+            return None
+
+    def get_bounding_box(
+        self,
+        part_or_product: Any,
+        method: str = "AUTO",
+        fast_mode: bool = False,
+        stay_open: bool = False,
+        rough_stock_window: int = 0,
+        rough_stock_scope_product: Any = None,
+    ) -> Dict[str, Any]:
         """Calculates the bounding box of a Part or Product using multiple Tiers.
         Three-Tier Measurement Strategy:
         1. Tier 0: Rough Stock Scraper (Method=ROUGH_STOCK or AUTO)
@@ -67,27 +179,65 @@ class GeometryService:
         raw_input = self._get_com(part_or_product)
         if not raw_input:
             return self._get_fallback_bbox()
-        # Resolve Product to its Part so we never measure whole assembly as one part
-        raw_pop = self._resolve_to_part(raw_input)
-            
-        # 0. Cache Check
+        # STL should preserve instance-level context; ROUGH_STOCK/SPA can resolve to Part.
+        if method == "STL":
+            raw_pop = raw_input
+            try:
+                # Active CATPart document should still resolve to Document.Part.
+                p = getattr(raw_pop, "Part", None)
+                if p is not None:
+                    raw_pop = p
+            except Exception:
+                pass
+        else:
+            # Resolve Product to its Part so we never measure whole assembly as one part
+            raw_pop = self._resolve_to_part(raw_input)
+
+        # BOM Product instance: Rough Stock on assembly must use Search(...,in) under this node.
+        scope_product = rough_stock_scope_product
+        if method != "STL" and scope_product is None:
+            try:
+                ri = raw_input
+                if (
+                    ri is not None
+                    and getattr(ri, "Products", None) is not None
+                    and getattr(ri, "ReferenceProduct", None) is not None
+                ):
+                    scope_product = ri
+            except Exception:
+                scope_product = None
+
+        # 0. Cache Check (document path + name so different CATParts never share an entry)
         cache_key = ""
         try:
-            # Try to identify by Name (unique in session usually) or PartNumber + Name
-            obj_name = getattr(raw_pop, "Name", "Unknown")
-            pn = getattr(raw_pop, "PartNumber", "")
-            cache_key = f"{pn}_{obj_name}_{method}" if pn else f"{obj_name}_{method}"
-            
+            cache_key = self._measurement_cache_key(raw_pop, method)
             if cache_key in self._measurement_cache:
                 logger.debug(f"  Cache Hit for {cache_key}")
                 return self._measurement_cache[cache_key]
-        except: pass
+        except Exception:
+            pass
 
         logger.info(f"GeometryService: get_bounding_box for {getattr(raw_pop, 'Name', 'Unknown')} (Method={method})")
         
         caa = self._get_com(catia_bridge.get_application())
         if not caa: 
             return self._get_fallback_bbox()
+
+        if (
+            method != "STL"
+            and scope_product is None
+            and raw_pop is not None
+        ):
+            try:
+                sp = self._product_instance_holding_part(caa, raw_pop)
+                if sp is not None:
+                    scope_product = sp
+                    logger.info(
+                        "Rough Stock: inferred Product instance %r for Part (assembly-scoped Search).",
+                        getattr(sp, "Name", "?"),
+                    )
+            except Exception:
+                pass
         
         # Keep using the resolved raw_pop; re-reading part_or_product can reintroduce assemblies / blocking COM.
 
@@ -96,9 +246,40 @@ class GeometryService:
         # --- Tier 0: ROUGH STOCK (High Priority, Fast for Assemblies if done as one unit) ---
         if method in ("ROUGH_STOCK", "AUTO"):
             try:
+                # 1. Tier 0.1: Interactive Rough Stock (if window provided)
+                if rough_stock_window:
+                    logger.info(f"Using interactive Rough Stock window: {rough_stock_window}")
+                    try:
+                        anchor_asm_doc = None
+                        if scope_product is not None:
+                            try:
+                                anchor_asm_doc = caa.ActiveDocument
+                            except Exception:
+                                pass
+                        dx, dy, dz = RoughStockService.measure_body_in_dialog(
+                            caa,
+                            raw_pop,
+                            rough_stock_window,
+                            scope_product=scope_product,
+                            anchor_asm_doc=anchor_asm_doc,
+                        )
+                        if dx is not None:
+                            result = build_measurement_payload(dx, dy, dz, "ROUGH_STOCK")
+                            result["method_used"] = "ROUGH_STOCK_INTERACTIVE"
+                            if cache_key: self._measurement_cache[cache_key] = result
+                            return result
+                    except Exception as e:
+                        logger.warning(f"Interactive Rough Stock failed: {e}")
+                
+                # 1. Tier 0.2: Standard Rough Stock (Scraper)
                 # Use the resolved object (Product or Part) directly
                 target_obj = raw_pop
-                dx, dy, dz = RoughStockService.get_rough_stock_dims(caa, target_obj=target_obj, stay_open=stay_open)
+                dx, dy, dz = RoughStockService.get_rough_stock_dims(
+                    caa,
+                    target_obj=target_obj,
+                    stay_open=stay_open,
+                    scope_product=scope_product,
+                )
                 if dx is not None and dx > 0.001:
                     res = self._round_bbox({
                         "x": dx, "y": dy, "z": dz,
@@ -174,22 +355,31 @@ class GeometryService:
         try:
             temp_dir = str(os.environ.get('TEMP', 'C:\\Temp'))
             ts = int(time.time() * 1000)
+            is_body_target = False
+            try:
+                is_body_target = (
+                    getattr(raw_pop, "Shapes", None) is not None
+                    and getattr(getattr(raw_pop, "Parent", None), "Bodies", None) is not None
+                )
+            except Exception:
+                is_body_target = False
             
             # Resolve document path
             source_path = ""
-            try:
-                if hasattr(raw_pop, "ReferenceProduct"):
-                    ref = raw_pop.ReferenceProduct
-                    if hasattr(ref, "Parent"): source_path = ref.Parent.FullName
-                if not source_path:
-                    test_obj = raw_pop
-                    for _ in range(10):
-                        if hasattr(test_obj, "FullName"):
-                            source_path = test_obj.FullName
-                            break
-                        test_obj = getattr(test_obj, "Parent", None)
-                        if not test_obj: break
-            except: pass
+            if not is_body_target:
+                try:
+                    if hasattr(raw_pop, "ReferenceProduct"):
+                        ref = raw_pop.ReferenceProduct
+                        if hasattr(ref, "Parent"): source_path = ref.Parent.FullName
+                    if not source_path:
+                        test_obj = raw_pop
+                        for _ in range(10):
+                            if hasattr(test_obj, "FullName"):
+                                source_path = test_obj.FullName
+                                break
+                            test_obj = getattr(test_obj, "Parent", None)
+                            if not test_obj: break
+                except: pass
 
             iso_doc = None
             temp_file_copy = ""

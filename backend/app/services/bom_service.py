@@ -219,6 +219,8 @@ class BOMService:
             "orderedDims": bbox.get("orderedDims", []),
             "stockForm": bbox.get("stockForm", ""),
             "measurementConfidence": bbox.get("measurement_confidence", bbox.get("measurementConfidence", "")),
+            "measurementBodyName": base_item.get("measurementBodyName", "")
+            or base_item.get("roughStockBodyName", ""),
         }
         return canonicalize_row(row)
 
@@ -315,7 +317,9 @@ class BOMService:
                     cell.alignment = left_align if cell.column == 1 else center_align
                 elif cell.row > 10:
                     cell.font = data_font
-                    cell.alignment = center_align if cell.column in {1, 8, 9, 13, 14, 15} else left_align
+                    cell.alignment = (
+                        center_align if cell.column in {1, 6, 7, 8, 9, 10, 11, 12, 13} else left_align
+                    )
                 cell.border = thin_border
 
     def _write_summary_sheet(self, wb, metadata: Dict[str, str], summary_rows: List[Dict[str, Any]], all_rows: List[Dict[str, Any]]):
@@ -405,7 +409,7 @@ class BOMService:
         center = Alignment(horizontal="center", vertical="center", wrap_text=True)
         left = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-        ws.merge_cells("A1:O1")
+        ws.merge_cells("A1:M1")
         ws["A1"] = metadata["title"]
         ws["A3"] = "BOM"
         ws["B3"] = metadata["date"]
@@ -419,7 +423,7 @@ class BOMService:
         ws["B7"] = metadata["toolSize"]
         ws["A8"] = sheet_name
 
-        merges = ["A9:A10", "B9:B10", "C9:C10", "D9:D10", "E9:E10", "F9:H9", "I9:I10", "J9:J10", "K9:M9", "N9:N10", "O9:O10"]
+        merges = ["A9:A10", "B9:B10", "C9:C10", "D9:D10", "E9:E10", "F9:H9", "I9:I10", "J9:L9", "M9:M10"]
         for merge in merges:
             ws.merge_cells(merge)
         ws["A9"] = "Sr. No."
@@ -429,16 +433,14 @@ class BOMService:
         ws["E9"] = "Remark"
         ws["F9"] = "Milling Size"
         ws["I9"] = "Qty"
-        ws["J9"] = "Method"
-        ws["K9"] = "RM Size"
-        ws["N9"] = "RM Weight"
-        ws["O9"] = "Flags"
+        ws["J9"] = "RM Size"
+        ws["M9"] = "RM Weight"
         ws["F10"] = "L"
         ws["G10"] = "W"
         ws["H10"] = "H"
-        ws["K10"] = "L"
-        ws["L10"] = "W"
-        ws["M10"] = "H"
+        ws["J10"] = "L"
+        ws["K10"] = "W"
+        ws["L10"] = "H"
 
         current_row = 11
         current_section = None
@@ -446,7 +448,7 @@ class BOMService:
         for row in rows:
             next_section = row.get("parentAssembly") or sheet_name
             if next_section != current_section:
-                ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=15)
+                ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=13)
                 section_cell = ws.cell(row=current_row, column=1, value=next_section)
                 section_cell.font = header_font
                 section_cell.fill = header_fill
@@ -454,7 +456,7 @@ class BOMService:
                 current_row += 1
                 current_section = next_section
 
-            ws.cell(row=current_row, column=1, value=f"{metadata['woNo']}-{serial:03d}")
+            ws.cell(row=current_row, column=1, value=99 + serial)
             ws.cell(row=current_row, column=2, value=row.get("description"))
             ws.cell(row=current_row, column=3, value=row.get("partNumber"))
             ws.cell(row=current_row, column=4, value=row.get("material"))
@@ -463,21 +465,19 @@ class BOMService:
             ws.cell(row=current_row, column=7, value=row.get("W"))
             ws.cell(row=current_row, column=8, value=row.get("H"))
             ws.cell(row=current_row, column=9, value=row.get("qty"))
-            ws.cell(row=current_row, column=10, value=row.get("methodUsed"))
-            ws.cell(row=current_row, column=11, value=row.get("rmL"))
-            ws.cell(row=current_row, column=12, value=row.get("rmW"))
-            ws.cell(row=current_row, column=13, value=row.get("rmH"))
-            ws.cell(row=current_row, column=14, value=row.get("rmWeightKg"))
-            ws.cell(row=current_row, column=15, value=", ".join(row.get("validationFlags", [])))
+            ws.cell(row=current_row, column=10, value=row.get("rmL"))
+            ws.cell(row=current_row, column=11, value=row.get("rmW"))
+            ws.cell(row=current_row, column=12, value=row.get("rmH"))
+            ws.cell(row=current_row, column=13, value=row.get("rmWeightKg"))
             if row.get("_MERGE_LW"):
                 ws.merge_cells(start_row=current_row, start_column=6, end_row=current_row, end_column=7)
             if row.get("rmMergeLW"):
-                ws.merge_cells(start_row=current_row, start_column=11, end_row=current_row, end_column=12)
+                ws.merge_cells(start_row=current_row, start_column=10, end_row=current_row, end_column=11)
             current_row += 1
             serial += 1
 
         self._apply_styles(ws, title_fill, header_fill, thin_border, center, left, title_font, header_font, data_font)
-        widths = {"A": 16, "B": 28, "C": 22, "D": 12, "E": 18, "F": 11, "G": 11, "H": 11, "I": 8, "J": 12, "K": 11, "L": 11, "M": 11, "N": 12, "O": 24}
+        widths = {"A": 10, "B": 28, "C": 22, "D": 12, "E": 18, "F": 11, "G": 11, "H": 11, "I": 8, "J": 11, "K": 11, "L": 11, "M": 12}
         for col, width in widths.items():
             ws.column_dimensions[col].width = width
         ws.freeze_panes = "A11"
@@ -500,7 +500,7 @@ class BOMService:
         center = Alignment(horizontal="center", vertical="center", wrap_text=True)
         left = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-        ws.merge_cells("A1:G1")
+        ws.merge_cells("A1:F1")
         ws["A1"] = metadata["title"]
         ws["A3"] = "BOM"
         ws["B3"] = metadata["date"]
@@ -514,20 +514,19 @@ class BOMService:
         ws["B7"] = metadata["toolSize"]
         ws["A8"] = sheet_name
 
-        headers = ["Sr. No.", "Description", "Type", "Manufacturer", "Catalog Code", "Qty", "Flags"]
+        headers = ["Sr. No.", "Description", "Type", "Manufacturer", "Catalog Code", "Qty"]
         for idx, header in enumerate(headers, start=1):
             ws.cell(row=9, column=idx, value=header)
 
         for row_idx, row in enumerate(rows, start=10):
-            ws.cell(row=row_idx, column=1, value=f"{metadata['woNo']}-{300 + row_idx - 9}")
+            ws.cell(row=row_idx, column=1, value=99 + row_idx - 9)
             ws.cell(row=row_idx, column=2, value=row.get("description"))
             ws.cell(row=row_idx, column=3, value="STD")
             ws.cell(row=row_idx, column=4, value=row.get("manufacturer"))
             ws.cell(row=row_idx, column=5, value=row.get("catalogCode") or row.get("partNumber"))
             ws.cell(row=row_idx, column=6, value=row.get("qty"))
-            ws.cell(row=row_idx, column=7, value=", ".join(row.get("validationFlags", [])))
 
-        for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=7):
+        for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=6):
             for cell in row:
                 if cell.row == 1:
                     cell.font = title_font
@@ -542,7 +541,7 @@ class BOMService:
                     cell.alignment = center if cell.column in {1, 3, 6} else left
                 cell.border = thin_border
 
-        for col, width in {"A": 16, "B": 26, "C": 10, "D": 16, "E": 20, "F": 8, "G": 22}.items():
+        for col, width in {"A": 10, "B": 26, "C": 10, "D": 16, "E": 20, "F": 8}.items():
             ws.column_dimensions[col].width = width
         ws.freeze_panes = "A10"
 

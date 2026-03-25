@@ -55,7 +55,7 @@ def validate_workbook_structure(path: str) -> List[str]:
         if sheet_name not in sheets:
             continue
         merged_ranges = set(sheets[sheet_name]["merged_ranges"])
-        if "A9:A10" not in merged_ranges or "F9:H9" not in merged_ranges or "K9:M9" not in merged_ranges:
+        if "A9:A10" not in merged_ranges or "F9:H9" not in merged_ranges or "J9:L9" not in merged_ranges:
             errors.append(f"{sheet_name}: expected grouped headers are missing.")
 
     for sheet_name in ("STD",):
@@ -102,8 +102,7 @@ def parse_generated_rows(path: str) -> List[Dict[str, object]]:
                 "remark": values[4],
                 "milling_dims": extract_numbers(values[5], values[6], values[7]),
                 "qty": values[8],
-                "method": values[9],
-                "rm_dims": extract_numbers(values[10], values[11], values[12]),
+                "rm_dims": extract_numbers(values[9], values[10], values[11]),
             })
     return rows
 

@@ -1,0 +1,15 @@
+---
+description: Do not regress CATIA BOM/assembly Part resolution (Bodies vs Product).
+globs: backend/app/services/geometry_service.py,backend/app/routers/catia.py
+alwaysApply: false
+---
+
+# CATIA Part resolution (locked behavior)
+
+When changing `GeometryService._resolve_to_part` or BOM row resolution in `app/routers/catia.py` (`_resolve_bom_item_object`, `bom_part_bodies`, WebSocket measure loop):
+
+- **Assembly `Product` instances** must resolve to the linked **CATPart’s `PartDesign` Part** via **`Product.ReferenceProduct.Parent.Part`**. Walking only `ReferenceProduct` in a loop **without** reading **`Parent.Part`** leaves COM on a **Product** with **empty `Part.Bodies`**, which breaks the measure-body dropdown and shows false **“Part has no bodies”** for parts like `202_LOWER PLATE` under a CATProduct.
+- **`Part.Bodies`** lists **solid bodies** only (e.g. `MAIN_BODY`). **Geometrical sets / `HybridBody`** (e.g. `DRILL_CAST`) are **not** `Bodies` items; do not “fix” missing dropdown entries by renaming hybrids as bodies.
+- **`bom/part-bodies`** may fall back to **`Part.MainBody`** when `Bodies.Count == 0` but the Part is valid.
+
+Before merging edits in the globbed files, run **`python -m pytest backend/tests/test_part_resolution_contract.py -q`** and fix failures unless you intentionally change behavior (then update the test and this rule together).

@@ -35,8 +35,8 @@ Local AI copilot for CATIA V5 sheet metal design.
 
 ## Building a Standalone EXE
 - Build the frontend: `cd frontend` → `npm run build`
-- Build the EXE: `cd backend` → `python build_standalone_exe.py`
-- Output: `dist/CADMation_Standalone.exe`
+- Build the **native GUI EXE**: `cd backend` → `python build_gui_exe.py`
+- Output: `dist/CADMation_GUI.exe`
 
 ## License
 MIT

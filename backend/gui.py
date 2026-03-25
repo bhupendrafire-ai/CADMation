@@ -3,6 +3,8 @@ import os
 import threading
 import time
 import logging
+import urllib.request
+import urllib.error
 from PySide6.QtWidgets import QApplication, QMainWindow
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtCore import QUrl, Qt, QCoreApplication
@@ -15,12 +17,15 @@ os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-gpu --no-sandbox --disable
 os.environ["QT_OPENGL"] = "software"
 
 # Configure logging
+log_dir = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
+os.makedirs(log_dir, exist_ok=True)
+log_path = os.path.join(log_dir, "gui_debug.log")
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler("gui_debug.log", mode='w')
+        logging.FileHandler(log_path, mode='w', encoding="utf-8")
     ]
 )
 logger = logging.getLogger("CADMation-GUI")
@@ -60,9 +65,21 @@ def run_server():
     """Starts the FastAPI server in a background thread."""
     logger.info("Starting FastAPI backend server...")
     try:
-        uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+        uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info", log_config=None)
     except Exception as e:
         logger.error(f"Backend server failed: {e}")
+
+def wait_for_backend(timeout_s: float = 30.0) -> bool:
+    deadline = time.time() + timeout_s
+    url = "http://127.0.0.1:8000/api/health"
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=2.0) as resp:
+                if resp.status == 200:
+                    return True
+        except (urllib.error.URLError, TimeoutError):
+            time.sleep(0.5)
+    return False
 
 def main():
     logger.info("="*60)
@@ -76,9 +93,10 @@ def main():
     server_thread = threading.Thread(target=run_server, daemon=True)
     server_thread.start()
 
-    # 2. Give server a moment to warm up
-    logger.info("Waiting for backend to initialize (10s)...")
-    time.sleep(10) 
+    # 2. Wait for backend to warm up
+    logger.info("Waiting for backend to initialize...")
+    if not wait_for_backend(timeout_s=35.0):
+        logger.error("Backend did not become ready in time; the UI may fail to load.")
 
     # 3. Launch the native window (Qt)
     logger.info("Launching native GUI window...")

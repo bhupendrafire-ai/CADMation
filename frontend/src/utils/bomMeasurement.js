@@ -1,12 +1,13 @@
 export function startBomMeasurement({
   items,
-  method = 'ROUGH_STOCK',
+  method = 'STL',
   onOpen,
   onProgress,
   onLog,
   onDone,
   onError,
   onClose,
+  onAction,
 }) {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = window.location.host
@@ -23,6 +24,9 @@ export function startBomMeasurement({
     const data = JSON.parse(event.data)
     if (data.progress !== undefined) onProgress?.(data.progress, data)
     if (data.log) onLog?.(data.log, data)
+    if (data.action) {
+      onAction?.(data.action, data, ws)
+    }
     if (data.status === 'done') onDone?.(data)
     if (data.error) onError?.(data.error, data)
   }
@@ -38,14 +42,18 @@ export function startBomMeasurement({
   return ws
 }
 
-export function measureBomItems({ items, method = 'ROUGH_STOCK' }) {
+export function measureBomItems({ items, method = 'STL', onAction, onLog }) {
   return new Promise((resolve, reject) => {
     let settled = false
     const logs = []
     const ws = startBomMeasurement({
       items,
       method,
-      onLog: (log) => logs.push(log),
+      onLog: (log, data) => {
+         logs.push(log)
+         onLog?.(log, data)
+      },
+      onAction,
       onDone: (data) => {
         if (settled) return
         settled = true

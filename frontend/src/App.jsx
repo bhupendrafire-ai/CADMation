@@ -15,6 +15,7 @@ function App() {
 
   const [treeData, setTreeData] = useState(null)
   const [taggedNode, setTaggedNode] = useState(null)
+  const [pendingAxisWs, setPendingAxisWs] = useState(null)
   
   // Session / History Management
   const [sessionId, setSessionId] = useState(null)
@@ -104,6 +105,45 @@ function App() {
     return () => clearTimeout(timer)
   }, [messages, sessionId, activeDoc])
 
+  const handleMeasurementAction = (action, data, ws) => {
+    if (action === 'REQUIRE_AXIS_SELECTION') {
+      setPendingAxisWs({ ws, log: data.log });
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'ai',
+          content: data.log || 'Please select the AP_AXIS in CATIA and click confirm.',
+          interactive: {
+            type: 'choice',
+            options: [
+              {
+                id: 'confirm-axis',
+                label: 'Confirm Axis Selected',
+                primary: true,
+                action: {
+                  type: 'send-ws-command',
+                  ws: ws, // Internal ref
+                  command: 'AXIS_CONFIRMED'
+                },
+              }
+            ],
+          },
+        },
+      ])
+    }
+
+    if (action === 'REQUIRE_BODY_SELECTION') {
+      // Body selection is handled in-place by BOMSelectionList now.
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'ai',
+          content: `Multiple bodies detected for ${data.itemId}. Choose the correct one in the measurement window.`
+        }
+      ]);
+    }
+  }
+
   const handleSendMessage = async (content) => {
     // Add user message immediately
     const userMsg = { role: 'user', content }
@@ -191,50 +231,93 @@ function App() {
     })
   }
 
-  const handleBomSelectionComplete = (messageIndex, payload) => {
-    const results = payload?.results || []
-    const retryCandidates = payload?.retryCandidates || []
+  const handleBomSelectionComplete = async (messageIndex, payload) => {
+    const requestedItems = payload?.items || []
+    const method = payload?.method || 'ROUGH_STOCK'
+
+    if (payload?.results) {
+       // Results already provided by the selector component
+       handleUpdateBomMessage(messageIndex, {
+         items: payload.results,
+         exporting: false,
+       })
+       return;
+    }
 
     handleUpdateBomMessage(messageIndex, {
-      items: results,
+      items: (payload?.items || []).map(it => ({ ...it, stock_size: 'Measuring...' })),
       exporting: false,
     })
 
-    if (!retryCandidates.length) return
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: 'ai',
-        content: `${retryCandidates.length} item(s) could not be measured via Rough Stock. Retry those item(s) with STL?`,
-        interactive: {
-          type: 'choice',
-          options: [
-            {
-              id: 'retry-stl',
-              label: 'Retry failed items with STL',
-              primary: true,
-              action: {
-                type: 'retry-bom-failures-stl',
-                targetMessageIndex: messageIndex,
-                items: retryCandidates,
-              },
-            },
-            {
-              id: 'skip-stl',
-              label: 'Keep current results',
-              action: {
-                type: 'dismiss-bom-failure-retry',
-              },
-            },
-          ],
+    try {
+      const data = await measureBomItems({
+        items: requestedItems,
+        method: method,
+        onLog: (log) => {
+          handleUpdateBomMessage(messageIndex, { 
+             log: log // Assuming the component collects these
+          })
         },
-      },
-    ])
+        onAction: handleMeasurementAction
+      })
+
+      handleUpdateBomMessage(messageIndex, {
+        items: data.results || [],
+        exporting: false,
+      })
+      
+      // Handle retries if any items failed Rough Stock
+      const retryCandidates = (data.results || []).filter(r => 
+        r.method_used === 'ROUGH_STOCK' && (r.stock_size.includes('Not') || r.stock_size.includes('Error'))
+      )
+
+      if (retryCandidates.length > 0) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'ai',
+            content: `${retryCandidates.length} item(s) failed Rough Stock. Retry with STL?`,
+            interactive: {
+              type: 'choice',
+              options: [
+                {
+                  id: 'retry-stl',
+                  label: 'Retry failed items with STL',
+                  primary: true,
+                  action: {
+                    type: 'retry-bom-failures-stl',
+                    targetMessageIndex: messageIndex,
+                    items: retryCandidates,
+                  },
+                }
+              ]
+            }
+          }
+        ])
+      }
+    } catch (err) {
+       setMessages(prev => [...prev, { role: 'ai', content: `Measurement failed: ${err.message}` }])
+    }
   }
 
   const handleInteractiveAction = async (_messageIndex, action) => {
     if (!action?.type) return
+
+    if (action.type === 'send-ws-command') {
+       if (action.ws && action.ws.readyState === WebSocket.OPEN) {
+         action.ws.send(JSON.stringify({ 
+           command: action.command,
+           bodyName: action.bodyName
+        }));
+        setMessages(prev => [...prev, { 
+          role: 'ai', 
+          content: action.command === 'AXIS_CONFIRMED' 
+            ? '✅ Axis selection confirmed. Resuming measurement...' 
+            : `✅ ${action.bodyName} selected. Resuming measurement...` 
+        }]);
+       }
+       return;
+    }
 
     if (action.type === 'dismiss-bom-failure-retry') {
       setMessages((prev) => [...prev, { role: 'ai', content: 'STL retry skipped. Current BOM results are unchanged.' }])
@@ -247,6 +330,7 @@ function App() {
         const data = await measureBomItems({
           items: action.items || [],
           method: 'STL',
+          onAction: handleMeasurementAction
         })
         setMessages((prev) => {
           const next = [...prev]
@@ -369,6 +453,7 @@ function App() {
           onUpdateBomMessage={handleUpdateBomMessage}
           onBomExport={handleBomExport}
           onInteractiveAction={handleInteractiveAction}
+          onMeasurementAction={handleMeasurementAction}
           onBomSelectionComplete={handleBomSelectionComplete}
         />
 
@@ -389,6 +474,47 @@ function App() {
       >
         Toggle Dev Connection
       </button>
+
+      {/* Interactive Axis Selection Modal */}
+      {pendingAxisWs && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="glass p-10 rounded-[2rem] border border-white/10 max-w-lg w-full shadow-2xl shadow-blue-500/10 animate-in zoom-in-95 slide-in-from-bottom-5 duration-500">
+             <div className="flex items-center gap-4 mb-8">
+                <div className="w-12 h-12 bg-blue-500/20 rounded-2xl flex items-center justify-center">
+                   <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                </div>
+                <div>
+                   <h2 className="text-2xl font-bold tracking-tight">Manual Action Required</h2>
+                   <p className="text-blue-400 text-xs font-mono uppercase tracking-widest mt-1">CATIA V5 Interaction</p>
+                </div>
+             </div>
+             
+             <div className="bg-white/5 rounded-2xl p-6 mb-8 border border-white/5">
+                <p className="text-sm text-neutral-300 leading-relaxed font-medium">
+                   {pendingAxisWs.log}
+                </p>
+             </div>
+
+             <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => {
+                    if (pendingAxisWs.ws && pendingAxisWs.ws.readyState === WebSocket.OPEN) {
+                      pendingAxisWs.ws.send(JSON.stringify({ command: 'AXIS_CONFIRMED' }));
+                    }
+                    setMessages(prev => [...prev, { role: 'ai', content: '✅ Axis selection confirmed. Resuming measurement...' }]);
+                    setPendingAxisWs(null);
+                  }}
+                  className="w-full h-14 bg-white text-black rounded-2xl font-bold hover:bg-neutral-200 active:scale-[0.98] transition-all shadow-xl shadow-white/5"
+                >
+                   I have selected the Axis
+                </button>
+                <p className="text-[10px] text-center text-neutral-500 uppercase tracking-widest font-bold">
+                   Resuming automation after confirmation
+                </p>
+             </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

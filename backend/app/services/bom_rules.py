@@ -260,6 +260,7 @@ def canonicalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
         "parentAssembly": row.get("parentAssembly", ""),
         "referenceKey": row.get("referenceKey", ""),
         "sourceDocPath": row.get("sourceDocPath", ""),
+        "measurementBodyName": row.get("measurementBodyName", "") or row.get("roughStockBodyName", ""),
         "sourceDocumentName": row.get("sourceDocumentName", ""),
         "manufacturer": manufacturer,
         "catalogCode": catalog_code,

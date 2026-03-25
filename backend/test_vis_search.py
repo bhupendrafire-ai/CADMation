@@ -1,46 +1,41 @@
+import sys, os, time
 import win32com.client
-import time
+import pythoncom
 
 def test_visibility_search():
+    pythoncom.CoInitialize()
     try:
-        caa = win32com.client.GetActiveObject("CATIA.Application")
-        doc = caa.ActiveDocument
+        catia = win32com.client.Dispatch("CATIA.Application")
+        doc = catia.ActiveDocument
+        print(f"Active Document: {doc.Name}")
+        
+        # Select the part instance the user cares about (e.g. 002_UPPER SHOE)
         sel = doc.Selection
-        
-        print("Starting batch visibility search...")
-        start = time.time()
-        
-        # Search for all visible products/parts
-        # Syntax: 'CATProd.Visible' or 'Visibility=Visible'
-        # We'll try the most robust one:
         sel.Clear()
-        # sel.Search("Visibility=Visible,all") # This is often the standard
-        # Or: "CATProduct.Visibility=Visible,all"
         
-        # Let's try to just find everything and check attributes if Search is tricky,
-        # but Search is the intended way to do this blindly.
-        try:
-            sel.Search("State=Visible,all")
-            count = sel.Count
-            print(f"Found {count} visible items.")
-            
-            # Show the first few
-            for i in range(1, min(count, 5) + 1):
-                print(f" Visible Item {i}: {sel.Item(i).Value.Name}")
-        except Exception as e:
-            print(f"Search failed: {e}")
-            
-        print(f"Batch search took {time.time() - start:.2f}s")
+        # We search specifically for VISIBLE bodies in the ACTIVE WINDOW.
+        # This is the most "human-like" search.
+        # String: "CATPrtSearch.Body.Visibility=Visible,all"
+        # Or even better: "CATPrtSearch.Body,all" and then filter by VisProperties
         
-        # Test if we can find Hidden items
-        sel.Clear()
+        print("Executing Selection.Search for VISIBLE bodies...")
         try:
-            sel.Search("State=Hidden,all")
-            print(f"Found {sel.Count} hidden items.")
-        except: pass
+            # We use 'all' to search the entire tree of the active doc
+            sel.Search("CATPrtSearch.Body.Visibility=Visible,all")
+        except Exception as se:
+            print(f"Search failed: {se}")
+            return
+
+        print(f"Visible bodies found: {sel.Count}")
+        for i in range(1, sel.Count + 1):
+            item = sel.Item(i).Value
+            print(f"[{i}] {item.Name} (Path: {getattr(item, 'FullName', 'N/A')})")
 
     except Exception as e:
-        print(f"Major failure: {e}")
+        print(f"Error: {e}")
+    finally:
+        # sel.Clear()
+        pythoncom.CoUninitialize()
 
 if __name__ == "__main__":
     test_visibility_search()
