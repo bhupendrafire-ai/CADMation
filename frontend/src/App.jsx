@@ -23,6 +23,10 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   
   const chatWindowRef = useRef(null)
+  const messagesRef = useRef(messages)
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   // Poll for CATIA connection status
   useEffect(() => {
@@ -199,7 +203,7 @@ function App() {
     }
   }
 
-  const handleGenerateBOM = (items, error) => {
+  const handleGenerateBOM = (items, error, options = {}) => {
     if (error) {
       setMessages((prev) => [...prev, { role: 'ai', content: `BOM failed: ${error}` }])
       return
@@ -208,6 +212,9 @@ function App() {
       setMessages((prev) => [...prev, { role: 'ai', content: 'No BOM items found. Open a CATIA assembly and refresh the tree.' }])
       return
     }
+    const bomOptions = {
+      tempRenameDuplicateBodies: !!options?.tempRenameDuplicateBodies,
+    }
     setMessages((prev) => [
       ...prev,
       {
@@ -215,7 +222,8 @@ function App() {
         content: 'I have scanned the active document (ignoring hidden items). Please select the items you wish to measure for the BOM:',
         interactive: {
           type: 'bom-selector',
-          items: items
+          items: items,
+          bomOptions,
         },
       },
     ])
@@ -250,9 +258,11 @@ function App() {
     })
 
     try {
+      const bomOpts = messagesRef.current[messageIndex]?.interactive?.bomOptions
       const data = await measureBomItems({
         items: requestedItems,
         method: method,
+        tempRenameDuplicateBodies: !!bomOpts?.tempRenameDuplicateBodies,
         onLog: (log) => {
           handleUpdateBomMessage(messageIndex, { 
              log: log // Assuming the component collects these

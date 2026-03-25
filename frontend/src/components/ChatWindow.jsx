@@ -73,6 +73,7 @@ const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, on
                         {msg.interactive && msg.interactive.type === 'bom-selector' && (
                             <BOMSelectionList
                                 items={msg.interactive.items}
+                                bomOptions={msg.interactive.bomOptions}
                                 onAction={onMeasurementAction}
                                 onCalculationComplete={(payload) => {
                                     onBomSelectionComplete?.(i, payload)

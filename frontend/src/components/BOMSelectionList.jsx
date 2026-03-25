@@ -26,7 +26,7 @@ function normalizeRows(items) {
   })
 }
 
-export default function BOMSelectionList({ items: initialItems, onAction, onCalculationComplete }) {
+export default function BOMSelectionList({ items: initialItems, bomOptions = {}, onAction, onCalculationComplete }) {
   const [items, setItems] = useState(() => normalizeRows(initialItems))
   const [calculating, setCalculating] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -48,19 +48,20 @@ export default function BOMSelectionList({ items: initialItems, onAction, onCalc
     itemsRef.current = items
   }, [items])
 
-  const bodyFetchKey = useMemo(
-    () =>
-      items
-        .filter((i) => i.selected)
-        .map((i) => `${i.id}|${i.instanceName}`)
-        .sort()
-        .join(';'),
-    [items],
-  )
+  const bodyFetchKey = useMemo(() => {
+    const flag = bomOptions?.tempRenameDuplicateBodies ? '1' : '0'
+    const rows = items
+      .filter((i) => i.selected)
+      .map((i) => `${i.id}|${i.instanceName}`)
+      .sort()
+      .join(';')
+    return rows ? `${flag}|${rows}` : ''
+  }, [items, bomOptions?.tempRenameDuplicateBodies])
 
   useEffect(() => {
     if (!bodyFetchKey) {
       setBodyListError('')
+      fetch('/api/catia/bom/body-disambiguation/reset', { method: 'POST' }).catch(() => {})
       setItems((prev) =>
         prev.map((r) => ({ ...r, _bodyFetchPending: false, measureBodyColumnHint: '' })),
       )
@@ -87,7 +88,10 @@ export default function BOMSelectionList({ items: initialItems, onAction, onCalc
       fetch('/api/catia/bom/part-bodies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: payloadItems }),
+        body: JSON.stringify({
+          items: payloadItems,
+          tempRenameDuplicateBodies: !!bomOptions?.tempRenameDuplicateBodies,
+        }),
         signal: ac.signal,
       })
         .then((r) => r.json())
@@ -272,6 +276,7 @@ export default function BOMSelectionList({ items: initialItems, onAction, onCalc
     const ws = startBomMeasurement({
       items: selectedItems,
       method: measureMethod,
+      tempRenameDuplicateBodies: !!bomOptions?.tempRenameDuplicateBodies,
       onAction: (action, data, ws) => {
         console.log(`[BOMSelectionList] Action received: ${action}`, data);
         setPendingAction({ type: action, data, ws });

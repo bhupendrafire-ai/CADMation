@@ -4,6 +4,8 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [isGeneratingBOM, setIsGeneratingBOM] = useState(false)
     const [expandedNodes, setExpandedNodes] = useState(new Set())
+    const [bomModalOpen, setBomModalOpen] = useState(false)
+    const [tempRenameDuplicateBodies, setTempRenameDuplicateBodies] = useState(false)
 
     const handleRefresh = async () => {
         setIsRefreshing(true)
@@ -11,20 +13,32 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
         setTimeout(() => setIsRefreshing(false), 500)
     }
 
-    const handleGenerateBOM = async () => {
+    const openBomModal = () => {
+        if (!treeData) return
+        setTempRenameDuplicateBodies(false)
+        setBomModalOpen(true)
+    }
+
+    const cancelBomModal = () => {
+        setBomModalOpen(false)
+    }
+
+    const confirmBomModal = async () => {
+        setBomModalOpen(false)
+        const opts = { tempRenameDuplicateBodies }
         if (!treeData) return
         setIsGeneratingBOM(true)
         try {
             const res = await fetch('/api/catia/bom/fast')
             const data = await res.json()
             if (data.error) {
-                onGenerateBOM?.([], data.error)
+                onGenerateBOM?.([], data.error, opts)
                 return
             }
-            onGenerateBOM?.(data.items || [])
+            onGenerateBOM?.(data.items || [], null, opts)
         } catch (err) {
             console.error("Failed to load BOM items:", err)
-            onGenerateBOM?.([])
+            onGenerateBOM?.([], err?.message || "Network error", opts)
         } finally {
             setIsGeneratingBOM(false)
         }
@@ -86,7 +100,7 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
                 <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Specification Tree</h2>
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={handleGenerateBOM}
+                        onClick={openBomModal}
                         disabled={isGeneratingBOM || !treeData}
                         className={`group relative flex items-center justify-center p-1.5 rounded-md transition-all ${isGeneratingBOM ? 'bg-white/5 cursor-wait' : 'hover:bg-white/10 text-muted-foreground hover:text-white active:scale-95'}`}
                         title="Generate Excel BOM"
@@ -110,6 +124,55 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
                     </button>
                 </div>
             </div>
+            {bomModalOpen && (
+                <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="bom-opt-title"
+                        className="w-full max-w-md rounded-xl border border-white/15 bg-neutral-950/95 p-5 shadow-2xl"
+                    >
+                        <h2 id="bom-opt-title" className="text-sm font-bold text-white mb-2">
+                            BOM measurement options
+                        </h2>
+                        <p className="text-[11px] text-white/65 leading-relaxed mb-4">
+                            Duplicate PartDesign body names (e.g. several <span className="font-mono text-white/80">MAIN_BODY</span>)
+                            can confuse Rough Stock Search. You can optionally assign temporary unique names
+                            (<span className="font-mono text-white/80">MAIN_BODY__CADM0</span>, …) for this measure run only.
+                            CADMation does not save your CATPart; CATIA may show the document as modified until names are restored
+                            at the end of the run. If restore fails, close without saving or undo.
+                        </p>
+                        <label className="flex items-start gap-3 cursor-pointer mb-5">
+                            <input
+                                type="checkbox"
+                                checked={tempRenameDuplicateBodies}
+                                onChange={(e) => setTempRenameDuplicateBodies(e.target.checked)}
+                                className="mt-0.5 rounded border-white/20"
+                            />
+                            <span className="text-xs text-white/85">
+                                Rename duplicate bodies in CATIA (__CADM0, __CADM1, …) for BOM measurement
+                            </span>
+                        </label>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={cancelBomModal}
+                                className="px-3 py-2 text-xs rounded-lg border border-white/15 text-white/80 hover:bg-white/5"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmBomModal}
+                                className="px-3 py-2 text-xs rounded-lg bg-white text-black font-semibold hover:bg-neutral-200"
+                            >
+                                Continue
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex-1 overflow-y-auto p-2 font-mono text-[11px] selection:bg-white/10">
                 {!treeData || Object.keys(treeData).length === 0 ? (
                     <div className="p-4 text-muted-foreground italic leading-relaxed">

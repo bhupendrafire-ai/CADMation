@@ -7,11 +7,15 @@ from typing import Dict, Any, List
 from app.services.catia_bridge import catia_bridge
 from app.services.bom_schema import build_measurement_payload
 from app.services.rough_stock_service import RoughStockService
+from app.debug_agent_log import agent_ndjson
 
 logger = logging.getLogger(__name__)
 
 # CATIA SPA GetBoundaryBox returns meters; we report mm
 MM_PER_M = 1000.0
+
+# Bump when cache key shape changes so stale in-process dict entries cannot serve wrong parts (see debug H1 MAIN_BODY-only keys).
+_MEASUREMENT_CACHE_KEY_VER = "rs4"
 
 # Names of bodies to ignore (typical construction geometry in die design)
 IGNORE_BODY_KEYWORDS = ["STOCK", "BOUNDING", "ENVELOPE", "BOX", "CONSTRUCTION", "AXIS", "WIRE", "SURFACE"]
@@ -27,6 +31,18 @@ class GeometryService:
             if hasattr(obj, "com_object"): return obj.com_object
             return obj
         except: return obj
+
+    @staticmethod
+    def _same_com_object(a: Any, b: Any) -> bool:
+        if a is None or b is None:
+            return False
+        if a is b:
+            return True
+        try:
+            oa, ob = getattr(a, "_oleobj_", None), getattr(b, "_oleobj_", None)
+            return oa is not None and oa == ob
+        except Exception:
+            return False
     
     def clear_cache(self):
         """Clears the session measurement cache."""
@@ -34,7 +50,7 @@ class GeometryService:
         logger.info("GeometryService: Measurement cache cleared.")
 
     def _measurement_cache_key(self, raw_pop: Any, method: str) -> str:
-        """Disambiguate same Part.Name across different CATPart documents (and bodies without PartNumber)."""
+        """Disambiguate Part across CATPart documents; always pass the resolved Part, not a Body (Bodies lack doc path)."""
         obj_name = getattr(raw_pop, "Name", "Unknown")
         pn = (getattr(raw_pop, "PartNumber", None) or "").strip()
         doc_fp = ""
@@ -48,6 +64,49 @@ class GeometryService:
             pass
         parts = [doc_fp, pn, obj_name, method]
         return "::".join(p if p else "-" for p in parts)
+
+    def _rough_stock_dialog_target(self, raw_input: Any, raw_pop: Any) -> Any:
+        """Use BOM leaf (e.g. Body) when it resolves to raw_pop Part; do not probe ri.Bodies (CATIA COM is inconsistent)."""
+        try:
+            ri = self._get_com(raw_input)
+            rp = self._get_com(raw_pop)
+            if not ri or not rp:
+                return raw_pop
+            if ri is rp:
+                return raw_pop
+            resolved_ri = self._resolve_to_part(ri)
+            same = resolved_ri is rp
+            if not same:
+                try:
+                    same = (getattr(resolved_ri, "Name", None) or "") == (
+                        getattr(rp, "Name", None) or ""
+                    )
+                except Exception:
+                    pass
+            if not same:
+                return raw_pop
+            try:
+                if getattr(ri, "ReferenceProduct", None) is not None:
+                    return raw_pop
+            except Exception:
+                pass
+            # region agent log
+            try:
+                agent_ndjson(
+                    "H11",
+                    "geometry_service._rough_stock_dialog_target",
+                    "using BOM leaf under resolved Part",
+                    {
+                        "leaf_name": getattr(ri, "Name", None),
+                        "raw_pop_name": getattr(rp, "Name", None),
+                    },
+                )
+            except Exception:
+                pass
+            # endregion
+            return ri
+        except Exception:
+            return raw_pop
 
     def _resolve_to_part(self, obj: Any) -> Any:
         """Resolve to PartDesign Part (owns .Bodies). Assembly Product -> ReferenceProduct.Parent.Part."""
@@ -193,6 +252,30 @@ class GeometryService:
             # Resolve Product to its Part so we never measure whole assembly as one part
             raw_pop = self._resolve_to_part(raw_input)
 
+        # region agent log
+        try:
+            _inp_bodies = getattr(raw_input, "Bodies", None) is not None
+            _pop_bodies = getattr(raw_pop, "Bodies", None) is not None
+            agent_ndjson(
+                "H5",
+                "geometry_service.get_bounding_box:after_resolve",
+                "raw_input vs raw_pop for non-STL",
+                {
+                    "method": method,
+                    "raw_input_name": getattr(raw_input, "Name", None),
+                    "raw_input_is_part_root": _inp_bodies,
+                    "raw_pop_name": getattr(raw_pop, "Name", None),
+                    "raw_pop_is_part_root": _pop_bodies,
+                    "same_object": raw_input is raw_pop,
+                },
+            )
+        except Exception:
+            pass
+        # endregion
+
+        # BOM passes a PartDesign Body; Rough Stock must measure that Body, not Parent Part (see debug H5).
+        rs_dialog_target = self._rough_stock_dialog_target(raw_input, raw_pop)
+
         # BOM Product instance: Rough Stock on assembly must use Search(...,in) under this node.
         scope_product = rough_stock_scope_product
         if method != "STL" and scope_product is None:
@@ -207,11 +290,29 @@ class GeometryService:
             except Exception:
                 scope_product = None
 
-        # 0. Cache Check (document path + name so different CATParts never share an entry)
+        # 0. Cache: version prefix drops stale MAIN_BODY-only slots; base key from resolved Part; ::body= when input leaf != part (COM-safe, not `is`).
         cache_key = ""
         try:
-            cache_key = self._measurement_cache_key(raw_pop, method)
+            part_for_key = self._resolve_to_part(raw_pop)
+            cache_key = f"{_MEASUREMENT_CACHE_KEY_VER}::{self._measurement_cache_key(part_for_key, method)}"
+            inp_c, pop_c = self._get_com(raw_input), self._get_com(raw_pop)
+            if not self._same_com_object(inp_c, pop_c):
+                bn = (getattr(rs_dialog_target, "Name", None) or "").strip()
+                if bn:
+                    cache_key = f"{cache_key}::body={bn}"
             if cache_key in self._measurement_cache:
+                # region agent log
+                agent_ndjson(
+                    "H1",
+                    "geometry_service.get_bounding_box:cache_hit",
+                    "returning cached bbox",
+                    {
+                        "cache_key": cache_key,
+                        "part_for_key_name": getattr(part_for_key, "Name", None),
+                        "stock_size": (self._measurement_cache[cache_key] or {}).get("stock_size"),
+                    },
+                )
+                # endregion
                 logger.debug(f"  Cache Hit for {cache_key}")
                 return self._measurement_cache[cache_key]
         except Exception:
@@ -256,12 +357,25 @@ class GeometryService:
                                 anchor_asm_doc = caa.ActiveDocument
                             except Exception:
                                 pass
+                        # region agent log
+                        agent_ndjson(
+                            "H5",
+                            "geometry_service.get_bounding_box:before_measure_dialog",
+                            "calling measure_body_in_dialog",
+                            {
+                                "passing_name": getattr(rs_dialog_target, "Name", None),
+                                "raw_input_name": getattr(raw_input, "Name", None),
+                                "raw_pop_name": getattr(raw_pop, "Name", None),
+                            },
+                        )
+                        # endregion
                         dx, dy, dz = RoughStockService.measure_body_in_dialog(
                             caa,
-                            raw_pop,
+                            rs_dialog_target,
                             rough_stock_window,
                             scope_product=scope_product,
                             anchor_asm_doc=anchor_asm_doc,
+                            skip_axis_spa_shortcuts=(rs_dialog_target is not raw_pop),
                         )
                         if dx is not None:
                             result = build_measurement_payload(dx, dy, dz, "ROUGH_STOCK")
@@ -271,14 +385,45 @@ class GeometryService:
                     except Exception as e:
                         logger.warning(f"Interactive Rough Stock failed: {e}")
                 
-                # 1. Tier 0.2: Standard Rough Stock (Scraper)
-                # Use the resolved object (Product or Part) directly
-                target_obj = raw_pop
+                # 1. Tier 0.2: Standard Rough Stock (Scraper) — same body as BOM / Tier 0.1 (not whole Part).
+                target_obj = rs_dialog_target
+                # region agent log
+                try:
+                    agent_ndjson(
+                        "H10",
+                        "geometry_service.get_bounding_box:tier0_2",
+                        "non-interactive rough stock target",
+                        {
+                            "rough_stock_window": int(rough_stock_window or 0),
+                            "tier02_target_name": getattr(target_obj, "Name", None),
+                            "raw_pop_name": getattr(raw_pop, "Name", None),
+                        },
+                    )
+                except Exception:
+                    pass
+                # endregion
+                _bom_body_leaf = rs_dialog_target is not raw_pop
+                # region agent log
+                try:
+                    agent_ndjson(
+                        "H14",
+                        "geometry_service.get_bounding_box:tier0_2_spa_policy",
+                        "skip axis/world SPA when BOM targets a body leaf",
+                        {
+                            "bom_specific_body": _bom_body_leaf,
+                            "rs_name": getattr(rs_dialog_target, "Name", None),
+                            "part_name": getattr(raw_pop, "Name", None),
+                        },
+                    )
+                except Exception:
+                    pass
+                # endregion
                 dx, dy, dz = RoughStockService.get_rough_stock_dims(
                     caa,
                     target_obj=target_obj,
                     stay_open=stay_open,
                     scope_product=scope_product,
+                    bom_specific_body=_bom_body_leaf,
                 )
                 if dx is not None and dx > 0.001:
                     res = self._round_bbox({
@@ -311,7 +456,7 @@ class GeometryService:
 
         # --- Tier 1: Direct SPA ---
         try:
-            res = self._measure_via_spa(caa, raw_pop)
+            res = self._measure_via_spa(caa, rs_dialog_target)
             if res and res["x"] > 0.1:
                 res["method_used"] = "SPA"
                 res["measurement_confidence"] = res.get("measurement_confidence", "medium")
@@ -321,7 +466,7 @@ class GeometryService:
         except: pass
 
         # --- Tier 2: NUCLEAR STL (Context Breaker) ---
-        return self._measure_via_stl_full(caa, raw_pop)
+        return self._measure_via_stl_full(caa, rs_dialog_target)
 
     def _measure_via_spa(self, caa, raw_pop):
         """Direct SPA measurement for fast fallback."""

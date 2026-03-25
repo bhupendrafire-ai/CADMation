@@ -7,6 +7,7 @@ CATIA integration endpoints.
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.services.catia_bridge import catia_bridge
+from app.debug_agent_log import agent_ndjson, start_new_bom_debug_log
 import json
 import logging
 import asyncio
@@ -98,9 +99,22 @@ def save_bom_excel(payload: dict = Body(..., embed=False)):
     return {"status": "success", "file_path": file_path}
 
 
+@router.post("/bom/body-disambiguation/reset")
+def bom_body_disambiguation_reset():
+    """Clear server-side BOM disambiguation map (does not rename bodies in CATIA)."""
+    from app.services.body_name_disambiguation_service import clear_disambiguation_server_state
+
+    try:
+        clear_disambiguation_server_state()
+    except Exception:
+        logger.exception("body-disambiguation reset failed")
+    return {"ok": True}
+
+
 @router.post("/bom/part-bodies")
 def bom_part_bodies(payload: dict = Body(...)):
     """List PartDesign body names per BOM row for the measure-body dropdown."""
+    from app.services.body_name_disambiguation_service import ensure_disambiguation_for_classifier
     from app.services.geometry_service import geometry_service
 
     items = payload.get("items") if isinstance(payload, dict) else None
@@ -109,6 +123,11 @@ def bom_part_bodies(payload: dict = Body(...)):
     caa = catia_bridge.get_application()
     if not caa:
         return {"error": "CATIA not connected", "results": []}
+    want_rename = bool(payload.get("tempRenameDuplicateBodies"))
+    try:
+        ensure_disambiguation_for_classifier(caa, want_rename)
+    except Exception:
+        logger.exception("ensure_disambiguation_for_classifier failed")
     results = []
     for item in items:
         row_id = item.get("id") or item.get("partNumber")
@@ -231,6 +250,16 @@ def _geometry_owner_part_and_doc_norm_fp(obj):
         except Exception:
             break
     return None, None
+
+
+def _effective_bom_body_name(item: dict, part_scope, user_bn: str, resolution_map: dict) -> str:
+    """When disambiguation ran, map BOM/UI body name to current COM Body.Name."""
+    if not user_bn or not resolution_map:
+        return user_bn
+    from app.services.body_name_disambiguation_service import effective_body_name_for_bom_row
+
+    inst = (item.get("instanceName") or "").strip()
+    return effective_body_name_for_bom_row(resolution_map, part_scope, inst, user_bn)
 
 
 def _find_product_instance_for_open_tree(
@@ -542,6 +571,39 @@ async def bom_calculate_ws(websocket: WebSocket):
             return
 
         caa = catia_bridge.get_application()
+
+        # Run before axis selection / Rough Stock so CATIA body names are unique before any measurement prep.
+        resolution_map = {}
+        if bool(payload.get("tempRenameDuplicateBodies")) and caa:
+            from app.services.body_name_disambiguation_service import (
+                disambiguation_state_for_measurement,
+            )
+
+            try:
+                resolution_map, n_renamed = disambiguation_state_for_measurement(caa, True)
+                if n_renamed:
+                    await websocket.send_text(
+                        json.dumps(
+                            {
+                                "log": f"-> Renamed {n_renamed} duplicate body name(s) in CATIA (persists in session; Save to keep on disk)."
+                            }
+                        )
+                    )
+                elif not resolution_map:
+                    await websocket.send_text(
+                        json.dumps(
+                            {
+                                "log": "-> No duplicate body names across assembly; rename skipped."
+                            }
+                        )
+                    )
+            except Exception as ex:
+                logger.exception("Body disambiguation apply failed: %s", ex)
+                await websocket.send_text(
+                    json.dumps({"log": f"-> WARNING: duplicate-body rename failed: {ex}"})
+                )
+                resolution_map = {}
+
         # Phase 1: Interactive Rough Stock Check
         rs_window = 0
         if method in ("ROUGH_STOCK", "AUTO"):
@@ -572,7 +634,15 @@ async def bom_calculate_ws(websocket: WebSocket):
         from app.services.geometry_service import geometry_service
         geometry_service.clear_cache()
         measurement_cache = {}
-        
+        try:
+            dbg_path = start_new_bom_debug_log()
+            bom_service._log_op(f"Debug trace log (this run): {dbg_path}")
+            await websocket.send_text(
+                json.dumps({"log": f"Debug trace log (this run): {dbg_path}"})
+            )
+        except Exception:
+            pass
+
         for idx, item in enumerate(selected_items):
             if cancelled_ref[0]:
                 break
@@ -619,7 +689,10 @@ async def bom_calculate_ws(websocket: WebSocket):
                             part_scope = geometry_service._resolve_to_part(obj)
                             bodies = getattr(part_scope, "Bodies", None)
                             if bodies:
-                                uu = user_bn.upper()
+                                eff_bn = _effective_bom_body_name(
+                                    item, part_scope, user_bn, resolution_map
+                                )
+                                uu = eff_bn.upper()
                                 for j in range(1, bodies.Count + 1):
                                     b = bodies.Item(j)
                                     if (getattr(b, "Name", "") or "").upper() == uu:
@@ -658,8 +731,14 @@ async def bom_calculate_ws(websocket: WebSocket):
                                     part_pick = geometry_service._resolve_to_part(obj)
                                     bodies = getattr(part_pick, "Bodies", None)
                                     if bodies:
+                                        pick_nm = _effective_bom_body_name(
+                                            item,
+                                            part_pick,
+                                            selected_body_name or "",
+                                            resolution_map,
+                                        )
                                         for i in range(1, bodies.Count + 1):
-                                            if bodies.Item(i).Name == selected_body_name:
+                                            if bodies.Item(i).Name == pick_nm:
                                                 body_target = bodies.Item(i)
                                                 break
                                 else:
@@ -701,6 +780,25 @@ async def bom_calculate_ws(websocket: WebSocket):
                             rs_scope = _resolve_rough_stock_scope_product(
                                 caa, obj, instance_name, item_id
                             )
+                            # region agent log
+                            try:
+                                adn = getattr(getattr(caa, "ActiveDocument", None), "Name", None)
+                                agent_ndjson(
+                                    "H3",
+                                    "catia.bom_calculate_ws:before_get_bbox",
+                                    "BOM row measure context",
+                                    {
+                                        "item_id": item_id,
+                                        "instance_name": instance_name,
+                                        "measurementBodyName": _mb,
+                                        "resolved_obj_name": getattr(obj, "Name", None),
+                                        "ws_cache_key": cache_key,
+                                        "active_doc_name": adn,
+                                    },
+                                )
+                            except Exception:
+                                pass
+                            # endregion
                             bbox = geometry_service.get_bounding_box(
                                 obj,
                                 method=method,
@@ -714,6 +812,22 @@ async def bom_calculate_ws(websocket: WebSocket):
                             bom_service._log_op(msg)
                             await websocket.send_text(json.dumps({"log": msg}))
                             bbox = {"stock_size": "Not Measurable"}
+                        # region agent log
+                        try:
+                            agent_ndjson(
+                                "H2",
+                                "catia.bom_calculate_ws:after_get_bbox",
+                                "measurement result",
+                                {
+                                    "item_id": item_id,
+                                    "stock_size": bbox.get("stock_size"),
+                                    "rawDims": bbox.get("rawDims"),
+                                    "method_used": bbox.get("method_used"),
+                                },
+                            )
+                        except Exception:
+                            pass
+                        # endregion
                         measurement_cache[cache_key] = bbox
                         res_size = bbox.get('stock_size', 'Not Measurable')
                         msg = f"-> Result for {item_id}: {res_size}"
@@ -785,7 +899,10 @@ async def bom_calculate_ws(websocket: WebSocket):
                                 part_scope = geometry_service._resolve_to_part(obj)
                                 bodies = getattr(part_scope, "Bodies", None)
                                 if bodies:
-                                    uu = user_bn.upper()
+                                    eff_bn = _effective_bom_body_name(
+                                        item, part_scope, user_bn, resolution_map
+                                    )
+                                    uu = eff_bn.upper()
                                     for j in range(1, bodies.Count + 1):
                                         b = bodies.Item(j)
                                         if (getattr(b, "Name", "") or "").upper() == uu:
@@ -824,8 +941,14 @@ async def bom_calculate_ws(websocket: WebSocket):
                                         part_pick = geometry_service._resolve_to_part(obj)
                                         bodies = getattr(part_pick, "Bodies", None)
                                         if bodies:
+                                            pick_nm = _effective_bom_body_name(
+                                                item,
+                                                part_pick,
+                                                selected_body_name or "",
+                                                resolution_map,
+                                            )
                                             for i in range(1, bodies.Count + 1):
-                                                if bodies.Item(i).Name == selected_body_name:
+                                                if bodies.Item(i).Name == pick_nm:
                                                     body_target = bodies.Item(i)
                                                     break
                                     else:
@@ -919,6 +1042,14 @@ async def bom_calculate_ws(websocket: WebSocket):
         except: pass
     finally:
         cancelled_ref[0] = True
+        try:
+            from app.services.body_name_disambiguation_service import (
+                clear_disambiguation_server_state,
+            )
+
+            clear_disambiguation_server_state()
+        except Exception:
+            logger.exception("Body disambiguation: clear server state failed")
         try:
             from app.services.rough_stock_service import RoughStockService
             RoughStockService.close_window()
