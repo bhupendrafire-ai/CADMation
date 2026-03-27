@@ -87,6 +87,9 @@ function normalizeRows(list) {
       validationFlags: normalizeFlags(row.validationFlags),
       sourceRowId: row.sourceRowId || `${row.partNumber || row.name || i}|${row.instanceName || ''}`,
       _rowId: row._rowId ?? row.id ?? i + 1,
+      parentAssembly: row.parentAssembly || '',
+      includeIn2dDrawing: row.includeIn2dDrawing === true,
+      draftingAxisName: row.draftingAxisName || '',
     }
   })
 }
@@ -106,10 +109,23 @@ export default function BOMEditor({ items: initialItems, onItemsChange, onExport
   const [bulkRounding, setBulkRounding] = useState('5')
   const [activeFilter, setActiveFilter] = useState('all')
   const [exportError, setExportError] = useState('')
+  const [draft2dLoading, setDraft2dLoading] = useState(false)
+  const [draft2dFeedback, setDraft2dFeedback] = useState('')
+  const [globalDraftingAxisName, setGlobalDraftingAxisName] = useState('')
+  const [axisPreviewLoading, setAxisPreviewLoading] = useState(false)
+  const [axisPreviewOk, setAxisPreviewOk] = useState(false)
+  const [axisPreviewUsedSelection, setAxisPreviewUsedSelection] = useState(false)
+  const [axisPropagateLoading, setAxisPropagateLoading] = useState(false)
+  const [draggingRowId, setDraggingRowId] = useState(null)
+  const [dropTargetRowId, setDropTargetRowId] = useState(null)
 
   useEffect(() => {
     setItems(normalizeRows(initialItems))
   }, [initialItems])
+
+  useEffect(() => {
+    setAxisPreviewOk(false)
+  }, [globalDraftingAxisName])
 
   const updateItems = useCallback((updater) => {
     setItems((prev) => {
@@ -199,6 +215,7 @@ export default function BOMEditor({ items: initialItems, onItemsChange, onExport
         selected: true,
         keepInExport: true,
         validationFlags: ['manual_row'],
+        includeIn2dDrawing: false,
       },
     ])
   }, [updateItems])
@@ -206,6 +223,193 @@ export default function BOMEditor({ items: initialItems, onItemsChange, onExport
   const removeRow = useCallback((rowIndex) => {
     updateItems((prev) => prev.filter((_, i) => i !== rowIndex))
   }, [updateItems])
+
+  const moveRowById = useCallback((fromRowId, toRowId) => {
+    if (fromRowId == null || toRowId == null || String(fromRowId) === String(toRowId)) return
+    updateItems((prev) => {
+      const fromIndex = prev.findIndex((r) => String(r._rowId) === String(fromRowId))
+      const toIndex = prev.findIndex((r) => String(r._rowId) === String(toRowId))
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return prev
+      const next = [...prev]
+      const [removed] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, removed)
+      return next
+    })
+  }, [updateItems])
+
+  const selectMfgFor2d = useCallback(() => {
+    updateItems((prev) =>
+      prev.map((row) => ({ ...row, includeIn2dDrawing: !row.isStd })),
+    )
+    setDraft2dFeedback('')
+  }, [updateItems])
+
+  const clear2dSelection = useCallback(() => {
+    updateItems((prev) => prev.map((row) => ({ ...row, includeIn2dDrawing: false })))
+    setDraft2dFeedback('')
+  }, [updateItems])
+
+  const apiErrorText = (data) => {
+    if (data?.detail != null) {
+      if (typeof data.detail === 'string') return data.detail
+      if (Array.isArray(data.detail)) {
+        const first = data.detail[0]
+        return first?.msg || first?.message || JSON.stringify(data.detail)
+      }
+    }
+    return data?.error || 'Request failed'
+  }
+
+  const generate2dViews = useCallback(
+    async (opts = {}) => {
+      const useSelection = Boolean(opts.useSelection)
+      const payloadItems = items.filter((row) => row.includeIn2dDrawing)
+      if (!payloadItems.length) {
+        setDraft2dFeedback('Select at least one row for 2D (use “Select MFG for 2D” or tick 2D).')
+        return
+      }
+      setDraft2dLoading(true)
+      setDraft2dFeedback('')
+      try {
+        const body = {
+          items: payloadItems,
+          globalDraftingAxisUseSelection: useSelection,
+          topViewRotationDeg: -90,
+          planProjectionUseLeft: true,
+        }
+        const trimmed = `${globalDraftingAxisName || ''}`.trim()
+        if (!useSelection && trimmed) body.globalDraftingAxisName = trimmed
+        const res = await fetch('/api/catia/drafting/multi-layout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setDraft2dFeedback(`2D layout failed: ${apiErrorText(data)}`)
+          return
+        }
+        if (data.error) {
+          setDraft2dFeedback(`2D layout failed: ${data.error}`)
+          return
+        }
+        const w = (data.warnings || []).length ? ` Warnings: ${data.warnings.join('; ')}` : ''
+        setDraft2dFeedback(
+          `Opened drawing “${data.drawing_name || 'Drawing'}” — ${(data.views_created || []).length} view(s).${w}`,
+        )
+      } catch (err) {
+        setDraft2dFeedback(`Request failed: ${err.message || err}`)
+      } finally {
+        setDraft2dLoading(false)
+      }
+    },
+    [items, globalDraftingAxisName],
+  )
+
+  const previewDraftingAxis = useCallback(async (useSelection) => {
+    setAxisPreviewLoading(true)
+    setDraft2dFeedback('')
+    setAxisPreviewOk(false)
+    try {
+      const body = useSelection ? { useSelection: true } : { name: `${globalDraftingAxisName || ''}`.trim() }
+      if (!useSelection && !body.name) {
+        setDraft2dFeedback('Type a drafting axis name, or use preview from selection.')
+        return
+      }
+      const res = await fetch('/api/catia/drafting/axis-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setDraft2dFeedback(`Axis preview failed: ${apiErrorText(data)}`)
+        return
+      }
+      if (!data.found) {
+        setDraft2dFeedback('No matching axis found (check name or select an axis system in CATIA).')
+        return
+      }
+      setAxisPreviewUsedSelection(useSelection)
+      setAxisPreviewOk(true)
+      setDraft2dFeedback(
+        `Axis preview: “${data.name || '?'}”${data.catpartFullName ? ` — ${data.catpartFullName}` : ''}`,
+      )
+    } catch (err) {
+      setDraft2dFeedback(`Axis preview failed: ${err.message || err}`)
+    } finally {
+      setAxisPreviewLoading(false)
+    }
+  }, [globalDraftingAxisName])
+
+  const propagateAxisToMfgParts = useCallback(async () => {
+    const payloadItems = items.filter((row) => row.includeIn2dDrawing)
+    if (!payloadItems.length) {
+      setDraft2dFeedback('Select at least one row for 2D (tick 2D) before propagating the axis.')
+      return
+    }
+    setAxisPropagateLoading(true)
+    setDraft2dFeedback('')
+    try {
+      const body = {
+        items: payloadItems,
+        globalDraftingAxisUseSelection: axisPreviewUsedSelection,
+      }
+      const trimmed = `${globalDraftingAxisName || ''}`.trim()
+      if (!axisPreviewUsedSelection && trimmed) body.globalDraftingAxisName = trimmed
+      const prev = await fetch('/api/catia/drafting/axis-propagate-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const prevData = await prev.json()
+      if (!prev.ok) {
+        setDraft2dFeedback(`Propagate preview failed: ${apiErrorText(prevData)}`)
+        return
+      }
+      const cand = prevData.candidates || []
+      const would = cand.filter((c) => c.action === 'would_create').length
+      const summary = cand
+        .map((c) => `${c.partKey}: ${c.action}${c.reason ? ` (${c.reason})` : ''}`)
+        .join('\n')
+      if (
+        would > 0 &&
+        !window.confirm(
+          `Add axis “${prevData.propagatedAxisName || 'AXIS_DRAFTING_GLOBAL'}” to ${would} part(s)?`,
+        )
+      ) {
+        setDraft2dFeedback('Propagate cancelled.')
+        return
+      }
+      if (would === 0) {
+        setDraft2dFeedback(
+          `No parts need a new axis (all skipped or unresolved).\n${summary}`,
+        )
+        return
+      }
+      const exec = await fetch('/api/catia/drafting/axis-propagate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await exec.json()
+      if (!exec.ok) {
+        setDraft2dFeedback(`Propagate failed: ${apiErrorText(data)}`)
+        return
+      }
+      const u = (data.updated || []).length
+      const sk = (data.skipped || []).length
+      const er = (data.errors || []).length
+      const errLines = (data.errors || []).map((e) => `${e.partKey}: ${e.message}`).join('\n')
+      setDraft2dFeedback(
+        `Axis propagate: updated ${u}, skipped ${sk}, errors ${er}.${errLines ? `\n${errLines}` : ''}`,
+      )
+    } catch (err) {
+      setDraft2dFeedback(`Propagate failed: ${err.message || err}`)
+    } finally {
+      setAxisPropagateLoading(false)
+    }
+  }, [items, globalDraftingAxisName, axisPreviewUsedSelection])
 
   const handleExport = useCallback(() => {
     const missingMaterialRows = items.filter(
@@ -264,12 +468,73 @@ export default function BOMEditor({ items: initialItems, onItemsChange, onExport
         ))}
         <button type="button" onClick={() => setAllSelected(true)} className="text-[10px] px-2 py-1 rounded bg-white/10 hover:bg-white/20">Select all</button>
         <button type="button" onClick={() => setAllSelected(false)} className="text-[10px] px-2 py-1 rounded bg-white/10 hover:bg-white/20">Unselect all</button>
+        <span className="text-white/15 hidden sm:inline">|</span>
+        <button type="button" onClick={selectMfgFor2d} className="text-[10px] px-2 py-1 rounded bg-sky-500/15 text-sky-200 border border-sky-500/30 hover:bg-sky-500/25">
+          Select MFG for 2D
+        </button>
+        <button type="button" onClick={clear2dSelection} className="text-[10px] px-2 py-1 rounded bg-white/5 border border-white/10 hover:bg-white/10">
+          Clear 2D
+        </button>
+        <input
+          type="text"
+          placeholder="Global drafting axis (name)"
+          value={globalDraftingAxisName}
+          onChange={(e) => setGlobalDraftingAxisName(e.target.value)}
+          title="Optional: substring to match one Part Axis System for all rows. Leave empty for per-row drafting axis only."
+          className="min-w-[120px] max-w-[190px] text-[10px] bg-white/5 border border-white/10 rounded px-2 py-1 placeholder:text-white/35"
+        />
+        <button
+          type="button"
+          onClick={() => previewDraftingAxis(false)}
+          disabled={disabled || axisPreviewLoading || draft2dLoading}
+          className="text-[10px] px-2 py-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-50"
+        >
+          {axisPreviewLoading ? '…' : 'Preview axis'}
+        </button>
+        <button
+          type="button"
+          onClick={() => previewDraftingAxis(true)}
+          disabled={disabled || axisPreviewLoading || draft2dLoading}
+          className="text-[10px] px-2 py-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-50"
+          title="Resolve axis from current CATIA selection (pick axis in the spec tree first)"
+        >
+          Preview selection
+        </button>
+        <button
+          type="button"
+          onClick={propagateAxisToMfgParts}
+          disabled={disabled || !axisPreviewOk || axisPreviewLoading || axisPropagateLoading || draft2dLoading}
+          className="text-[10px] px-2 py-1 rounded bg-violet-500/20 text-violet-100 border border-violet-500/35 hover:bg-violet-500/30 disabled:opacity-50"
+          title="After a successful axis preview, create AXIS_DRAFTING_GLOBAL in CATParts that lack a usable axis (2D rows)"
+        >
+          {axisPropagateLoading ? '…' : 'Propagate axis to MFG parts'}
+        </button>
+        <button
+          type="button"
+          onClick={() => generate2dViews()}
+          disabled={disabled || draft2dLoading}
+          className="text-[10px] px-2 py-1 rounded bg-emerald-500/20 text-emerald-200 border border-emerald-500/35 hover:bg-emerald-500/30 disabled:opacity-50"
+        >
+          {draft2dLoading ? 'Generating…' : 'Generate 2D views'}
+        </button>
+        <button
+          type="button"
+          onClick={() => generate2dViews({ useSelection: true })}
+          disabled={disabled || draft2dLoading}
+          className="text-[10px] px-2 py-1 rounded bg-emerald-500/15 text-emerald-100/90 border border-emerald-500/25 hover:bg-emerald-500/25 disabled:opacity-50"
+          title="Use the axis system currently selected in CATIA for all parts (DefineFrontView); SetAxisSysteme only if that axis lives in the same CATPart as the row"
+        >
+          {draft2dLoading ? 'Generating…' : 'Generate 2D (axis from selection)'}
+        </button>
         <div className="flex items-center gap-1">
           <input type="number" placeholder="Stock (mm)" value={bulkStock} onChange={(e) => setBulkStock(e.target.value)} className="w-20 text-[11px] bg-white/5 border border-white/10 rounded px-2 py-1" />
           <input type="number" placeholder="Round" value={bulkRounding} onChange={(e) => setBulkRounding(e.target.value)} className="w-16 text-[11px] bg-white/5 border border-white/10 rounded px-2 py-1" />
           <button type="button" onClick={() => addMachiningStockToAll(bulkStock, bulkRounding)} className="text-[10px] px-2 py-1 rounded bg-white/10 hover:bg-white/20">Apply RM rules</button>
         </div>
         <button type="button" onClick={addMissingItem} className="text-[10px] px-2 py-1 rounded bg-white/10 hover:bg-white/20">+ Add row</button>
+        <span className="text-[10px] text-muted-foreground hidden md:inline">
+          Drag ⋮⋮ to reorder. Use Section for Excel group headers (e.g. LOWER NON STD PARTS).
+        </span>
         <button type="button" onClick={handleExport} disabled={disabled} className="text-[10px] px-3 py-1 rounded bg-white text-black hover:bg-neutral-200 disabled:opacity-50 ml-auto">
           Export to Excel
         </button>
@@ -280,14 +545,24 @@ export default function BOMEditor({ items: initialItems, onItemsChange, onExport
           {exportError}
         </div>
       )}
+      {draft2dFeedback && (
+        <div className="px-3 py-2 text-[11px] text-emerald-200/90 bg-emerald-500/10 border-b border-emerald-500/20 whitespace-pre-wrap">
+          {draft2dFeedback}
+        </div>
+      )}
 
       <div className="overflow-x-auto max-h-[65vh] overflow-y-auto">
         <table className="w-full text-[11px] border-collapse">
           <thead className="sticky top-0 bg-black/50 z-10">
             <tr className="border-b border-white/10">
+              <th className="text-left py-2 px-1 w-7" title="Drag to reorder"> </th>
               <th className="text-left py-2 px-2 w-8">In</th>
+              <th className="text-left py-2 px-2 w-8" title="Include in multi-part 2D layout">
+                2D
+              </th>
               <th className="text-left py-2 px-2 w-14">Qty</th>
               <th className="text-left py-2 px-2 min-w-[150px]">Instance</th>
+              <th className="text-left py-2 px-2 min-w-[130px]">Section</th>
               <th className="text-left py-2 px-2 min-w-[180px]">Description</th>
               <th className="text-left py-2 px-2 min-w-[150px]">Part / Catalog</th>
               <th className="text-left py-2 px-2 min-w-[100px]">Sheet</th>
@@ -312,22 +587,93 @@ export default function BOMEditor({ items: initialItems, onItemsChange, onExport
           <tbody>
             {visibleRows.map((row) => {
               const actualIndex = items.findIndex((candidate) => candidate._rowId === row._rowId)
+              const rowKey = row._rowId ?? row.id ?? actualIndex
               const milling = parseSize(row.millingSize || row.size)
               const rm = parseSize(row.rmSize || computeRmSize(row.millingSize || row.size, row.machiningStock, row.roundingMm))
               const isStd = row.isStd
               const suggestions = getNameSuggestions(row)
-              const datalistId = `editor-name-suggestions-${row._rowId ?? actualIndex}`
+              const datalistId = `editor-name-suggestions-${rowKey}`
               const materialRequired = !isStd && ['Steel', 'Casting'].includes(row.sheetCategory)
               const availableSheetOptions = isStd ? ['STD'] : ['Steel', 'MS', 'Casting']
+              const isDragOver =
+                draggingRowId != null &&
+                dropTargetRowId != null &&
+                String(dropTargetRowId) === String(rowKey) &&
+                String(draggingRowId) !== String(rowKey)
               return (
-                <tr key={row._rowId ?? row.id ?? actualIndex} className="border-b border-white/5 hover:bg-white/5 align-top">
+                <tr
+                  key={rowKey}
+                  onDragOver={(e) => {
+                    if (draggingRowId == null) return
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    setDropTargetRowId(rowKey)
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    const fromId = e.dataTransfer.getData('text/plain')
+                    if (fromId) moveRowById(fromId, rowKey)
+                    setDraggingRowId(null)
+                    setDropTargetRowId(null)
+                  }}
+                  className={`border-b border-white/5 hover:bg-white/5 align-top transition-colors ${
+                    draggingRowId != null && String(draggingRowId) === String(rowKey) ? 'opacity-50' : ''
+                  } ${isDragOver ? 'bg-sky-500/15 ring-1 ring-inset ring-sky-400/40' : ''}`}
+                >
+                  <td className="py-1 px-1 align-middle w-7">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      draggable
+                      title="Drag to reorder"
+                      aria-label="Drag row to reorder"
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', String(rowKey))
+                        e.dataTransfer.effectAllowed = 'move'
+                        setDraggingRowId(rowKey)
+                      }}
+                      onDragEnd={() => {
+                        setDraggingRowId(null)
+                        setDropTargetRowId(null)
+                      }}
+                      className="inline-flex cursor-grab active:cursor-grabbing text-white/35 hover:text-white/70 p-0.5 rounded hover:bg-white/10 outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <circle cx="9" cy="6" r="1.35" />
+                        <circle cx="15" cy="6" r="1.35" />
+                        <circle cx="9" cy="12" r="1.35" />
+                        <circle cx="15" cy="12" r="1.35" />
+                        <circle cx="9" cy="18" r="1.35" />
+                        <circle cx="15" cy="18" r="1.35" />
+                      </svg>
+                    </span>
+                  </td>
                   <td className="py-1 px-2">
                     <input type="checkbox" checked={row.keepInExport} onChange={(e) => updateRow(actualIndex, 'keepInExport', e.target.checked)} className="rounded border-white/20" />
+                  </td>
+                  <td className="py-1 px-2">
+                    <input
+                      type="checkbox"
+                      checked={row.includeIn2dDrawing === true}
+                      onChange={(e) => updateRow(actualIndex, 'includeIn2dDrawing', e.target.checked)}
+                      className="rounded border-white/20"
+                      title="Add to CATDrawing multi-layout (Front / Top)"
+                    />
                   </td>
                   <td className="py-1 px-2">
                     <input type="number" min="1" value={row.qty || 1} onChange={(e) => updateRow(actualIndex, 'qty', e.target.value)} className="w-12 text-[11px] bg-white/5 border border-white/10 rounded px-2 py-1" />
                   </td>
                   <td className="py-1 px-2 font-mono truncate max-w-[180px]" title={row.instanceName || row.name}>{row.instanceName || row.name}</td>
+                  <td className="py-1 px-2">
+                    <input
+                      type="text"
+                      value={row.parentAssembly || ''}
+                      onChange={(e) => updateRow(actualIndex, 'parentAssembly', e.target.value)}
+                      placeholder="LOWER NON STD PARTS"
+                      title="Excel section header; group rows with the same value"
+                      className="w-full min-w-[120px] text-[10px] bg-white/5 border border-white/10 rounded px-2 py-1 font-mono placeholder:text-white/25"
+                    />
+                  </td>
                   <td className="py-1 px-2">
                     <input list={datalistId} type="text" value={row.description || ''} onChange={(e) => updateRow(actualIndex, 'description', e.target.value)} className="w-full min-w-[160px] text-[11px] bg-white/5 border border-white/10 rounded px-2 py-1" />
                     <datalist id={datalistId}>

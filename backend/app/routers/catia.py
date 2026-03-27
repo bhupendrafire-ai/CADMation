@@ -5,7 +5,9 @@ CATIA integration endpoints.
 - GET /catia/tree    → specification tree JSON (Stub)
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from typing import Optional
+
+from fastapi import APIRouter, Body, HTTPException, Query, WebSocket, WebSocketDisconnect
 from app.services.catia_bridge import catia_bridge
 from app.debug_agent_log import agent_ndjson, start_new_bom_debug_log
 import json
@@ -53,10 +55,14 @@ def catia_bom():
         return {"error": "No active CATIA session found"}
     return tree
 
-from fastapi import Body
-
 from app.services.drafting_service import drafting_service
+from app.services.drafting_axis_resolve import (
+    resolve_axis_system_by_name,
+    resolve_axis_system_from_selection,
+)
+from app.services.drafting_axis_propagate import execute_propagate, preview_propagate
 from app.services.bom_service import bom_service
+from app.services.catia_bom_resolve import norm_path, resolve_bom_item_object as _resolve_bom_item_object
 
 @router.get("/bom/fast")
 def get_bom_fast_list():
@@ -172,57 +178,132 @@ def bom_part_bodies(payload: dict = Body(...)):
 
 
 @router.post("/drafting/create")
-def create_drawing(part_name: str = None):
+def create_drawing(
+    part_name: Optional[str] = None,
+    drafting_axis_name: Optional[str] = None,
+    top_view_rotation_deg: Optional[float] = Query(
+        None,
+        description="Plan (Top) view in-plane rotation in degrees; omit for default (-90); use 0 to disable",
+    ),
+    plan_projection_use_left: bool = Query(
+        True,
+        description="True=catLeftView for plan (default); False=catRightView",
+    ),
+):
     """Triggers the creation of an automated 2D drawing for the active Part."""
-    return drafting_service.create_automated_drawing(part_name)
+    return drafting_service.create_automated_drawing(
+        part_name,
+        drafting_axis_name=drafting_axis_name,
+        top_view_rotation_deg=top_view_rotation_deg,
+        plan_projection_use_left=plan_projection_use_left,
+    )
 
-def _resolve_product_for_measure(product, part_number: str, instance_name: str):
-    """Resolve to a single instance; never return an assembly when multiple instances of same part exist."""
-    try:
-        if not hasattr(product, "Products") or product.Products.Count == 0:
-            return product
-        pn = (getattr(product, "PartNumber", "") or "").strip()
-        name = getattr(product, "Name", "") or ""
-        if pn == part_number and name == instance_name:
-            return product
-        first_matching = None
-        for i in range(1, product.Products.Count + 1):
-            child = product.Products.Item(i)
+
+@router.post("/drafting/multi-layout")
+def create_multi_layout_drawing(payload: dict = Body(...)):
+    """One CATDrawing with Front and Top generative views per BOM item; no auto-dimensioning."""
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not items:
+        return {"error": "No items provided"}
+    gname = (payload.get("globalDraftingAxisName") or "").strip() if isinstance(payload, dict) else ""
+    gsel = bool(payload.get("globalDraftingAxisUseSelection")) if isinstance(payload, dict) else False
+    top_rot: Optional[float] = None
+    plan_left = True
+    if isinstance(payload, dict):
+        tv = payload.get("topViewRotationDeg")
+        if tv is not None and tv != "":
             try:
-                c_pn = (getattr(child, "PartNumber", "") or "").strip()
-                c_name = getattr(child, "Name", "") or ""
-                if c_pn == part_number:
-                    if first_matching is None:
-                        first_matching = child
-                    if c_name == instance_name or not instance_name:
-                        return child
-                if hasattr(child, "Products") and child.Products.Count > 0:
-                    deeper = _resolve_product_for_measure(child, part_number, instance_name)
-                    if deeper is not None:
-                        return deeper
-            except Exception:
-                continue
-        return first_matching if first_matching is not None else product
-    except Exception:
-        return product
+                top_rot = float(tv)
+            except (TypeError, ValueError):
+                top_rot = None
+        if "planProjectionUseLeft" in payload:
+            plan_left = bool(payload.get("planProjectionUseLeft"))
+    result = drafting_service.create_multi_part_layout(
+        items,
+        global_drafting_axis_name=gname or None,
+        global_drafting_axis_use_selection=gsel,
+        top_view_rotation_deg=top_rot,
+        plan_projection_use_left=plan_left,
+    )
+    if isinstance(result, dict) and result.get("status_code") == 400:
+        detail = result.get("error", "Bad request")
+        if result.get("hint"):
+            detail = f"{detail} — {result['hint']}"
+        raise HTTPException(status_code=400, detail=detail)
+    return result
 
-def _norm_path(path: str) -> str:
+
+@router.post("/drafting/axis-preview")
+def drafting_axis_preview(payload: dict = Body(...)):
+    """Resolve global axis from name or selection without creating a drawing."""
+    caa = catia_bridge.get_application()
+    if not caa:
+        raise HTTPException(status_code=503, detail="CATIA not connected")
+    use_sel = bool(payload.get("useSelection"))
+    name = (payload.get("name") or "").strip()
+    axis = None
+    cat_doc = None
+    if use_sel:
+        axis, cat_doc = resolve_axis_system_from_selection(caa)
+    elif name:
+        axis, cat_doc = resolve_axis_system_by_name(caa, name)
+    else:
+        raise HTTPException(status_code=400, detail="Provide name or useSelection: true")
+    if axis is None:
+        return {"found": False, "name": None, "catpartFullName": None}
     try:
-        return os.path.normcase(os.path.normpath(os.path.abspath(path or "")))
+        fp = norm_path(getattr(cat_doc, "FullName", "") or "") if cat_doc is not None else ""
     except Exception:
-        return (path or "").strip().lower()
+        fp = ""
+    return {
+        "found": True,
+        "name": getattr(axis, "Name", None),
+        "catpartFullName": fp or None,
+    }
 
 
-def _source_path_plausible_for_item(path: str, item_id: str) -> bool:
-    """Avoid binding a BOM row to the wrong CATPart when filenames share no digit group with the part id."""
-    try:
-        bn = "".join(c for c in os.path.basename(path or "").upper() if c.isalnum())
-        for m in re.finditer(r"\d{3,}", (item_id or "").upper()):
-            if m.group() not in bn:
-                return False
-        return True
-    except Exception:
-        return True
+@router.post("/drafting/axis-propagate-preview")
+def drafting_axis_propagate_preview(payload: dict = Body(...)):
+    """List BOM rows that would receive AXIS_DRAFTING_GLOBAL (no CATIA writes)."""
+    caa = catia_bridge.get_application()
+    if not caa:
+        raise HTTPException(status_code=503, detail="CATIA not connected")
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not items:
+        raise HTTPException(status_code=400, detail="No items provided")
+    gname = (payload.get("globalDraftingAxisName") or "").strip() if isinstance(payload, dict) else ""
+    gsel = bool(payload.get("globalDraftingAxisUseSelection")) if isinstance(payload, dict) else False
+    if not gsel and not gname:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide globalDraftingAxisName or set globalDraftingAxisUseSelection",
+        )
+    result = preview_propagate(caa, items, gname or None, gsel)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Preview failed"))
+    return result
+
+
+@router.post("/drafting/axis-propagate")
+def drafting_axis_propagate(payload: dict = Body(...)):
+    """Create AXIS_DRAFTING_GLOBAL in each target CATPart from the resolved global axis basis."""
+    caa = catia_bridge.get_application()
+    if not caa:
+        raise HTTPException(status_code=503, detail="CATIA not connected")
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not items:
+        raise HTTPException(status_code=400, detail="No items provided")
+    gname = (payload.get("globalDraftingAxisName") or "").strip() if isinstance(payload, dict) else ""
+    gsel = bool(payload.get("globalDraftingAxisUseSelection")) if isinstance(payload, dict) else False
+    if not gsel and not gname:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide globalDraftingAxisName or set globalDraftingAxisUseSelection",
+        )
+    result = execute_propagate(caa, items, gname or None, gsel)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Propagation failed"))
+    return result
 
 
 def _is_product_instance(obj) -> bool:
@@ -241,7 +322,7 @@ def _geometry_owner_part_and_doc_norm_fp(obj):
         try:
             if getattr(curr, "Bodies", None) is not None:
                 doc = curr.Parent
-                fp = _norm_path(getattr(doc, "FullName", "") or "")
+                fp = norm_path(getattr(doc, "FullName", "") or "")
                 return curr, fp
         except Exception:
             pass
@@ -276,7 +357,7 @@ def _find_product_instance_for_open_tree(
         try:
             ref = prod.ReferenceProduct
             link_doc = ref.Parent
-            fp = _norm_path(getattr(link_doc, "FullName", "") or "")
+            fp = norm_path(getattr(link_doc, "FullName", "") or "")
             if fp == part_doc_fp_norm:
                 candidates.append(prod)
         except Exception:
@@ -333,117 +414,6 @@ def _resolve_rough_stock_scope_product(caa, obj, instance_name: str, part_number
         return _find_product_instance_for_open_tree(caa, fp, instance_name, part_number)
     except Exception:
         return None
-
-
-def _resolve_obj_by_source_doc_path(caa, source_doc_path: str):
-    """
-    Resolve the exact target object using tree-provided sourceDocPath.
-    This avoids measuring the wrong instance when part-number search is ambiguous.
-    """
-    src = _norm_path(source_doc_path)
-    if not src:
-        return None
-    try:
-        for i in range(1, caa.Documents.Count + 1):
-            d = caa.Documents.Item(i)
-            d_path = _norm_path(getattr(d, "FullName", "") or "")
-            if d_path != src:
-                continue
-            try:
-                if getattr(d, "Part", None) is not None:
-                    return d.Part
-            except Exception:
-                pass
-            try:
-                if getattr(d, "Product", None) is not None:
-                    return d.Product
-            except Exception:
-                pass
-    except Exception:
-        pass
-    return None
-
-
-def _resolve_bom_item_object(caa, item: dict):
-    """
-    Resolve BOM row to a Part/Product COM object. Order matches run_rough_stock_visible_parts:
-    plausible sourceDocPath first, then active CATPart only when path matches (or no path),
-    then Part Number search and name fallbacks, last-chance open document by path.
-    """
-    item_id = item.get("id") or item.get("partNumber") or ""
-    instances = item.get("instances") or []
-    instance_name = item.get("instanceName") or (instances[0] if instances else None) or (
-        f"{item_id}.1" if item_id else ""
-    )
-    source_doc_path = (item.get("sourceDocPath") or "").strip()
-    obj = None
-    try:
-        doc = caa.ActiveDocument
-    except Exception:
-        return None
-    if doc is None:
-        return None
-
-    try:
-        if source_doc_path and _source_path_plausible_for_item(source_doc_path, item_id):
-            obj = _resolve_obj_by_source_doc_path(caa, source_doc_path)
-            if obj is not None:
-                return obj
-
-        if ".CATPART" in (getattr(doc, "Name", "") or "").upper():
-            try:
-                active_fp = _norm_path(getattr(doc, "FullName", "") or "")
-            except Exception:
-                active_fp = ""
-            want_fp = _norm_path(source_doc_path) if source_doc_path else active_fp
-            if not source_doc_path or want_fp == active_fp:
-                try:
-                    obj = doc.Part
-                except Exception:
-                    obj = doc
-                if obj is not None:
-                    return obj
-
-        sel = caa.ActiveDocument.Selection
-        sel.Clear()
-        try:
-            sel.Search(f"Product.'Part Number'='{item_id}',all")
-            if sel.Count > 0:
-                pick = sel.Item(1).Value
-                for i in range(1, sel.Count + 1):
-                    test_obj = sel.Item(i).Value
-                    if getattr(test_obj, "Name", "") == instance_name:
-                        pick = test_obj
-                        break
-                obj = _resolve_product_for_measure(pick, item_id, instance_name)
-                if obj is not None:
-                    return obj
-        except Exception as se:
-            logger.warning("BOM resolve Part Number search failed for %s: %s", item_id, se)
-
-        fallbacks = []
-        if instance_name:
-            fallbacks.append(f"Name='*{instance_name}*',all")
-        if item_id:
-            fallbacks.append(f"Name='*{item_id}*',all")
-        for fq in fallbacks:
-            try:
-                sel.Clear()
-                sel.Search(fq)
-                if sel.Count > 0:
-                    obj = sel.Item(1).Value
-                    obj = _resolve_product_for_measure(obj, item_id, instance_name)
-                    if obj is not None:
-                        return obj
-            except Exception:
-                continue
-
-        if obj is None and source_doc_path:
-            obj = _resolve_obj_by_source_doc_path(caa, source_doc_path)
-    except Exception as e:
-        logger.error("_resolve_bom_item_object: %s", e)
-        return None
-    return obj
 
 
 def _norm_token(value: str) -> str:

@@ -19,6 +19,13 @@ Local AI copilot for CATIA V5 sheet metal design.
 2. Download the latest standalone exe from Releases (or build it yourself).
 3. Run the executable. It will start the local server and open the UI automatically.
 
+## Run the full app (one file)
+From the repo root, after `pip install -r backend/requirements.txt` in your environment:
+```bash
+python run_cadmation.py
+```
+This builds `frontend/dist` via npm if needed, then starts the API and opens the native window.
+
 ## Development
 ### Backend
 1. `cd backend`
@@ -34,9 +41,9 @@ Local AI copilot for CATIA V5 sheet metal design.
 3. Run: `npm run dev`
 
 ## Building a Standalone EXE
-- Build the frontend: `cd frontend` → `npm run build`
-- Build the **native GUI EXE**: `cd backend` → `python build_gui_exe.py`
-- Output: `dist/CADMation_GUI.exe`
+- One step (from repo root): run `build_windows_exe.bat` (installs build deps, builds frontend if needed, runs PyInstaller).
+- Or manually: `cd frontend` → `npm run build`, then `python backend/build_gui_exe.py` from the repo root (or `cd backend` → `python build_gui_exe.py`).
+- Output: `dist/CADMation_GUI.exe` — starts the FastAPI backend and opens the UI in an embedded browser window.
 
 ## License
 MIT

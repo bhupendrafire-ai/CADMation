@@ -1,0 +1,2 @@
+# Optional: install on top of backend/requirements.txt to build the Windows GUI EXE
+pyinstaller>=6.0.0

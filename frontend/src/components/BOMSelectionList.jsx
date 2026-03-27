@@ -5,13 +5,59 @@ import { getNameSuggestions } from '../utils/bomNaming'
 
 const DEFAULT_METHOD = 'STL'
 
+/** Re-apply Classify-before-measure fields onto API results (sizes/methods from server, classification from UI). */
+function mergeClassificationIntoResults(classifiedRows, resultRows) {
+  const map = new Map()
+  for (const c of classifiedRows || []) {
+    const keys = [
+      c.sourceRowId,
+      `${c.id}|${c.instanceName || ''}`,
+      `${c.partNumber || c.id}|${c.instanceName || ''}`,
+    ].filter(Boolean)
+    for (const k of keys) map.set(k, c)
+  }
+  return (resultRows || []).map((r) => {
+    const k =
+      r.sourceRowId ||
+      `${r.partNumber || r.id}|${r.instanceName || ''}` ||
+      `${r.id}|${r.instanceName || ''}`
+    const c =
+      map.get(r.sourceRowId) ||
+      map.get(`${r.id}|${r.instanceName || ''}`) ||
+      map.get(`${r.partNumber || r.id}|${r.instanceName || ''}`) ||
+      map.get(k)
+    if (!c) return r
+    return {
+      ...r,
+      isStd: c.isStd,
+      sheetCategory: c.sheetCategory,
+      exportBucket: c.sheetCategory || c.exportBucket || r.exportBucket,
+      material: c.material != null && c.material !== '' ? c.material : r.material,
+      manufacturer: c.manufacturer != null && c.manufacturer !== '' ? c.manufacturer : r.manufacturer,
+      description: c.description || r.description,
+      measurementBodyName: c.measurementBodyName || r.measurementBodyName,
+      bodyNameOptions: c.bodyNameOptions || r.bodyNameOptions,
+      selected: c.selected !== false,
+    }
+  })
+}
+
+function newManualRowId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return `manual-${crypto.randomUUID()}`
+  return `manual-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
 function normalizeRows(items) {
   return (items || []).map((item) => {
     const incomingCategory = item.sheetCategory || ''
     const isStd = item.isStd || incomingCategory.startsWith('STD')
     const sheetCategory = isStd ? 'STD' : (incomingCategory && ['Steel', 'MS', 'Casting'].includes(incomingCategory) ? incomingCategory : 'Steel')
+    const isManualRow = !!item.isManualRow
+    const inst = (item.instanceName || '').trim()
     return {
       ...item,
+      isManualRow,
+      sourceRowId: item.sourceRowId || item.id,
       selected: item.selected !== false,
       isStd,
       sheetCategory,
@@ -22,6 +68,12 @@ function normalizeRows(items) {
       bodyNameOptions: Array.isArray(item.bodyNameOptions) ? item.bodyNameOptions : [],
       _bodyFetchPending: false,
       measureBodyColumnHint: item.measureBodyColumnHint || '',
+      partNumber: isManualRow ? (item.partNumber || '').trim() : item.partNumber,
+      instances: Array.isArray(item.instances) && item.instances.length
+        ? item.instances
+        : inst
+          ? [inst]
+          : item.instances || [],
     }
   })
 }
@@ -35,6 +87,8 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
   const [selectorError, setSelectorError] = useState('')
   const [bodyListError, setBodyListError] = useState('')
   const [measureMethod, setMeasureMethod] = useState(DEFAULT_METHOD)
+  const [dragRowIndex, setDragRowIndex] = useState(null)
+  const [dropTargetIndex, setDropTargetIndex] = useState(null)
   const wsRef = useRef(null)
   const logEndRef = useRef(null)
   const cancelledRef = useRef(false)
@@ -82,6 +136,7 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
         instances: i.instances,
         sourceDocPath: i.sourceDocPath,
         name: i.name,
+        isManualRow: !!i.isManualRow,
       }))
     const ac = new AbortController()
     const t = setTimeout(() => {
@@ -193,6 +248,18 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
     setItems((prev) => prev.map((item) => (item.id === id ? updater(item) : item)))
   }
 
+  const moveRow = (fromIndex, toIndex) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return
+    setSelectorError('')
+    setItems((prev) => {
+      if (fromIndex >= prev.length || toIndex >= prev.length) return prev
+      const next = [...prev]
+      const [row] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, row)
+      return next
+    })
+  }
+
   const toggleItem = (id) => {
     setSelectorError('')
     updateItem(id, (item) => ({ ...item, selected: !item.selected }))
@@ -238,10 +305,55 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
     updateItem(id, (item) => ({ ...item, measurementBodyName: value }))
   }
 
+  const addManualRow = () => {
+    setSelectorError('')
+    const sid = newManualRowId()
+    setItems((prev) => [
+      ...prev,
+      normalizeRows([
+        {
+          isManualRow: true,
+          id: sid,
+          sourceRowId: sid,
+          partNumber: '',
+          instanceName: '',
+          name: '',
+          description: '',
+          qty: 1,
+          selected: true,
+          isStd: false,
+          sheetCategory: 'Steel',
+          material: '',
+          measurementBodyName: '',
+          bodyNameOptions: [],
+          instances: [],
+        },
+      ])[0],
+    ])
+  }
+
+  const removeManualRow = (id) => {
+    setSelectorError('')
+    setItems((prev) => prev.filter((row) => row.id !== id))
+  }
+
   const validateBeforeMeasurement = (selectedItems) => {
     const missingMaterialRows = selectedItems.filter((item) => !item.isStd && ['Steel', 'Casting'].includes(item.sheetCategory) && !`${item.material || ''}`.trim())
     if (missingMaterialRows.length) {
       return `Material is required for ${missingMaterialRows.length} Steel/Casting row(s) before measurement.`
+    }
+    const manualNoInstance = selectedItems.filter((item) => item.isManualRow && !`${item.instanceName || ''}`.trim())
+    if (manualNoInstance.length) {
+      return 'Manual row(s): enter the CATIA instance name (tree name) before measurement.'
+    }
+    const manualNoBody = selectedItems.filter(
+      (item) =>
+        item.isManualRow &&
+        !`${item.measurementBodyName || ''}`.trim() &&
+        (item.bodyNameOptions?.length || 0) === 0,
+    )
+    if (manualNoBody.length) {
+      return 'Manual row(s): enter the measure body name exactly as in CATIA, or wait until bodies load from the assembly.'
     }
     return ''
   }
@@ -305,8 +417,10 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
         if (cancelledRef.current) return
         setLogs((prev) => [...prev, 'Done! Finalizing results...'])
         setTimeout(() => {
+          const classified = itemsRef.current || []
+          const merged = mergeClassificationIntoResults(classified, data.results || [])
           onCalculationComplete?.({
-            results: data.results,
+            results: merged,
             retryCandidates: data.retryCandidates || [],
           })
         }, 1000)
@@ -410,10 +524,17 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
         <div className="flex flex-col">
           <span className="text-xs font-semibold text-white/70">Classify Parts Before Measuring</span>
           <span className="text-[10px] mt-1 text-white/40">
-            Choose MFG/STD, route MFG rows into Steel/MS/Casting, rename parts, enter material for Steel/Casting, and pick a measure body when more than one exists.
+            Drag the grip on the left to reorder rows (measurement runs top to bottom). Choose MFG/STD, route MFG rows into Steel/MS/Casting, rename parts, enter material for Steel/Casting, and pick a measure body when more than one exists. Use Add manual row for a missed part: instance name as in the tree, optional part number, and exact measure body name when bodies do not load.
           </span>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2 justify-end">
+          <button
+            type="button"
+            onClick={addManualRow}
+            className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/10 text-white/90 border border-white/15 hover:bg-white/15 transition-colors"
+          >
+            Add manual row
+          </button>
           <button onClick={() => selectAll(true)} className="text-[10px] text-white/40 hover:text-white transition-colors">Select All</button>
           <span className="text-white/10">|</span>
           <button onClick={() => selectAll(false)} className="text-[10px] text-white/40 hover:text-white transition-colors">None</button>
@@ -435,7 +556,9 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
         <table className="w-full text-[11px] border-collapse">
           <thead className="sticky top-0 bg-black/50 z-10">
             <tr className="border-b border-white/10">
+              <th className="text-left py-2 px-1 w-7" title="Drag to reorder"> </th>
               <th className="text-left py-2 px-2 w-8">In</th>
+              <th className="text-left py-2 px-2 w-8" aria-label="Remove manual row" />
               <th className="text-left py-2 px-2 min-w-[150px]">Instance</th>
               <th className="text-left py-2 px-2 min-w-[180px]">Rename / Description</th>
               <th className="text-left py-2 px-2 min-w-[100px]">Type</th>
@@ -448,19 +571,107 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
           <tbody>
             {items.map((item, idx) => {
               const suggestions = getNameSuggestions(item)
-              const datalistId = `bom-name-suggestions-${idx}`
+              const datalistId = `bom-name-suggestions-${item.id}`
               const classification = item.isStd ? 'STD' : 'MFG'
               const categoryOptions = item.isStd ? ['STD'] : ['Steel', 'MS', 'Casting']
+              const isDragOver = dropTargetIndex === idx && dragRowIndex !== null && dragRowIndex !== idx
               return (
-                <tr key={`${item.id}-${idx}`} className={`border-b border-white/5 ${item.selected ? 'bg-white/[0.03]' : ''}`}>
+                <tr
+                  key={item.id}
+                  onDragOver={(e) => {
+                    if (dragRowIndex === null) return
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    setDropTargetIndex(idx)
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    const raw = e.dataTransfer.getData('text/plain')
+                    const from = parseInt(raw, 10)
+                    if (!Number.isNaN(from)) moveRow(from, idx)
+                    setDragRowIndex(null)
+                    setDropTargetIndex(null)
+                  }}
+                  className={`border-b border-white/5 transition-colors ${item.selected ? 'bg-white/[0.03]' : ''} ${
+                    dragRowIndex === idx ? 'opacity-50' : ''
+                  } ${isDragOver ? 'bg-sky-500/15 ring-1 ring-inset ring-sky-400/40' : ''}`}
+                >
+                  <td className="py-2 px-1 align-middle w-7">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      draggable
+                      title="Drag to reorder"
+                      aria-label="Drag row to reorder"
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', String(idx))
+                        e.dataTransfer.effectAllowed = 'move'
+                        setDragRowIndex(idx)
+                      }}
+                      onDragEnd={() => {
+                        setDragRowIndex(null)
+                        setDropTargetIndex(null)
+                      }}
+                      className="inline-flex cursor-grab active:cursor-grabbing text-white/35 hover:text-white/70 p-0.5 rounded hover:bg-white/10 outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <circle cx="9" cy="6" r="1.35" />
+                        <circle cx="15" cy="6" r="1.35" />
+                        <circle cx="9" cy="12" r="1.35" />
+                        <circle cx="15" cy="12" r="1.35" />
+                        <circle cx="9" cy="18" r="1.35" />
+                        <circle cx="15" cy="18" r="1.35" />
+                      </svg>
+                    </span>
+                  </td>
                   <td className="py-2 px-2">
                     <input type="checkbox" checked={item.selected} onChange={() => toggleItem(item.id)} className="rounded border-white/20" />
                   </td>
+                  <td className="py-2 px-2 align-top">
+                    {item.isManualRow ? (
+                      <button
+                        type="button"
+                        title="Remove this manual row"
+                        onClick={() => removeManualRow(item.id)}
+                        className="text-[10px] text-rose-300/90 hover:text-rose-200 px-1"
+                      >
+                        ×
+                      </button>
+                    ) : (
+                      <span className="text-white/15 select-none">·</span>
+                    )}
+                  </td>
                   <td className="py-2 px-2">
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-semibold truncate text-white/90">{item.instanceName}</span>
-                      <span className="text-[10px] font-mono opacity-50 truncate">{item.name}</span>
-                    </div>
+                    {item.isManualRow ? (
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <input
+                          type="text"
+                          value={item.instanceName || ''}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            updateItem(item.id, (row) => ({
+                              ...row,
+                              instanceName: v,
+                              instances: v.trim() ? [v.trim()] : [],
+                            }))
+                          }}
+                          placeholder="CATIA instance name"
+                          className="w-full min-w-[140px] text-[11px] bg-amber-500/10 border border-amber-500/25 rounded px-2 py-1 placeholder:text-white/35"
+                        />
+                        <input
+                          type="text"
+                          value={item.partNumber || ''}
+                          onChange={(e) => updateItem(item.id, (row) => ({ ...row, partNumber: e.target.value }))}
+                          placeholder="Part number (optional, helps resolve)"
+                          className="w-full text-[10px] font-mono bg-white/5 border border-white/10 rounded px-2 py-0.5 placeholder:text-white/30"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-semibold truncate text-white/90">{item.instanceName}</span>
+                        <span className="text-[10px] font-mono opacity-50 truncate">{item.name}</span>
+                      </div>
+                    )}
                   </td>
                   <td className="py-2 px-2">
                     <input
@@ -499,6 +710,14 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
                       <span className="text-white/25 text-[10px]">—</span>
                     ) : item._bodyFetchPending ? (
                       <span className="text-white/35 text-[10px]">Loading…</span>
+                    ) : item.isManualRow && (item.bodyNameOptions?.length || 0) === 0 ? (
+                      <input
+                        type="text"
+                        value={item.measurementBodyName || ''}
+                        onChange={(e) => updateMeasurementBody(item.id, e.target.value)}
+                        placeholder="Exact body name in CATIA"
+                        className="w-full max-w-[200px] text-[10px] bg-amber-500/10 border border-amber-500/25 rounded px-2 py-1 placeholder:text-white/35"
+                      />
                     ) : (item.bodyNameOptions?.length || 0) === 0 ? (
                       <span
                         className="text-rose-300/85 text-[10px] leading-snug block max-w-[168px]"

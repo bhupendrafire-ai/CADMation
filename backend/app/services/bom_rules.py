@@ -230,7 +230,13 @@ def canonicalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
     instance_name = row.get("instanceName") or row.get("name") or part_number
     origin_type = row.get("originType") or ("leaf_part" if row.get("type") in {"Part", "Component"} else "unknown_leaf")
     catalog_code = row.get("catalogCode") or normalize_catalog_code(part_number, instance_name)
-    std_flag = bool(row.get("isStd")) or is_standard_part(part_number, instance_name, row.get("manufacturer", ""))
+    # Honor explicit MFG/STD from UI; do not override False with catalog-keyword heuristics
+    if row.get("isStd") is True:
+        std_flag = True
+    elif row.get("isStd") is False:
+        std_flag = False
+    else:
+        std_flag = is_standard_part(part_number, instance_name, row.get("manufacturer", ""))
     manufacturer = row.get("manufacturer") or infer_manufacturer(std_flag, part_number, instance_name)
     description = row.get("description") or infer_description(part_number, instance_name, catalog_code, std_flag)
     explicit_category = _normalize_std_sheet(row.get("sheetCategory") or row.get("exportBucket") or "")
@@ -289,7 +295,10 @@ def canonicalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
     canonical["rmMergeLW"] = rm_payload["_MERGE_LW"]
     canonical["remark"] = canonical["remark"] or infer_remark(canonical)
     canonical["validationFlags"] = infer_validation_flags({**canonical, "validationFlags": row.get("validationFlags", [])})
-    canonical["sheetCategory"] = infer_sheet_category(canonical)
+    # Preserve UI sheet bucket before infer; canonical dict does not carry row.sheetCategory yet
+    canonical["sheetCategory"] = infer_sheet_category(
+        {**canonical, "sheetCategory": row.get("sheetCategory"), "exportBucket": row.get("exportBucket")}
+    )
     canonical["exportBucket"] = _normalize_std_sheet(row.get("exportBucket")) or canonical["sheetCategory"]
     canonical["reviewStatus"] = infer_review_status(canonical)
     canonical["discrepancyType"] = infer_discrepancy_type(canonical)

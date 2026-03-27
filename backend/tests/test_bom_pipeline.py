@@ -10,6 +10,7 @@ if BACKEND_ROOT not in sys.path:
 
 import app.services.bom_service as bom_service_module
 from app.services.bom_rules import canonicalize_row
+from app.services.bom_service import bom_service
 from app.services.bom_schema import derive_rm_size
 from workbook_compare import semantic_compare_rows, validate_workbook_structure
 
@@ -29,6 +30,22 @@ class BomPipelineTests(unittest.TestCase):
         self.assertEqual(row["catalogCode"], "MWF150-150")
         self.assertEqual(row["sheetCategory"], "STD")
         self.assertEqual(row["description"], "Wear Plate")
+
+    def test_explicit_mfg_not_overridden_by_catalog_keywords(self):
+        row = canonicalize_row(
+            {
+                "partNumber": "DTPK38-60-20-Y_1",
+                "instanceName": "DTPK38-60-20-Y_1.1",
+                "isStd": False,
+                "sheetCategory": "MS",
+                "material": "",
+                "size": "100 x 50 x 20",
+                "methodUsed": "ROUGH_STOCK",
+                "qty": 1,
+            }
+        )
+        self.assertFalse(row["isStd"])
+        self.assertEqual(row["sheetCategory"], "MS")
 
     def test_rm_size_derivation(self):
         rm_size = derive_rm_size("205 x 45 x 15", machining_stock=5, rounding_mm=5)
@@ -132,16 +149,52 @@ class BomPipelineTests(unittest.TestCase):
         }
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            old_output_dir = bom_service_module.OUTPUT_DIR
-            bom_service_module.OUTPUT_DIR = tmpdir
+            old_env = os.environ.get("CADMATION_BOM_OUTPUT_DIR")
+            os.environ["CADMATION_BOM_OUTPUT_DIR"] = tmpdir
             try:
                 file_path = bom_service_module.bom_service._write_excel(rows, metadata)
             finally:
-                bom_service_module.OUTPUT_DIR = old_output_dir
+                if old_env is None:
+                    os.environ.pop("CADMATION_BOM_OUTPUT_DIR", None)
+                else:
+                    os.environ["CADMATION_BOM_OUTPUT_DIR"] = old_env
 
             self.assertTrue(file_path and os.path.exists(file_path))
             errors = validate_workbook_structure(file_path)
             self.assertEqual(errors, [])
+
+    def test_rollup_keeps_distinct_instances_same_part_and_size(self):
+        """Empty description + same part/size must not collapse different CATIA instances (Excel export rows)."""
+        rows = [
+            {
+                "partNumber": "LOWER STEELS",
+                "instanceName": "LOWER STEELS .2",
+                "description": "",
+                "material": "D2",
+                "millingSize": "203.42 x 203.42 x 65",
+                "sheetCategory": "Steel",
+                "sourceRowId": "a",
+            },
+            {
+                "partNumber": "LOWER STEELS",
+                "instanceName": "LOWER STEELS .10",
+                "description": "",
+                "material": "D2",
+                "millingSize": "203.42 x 203.42 x 65",
+                "sheetCategory": "Steel",
+                "sourceRowId": "b",
+            },
+        ]
+        out = bom_service._rollup_rows(rows)
+        self.assertEqual(len(out), 2)
+
+    def test_rollup_preserves_row_order_from_editor(self):
+        rows = [
+            {"partNumber": "PART-B", "instanceName": "B.1", "description": "Line B", "sheetCategory": "Steel"},
+            {"partNumber": "PART-A", "instanceName": "A.1", "description": "Line A", "sheetCategory": "Steel"},
+        ]
+        out = bom_service._rollup_rows(rows)
+        self.assertEqual([r["partNumber"] for r in out], ["PART-B", "PART-A"])
 
     def test_semantic_compare_detects_dimension_mismatch(self):
         reference_rows = [

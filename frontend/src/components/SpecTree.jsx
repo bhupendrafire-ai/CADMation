@@ -6,6 +6,7 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
     const [expandedNodes, setExpandedNodes] = useState(new Set())
     const [bomModalOpen, setBomModalOpen] = useState(false)
     const [tempRenameDuplicateBodies, setTempRenameDuplicateBodies] = useState(false)
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
     const handleRefresh = async () => {
         setIsRefreshing(true)
@@ -95,10 +96,40 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
     }
 
     return (
-        <aside className="w-80 border-r border-white/5 flex flex-col bg-card/30 shrink-0">
-            <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Specification Tree</h2>
-                <div className="flex items-center gap-2">
+        <aside
+            className={`border-r border-white/5 flex flex-col bg-card/30 shrink-0 transition-[width] duration-200 ease-out overflow-hidden ${
+                sidebarCollapsed ? 'w-12' : 'w-80'
+            }`}
+            aria-label="Specification tree"
+        >
+            <div
+                className={`border-b border-white/5 shrink-0 ${
+                    sidebarCollapsed ? 'flex flex-col items-center gap-2 py-2 px-1' : 'p-4 flex items-center gap-2'
+                }`}
+            >
+                <button
+                    type="button"
+                    onClick={() => setSidebarCollapsed((c) => !c)}
+                    aria-pressed={sidebarCollapsed}
+                    className="text-muted-foreground hover:text-white p-1.5 rounded-md hover:bg-white/10 shrink-0"
+                    title={sidebarCollapsed ? 'Expand specification tree' : 'Collapse specification tree'}
+                >
+                    {sidebarCollapsed ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="m9 18 6-6-6-6" />
+                        </svg>
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="m15 18-6-6 6-6" />
+                        </svg>
+                    )}
+                </button>
+                {!sidebarCollapsed && (
+                    <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground flex-1 min-w-0 truncate">
+                        Specification Tree
+                    </h2>
+                )}
+                <div className={`flex items-center gap-2 ${sidebarCollapsed ? 'flex-col' : 'ml-auto'}`}>
                     <button
                         onClick={openBomModal}
                         disabled={isGeneratingBOM || !treeData}
@@ -173,7 +204,11 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
                 </div>
             )}
 
-            <div className="flex-1 overflow-y-auto p-2 font-mono text-[11px] selection:bg-white/10">
+            <div
+                className={`flex-1 overflow-y-auto p-2 font-mono text-[11px] selection:bg-white/10 min-h-0 ${
+                    sidebarCollapsed ? 'hidden' : ''
+                }`}
+            >
                 {!treeData || Object.keys(treeData).length === 0 ? (
                     <div className="p-4 text-muted-foreground italic leading-relaxed">
                         No active document detected.

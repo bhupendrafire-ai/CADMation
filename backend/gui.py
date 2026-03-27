@@ -1,5 +1,10 @@
 import sys
 import os
+
+# So pydantic/.env and logs resolve next to the EXE when bundled (PyInstaller).
+if getattr(sys, "frozen", False):
+    os.chdir(os.path.dirname(os.path.abspath(sys.executable)))
+
 import threading
 import time
 import logging

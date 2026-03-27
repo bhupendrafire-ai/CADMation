@@ -31,6 +31,16 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  /* OS dropdown often uses a light surface while inheriting body color → white on white */
+  select {
+    color-scheme: dark;
+  }
+
+  select option {
+    background-color: var(--color-secondary);
+    color: var(--color-foreground);
+  }
 }
 
 @layer components {

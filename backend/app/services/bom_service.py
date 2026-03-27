@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -10,14 +11,24 @@ from app.services.tree_extractor import tree_extractor
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_DIR = r"H:\CADMation\BOM_Outputs"
+
+def get_bom_output_dir() -> str:
+    override = (os.environ.get("CADMATION_BOM_OUTPUT_DIR") or "").strip()
+    if override:
+        return os.path.abspath(override)
+    if getattr(sys, "frozen", False):
+        return os.path.join(os.path.dirname(os.path.abspath(sys.executable)), "BOM_Outputs")
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, "..", "..", ".."))
+    return os.path.join(repo_root, "BOM_Outputs")
 
 
 class BOMService:
     def _log_op(self, msg: str):
         """Logs an operation with timestamp to a dedicated file."""
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        log_file = os.path.join(OUTPUT_DIR, "operations.log")
+        out_dir = get_bom_output_dir()
+        os.makedirs(out_dir, exist_ok=True)
+        log_file = os.path.join(out_dir, "operations.log")
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         line = f"[{ts}] {msg}\n"
         try:
@@ -154,6 +165,7 @@ class BOMService:
             self._collect_items(child, out)
 
     def _rollup_key(self, row: Dict[str, Any]) -> tuple:
+        # instanceName (and sourceRowId) prevent merging distinct instances that share part number + inferred description
         return (
             row.get("classification"),
             row.get("sheetCategory"),
@@ -170,10 +182,14 @@ class BOMService:
             row.get("reviewStatus"),
             row.get("discrepancyType"),
             row.get("originType"),
+            (row.get("instanceName") or "").strip(),
+            (row.get("sourceRowId") or "").strip(),
         )
 
     def _rollup_rows(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         grouped: Dict[tuple, Dict[str, Any]] = {}
+        first_order: Dict[tuple, int] = {}
+        next_ord = 0
         for row in rows:
             canonical = canonicalize_row(row)
             canonical["sheetCategory"] = self._normalize_sheet_category(canonical)
@@ -182,6 +198,8 @@ class BOMService:
             if key not in grouped:
                 grouped[key] = {**canonical}
                 grouped[key]["instances"] = ensure_list(canonical.get("instances")) or [canonical.get("instanceName")]
+                first_order[key] = next_ord
+                next_ord += 1
                 continue
             target = grouped[key]
             target["qty"] += canonical.get("qty", 1)
@@ -191,15 +209,9 @@ class BOMService:
                 current = target.get(weight_field) or 0
                 incoming = canonical.get(weight_field) or 0
                 target[weight_field] = round(current + incoming, 3)
-        return sorted(
-            grouped.values(),
-            key=lambda row: (
-                row.get("sheetCategory", ""),
-                row.get("parentAssembly", ""),
-                row.get("description", ""),
-                row.get("partNumber", ""),
-            ),
-        )
+        # Preserve BOM editor / user row order instead of re-sorting by description (fixes section + grouping UX)
+        ordered_keys = sorted(first_order.keys(), key=lambda k: first_order[k])
+        return [grouped[k] for k in ordered_keys]
 
     def build_measured_row(self, base_item: Dict[str, Any], bbox: Dict[str, Any], effective_method: str) -> Dict[str, Any]:
         row = {
@@ -551,8 +563,9 @@ class BOMService:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
         name_base = metadata.get("projectName", "BOM").split(".")[0]
         filename = f"{name_base}_BOM_{timestamp}.xlsx"
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        file_path = os.path.join(OUTPUT_DIR, filename)
+        out_dir = get_bom_output_dir()
+        os.makedirs(out_dir, exist_ok=True)
+        file_path = os.path.join(out_dir, filename)
 
         try:
             wb = Workbook()
