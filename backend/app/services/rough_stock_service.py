@@ -58,6 +58,44 @@ _PREFERRED_AXIS_SUBSTRINGS = (
 _monitor_active = False
 _monitor_thread = None
 
+# COM Search timeout (seconds); CATIA Search can block if recomputing heavy geometry
+_COM_SEARCH_TIMEOUT_SEC = 8
+
+
+def _com_search_with_timeout(sel, pattern: str, timeout: float = _COM_SEARCH_TIMEOUT_SEC):
+    """
+    Perform a safe, synchronous search with null-checks and error boundaries.
+    Reverting to synchronous to maximize stability across different CATIA environments.
+    """
+    if sel is None:
+        logger.warning(f"Rough Stock: Selection is None; cannot search for {pattern}")
+        return
+
+    try:
+        # Check if selection is stale by accessing a simple property
+        _ = sel.Count
+    except Exception as e:
+        logger.error(f"Rough Stock: Selection is stale or RPC unavailable: {e}")
+        return
+
+    try:
+        start_t = time.time()
+        # We don't use real threading here to avoid Apartment crashes, 
+        # but we log the time taken to identify bottlenecks.
+        sel.Search(pattern)
+        elapsed = time.time() - start_t
+        if elapsed > 1.0:
+            logger.info("Rough Stock: Search(%r) took %.2fs", pattern, elapsed)
+    except Exception as e:
+        # Catch typical 'Application Busy' or 'Call Rejected' errors
+        err_msg = str(e)
+        if "0x8001010A" in err_msg or "0x800706BE" in err_msg:
+            logger.warning(f"Rough Stock: CATIA Busy/RPC Error during search ({pattern}): {e}")
+        else:
+            logger.error(f"Rough Stock: Unexpected search error ({pattern}): {e}")
+        # We swallow the error here so the calling measure_body_in_dialog can return None 
+        # instead of crashing the main process.
+
 class RoughStockService:
     @staticmethod
     def _body_is_empty_for_rough_stock(body):
@@ -379,6 +417,7 @@ class RoughStockService:
                     time.sleep(0.18)
                     sel = catia.ActiveDocument.Selection
                     scoped_ok = False
+                    logger.info("Rough Stock: starting assembly-scoped Search for body %r...", body_nm)
                     for pattern in (
                         f"Name='{be}',Type=Body,in",
                         f"Name='{be}',in",
@@ -386,7 +425,7 @@ class RoughStockService:
                         try:
                             sel.Clear()
                             sel.Add(scope_product)
-                            sel.Search(pattern)
+                            _com_search_with_timeout(sel, pattern)
                             pick_i = RoughStockService._pick_search_hit_index_for_rough_stock(
                                 sel, target_body
                             )
@@ -401,7 +440,7 @@ class RoughStockService:
                                 scoped_ok = True
                                 break
                         except Exception as se:
-                            logger.debug("Rough Stock: scoped Search %s: %s", pattern, se)
+                            logger.info("Rough Stock: scoped Search failed/skipped %s: %s", pattern, se)
                     if scoped_ok:
                         return True
                 except Exception as e:
@@ -434,7 +473,7 @@ class RoughStockService:
                 ):
                     try:
                         sel.Clear()
-                        sel.Search(pattern)
+                        _com_search_with_timeout(sel, pattern)
                         pick_i = RoughStockService._pick_search_hit_index_for_rough_stock(
                             sel, target_body
                         )
@@ -447,6 +486,8 @@ class RoughStockService:
                                 body_nm,
                             )
                             return True
+                    except TimeoutError as se:
+                        logger.warning("Rough Stock: in-doc body Search TIMED OUT %s: %s", pattern, se)
                     except Exception as se:
                         logger.debug("Rough Stock: in-doc body Search %s: %s", pattern, se)
                 if RoughStockService._try_select_body_via_part_reference(
@@ -478,7 +519,7 @@ class RoughStockService:
                 ):
                     try:
                         sel.Clear()
-                        sel.Search(pattern)
+                        _com_search_with_timeout(sel, pattern)
                         pick_i = RoughStockService._pick_search_hit_index_for_rough_stock(
                             sel, target_body
                         )
@@ -488,6 +529,8 @@ class RoughStockService:
                             sel.Add(v)
                             logger.info("Rough Stock: composite Search bound body for Rough Stock UI.")
                             return True
+                    except TimeoutError as se:
+                        logger.warning("Rough Stock: composite Search TIMED OUT %s: %s", pattern, se)
                     except Exception as se:
                         logger.debug("Rough Stock: composite Search %s: %s", pattern, se)
             except Exception as e:
@@ -1136,7 +1179,7 @@ class RoughStockService:
                 logger.info("Rough Stock: scraping after slot %s/%s...", slot_idx, len(selection_targets))
                 # Single scrape can read prior row's L/W/H while the dialog updates (BOM 203 matched 202 until settle).
                 dx, dy, dz = RoughStockService._scrape_dims_until_settled(hw)
-                logger.info(f"Scrape results (settled): {dx} x {dy} x {dz}")
+                logger.info(f"Rough Stock: dimensions settled successfully: DX/DY/DZ=[{dx}, {dy}, {dz}]")
                 # region agent log
                 try:
                     agent_ndjson(
@@ -1179,11 +1222,13 @@ class RoughStockService:
             except Exception as e:
                 logger.error(f"Error measuring target: {e}")
 
-        if not stay_open:
+        if not stay_open and hw:
             try:
+                logger.info("Rough Stock: attempting to close dialog...")
                 win32gui.PostMessage(hw, win32con.WM_CLOSE, 0, 0)
-            except Exception:
-                pass
+                logger.info("Rough Stock: close message posted successfully.")
+            except Exception as ex:
+                logger.warning(f"Rough Stock: dialog close failed: {ex}")
 
         return (
             dx_max if dx_max > 0.001 else None,
@@ -1648,16 +1693,16 @@ class RoughStockService:
 
     @staticmethod
     def _wm_gettext_upto(hwnd, max_chars=2048):
-        import ctypes
-
         try:
-            buf = ctypes.create_unicode_buffer(max_chars)
-            n = win32gui.SendMessage(hwnd, win32con.WM_GETTEXT, max_chars, buf)
-            if n and n > 0:
-                return (buf.value or "").strip()
+            text = RoughStockService._safe_get_text(hwnd, max_chars=max_chars, timeout_ms=5000)
+            if text:
+                return text
         except Exception:
             pass
-        return (win32gui.GetWindowText(hwnd) or "").strip()
+        try:
+            return (win32gui.GetWindowText(hwnd) or "").strip()
+        except Exception:
+            return ""
 
     @staticmethod
     def _enum_rough_stock_dialog_children(hw):
@@ -1695,27 +1740,40 @@ class RoughStockService:
     @staticmethod
     def _read_listbox_part_path(hwnd):
         import ctypes
+        import ctypes.wintypes
 
         LB_GETCOUNT = 0x018B
         LB_GETTEXT = 0x0189
         LB_GETTEXTLEN = 0x019A
         LB_GETCURSEL = 0x0188
+        SMTO_ABORTIFHUNG = 0x0002
+        _TIMEOUT_MS = 3000
 
         def _lb_err(v):
             return v in (-1, 0xFFFFFFFF)
 
+        def _send_timeout(h, msg, wp, lp):
+            """SendMessageTimeout wrapper that returns 0 on timeout instead of hanging."""
+            result = ctypes.wintypes.DWORD(0)
+            ret = ctypes.windll.user32.SendMessageTimeoutW(
+                h, msg, wp, lp, SMTO_ABORTIFHUNG, _TIMEOUT_MS, ctypes.byref(result)
+            )
+            if ret == 0:
+                return -1  # treat timeout as error
+            return result.value
+
         def listbox_all_lines(h):
             out = []
             try:
-                cnt = win32gui.SendMessage(h, LB_GETCOUNT, 0, 0)
+                cnt = _send_timeout(h, LB_GETCOUNT, 0, 0)
                 if _lb_err(cnt) or cnt <= 0:
                     return out
                 for i in range(int(cnt)):
-                    ln = win32gui.SendMessage(h, LB_GETTEXTLEN, i, 0)
+                    ln = _send_timeout(h, LB_GETTEXTLEN, i, 0)
                     if _lb_err(ln) or ln > 4096:
                         continue
                     buf = ctypes.create_unicode_buffer(ln + 1)
-                    win32gui.SendMessage(h, LB_GETTEXT, i, buf)
+                    _send_timeout(h, LB_GETTEXT, i, buf)
                     t = (buf.value or "").strip()
                     if t:
                         out.append(t)
@@ -1725,17 +1783,17 @@ class RoughStockService:
 
         def listbox_cur_line(h):
             try:
-                sel_i = win32gui.SendMessage(h, LB_GETCURSEL, 0, 0)
+                sel_i = _send_timeout(h, LB_GETCURSEL, 0, 0)
                 if _lb_err(sel_i):
                     sel_i = 0
-                cnt = win32gui.SendMessage(h, LB_GETCOUNT, 0, 0)
+                cnt = _send_timeout(h, LB_GETCOUNT, 0, 0)
                 if _lb_err(cnt) or cnt <= 0 or sel_i >= cnt:
                     return ""
-                ln = win32gui.SendMessage(h, LB_GETTEXTLEN, sel_i, 0)
+                ln = _send_timeout(h, LB_GETTEXTLEN, sel_i, 0)
                 if _lb_err(ln):
                     return ""
                 buf = ctypes.create_unicode_buffer(max(ln + 1, 512))
-                win32gui.SendMessage(h, LB_GETTEXT, sel_i, buf)
+                _send_timeout(h, LB_GETTEXT, sel_i, buf)
                 return (buf.value or "").strip()
             except Exception:
                 return ""
@@ -1758,24 +1816,35 @@ class RoughStockService:
 
     @staticmethod
     def _read_combobox_part_path(hwnd):
+        import ctypes
+        import ctypes.wintypes
         CB_GETCURSEL = 0x0147
         CB_GETLBTEXT = 0x0148
         CB_GETLBTEXTLEN = 0x0149
+        SMTO_ABORTIFHUNG = 0x0002
+        _TIMEOUT_MS = 3000
 
         def _lb_err(v):
             return v in (-1, 0xFFFFFFFF)
 
+        def _send_timeout(h, msg, wp, lp):
+            result = ctypes.wintypes.DWORD(0)
+            ret = ctypes.windll.user32.SendMessageTimeoutW(
+                h, msg, wp, lp, SMTO_ABORTIFHUNG, _TIMEOUT_MS, ctypes.byref(result)
+            )
+            if ret == 0:
+                return -1
+            return result.value
+
         try:
-            sel_i = win32gui.SendMessage(hwnd, CB_GETCURSEL, 0, 0)
+            sel_i = _send_timeout(hwnd, CB_GETCURSEL, 0, 0)
             if _lb_err(sel_i):
                 sel_i = 0
-            ln = win32gui.SendMessage(hwnd, CB_GETLBTEXTLEN, sel_i, 0)
+            ln = _send_timeout(hwnd, CB_GETLBTEXTLEN, sel_i, 0)
             if _lb_err(ln):
                 return ""
-            import ctypes
-
             buf = ctypes.create_unicode_buffer(max(ln + 1, 512))
-            win32gui.SendMessage(hwnd, CB_GETLBTEXT, sel_i, buf)
+            _send_timeout(hwnd, CB_GETLBTEXT, sel_i, buf)
             s = (buf.value or "").strip()
             if s:
                 return s
@@ -1929,39 +1998,24 @@ class RoughStockService:
         skip_axis_spa_shortcuts=False,
     ):
         """Phase 2: Selects the target body in the active dialog and scrapes dimensions."""
+        import pythoncom
+        pythoncom.CoInitialize()
         try:
+            # 1. Resolve window handles
             if not hw or not win32gui.IsWindow(hw):
                 hw = RoughStockService._find_window() or hw
             if not hw or not win32gui.IsWindow(hw):
                 return None, None, None
 
+            # 2. Resolve internal CATIA target bodies
             root_part, selection_targets = RoughStockService._resolve_targets_via_selection(
                 catia, target_obj
             )
             if not selection_targets:
                 return None, None, None
-
             target = selection_targets[0]
 
-            # region agent log
-            try:
-                _slots = [getattr(x, "Name", "?") for x in selection_targets[:5]]
-                agent_ndjson(
-                    "H6",
-                    "rough_stock.measure_body_in_dialog:targets",
-                    "resolved selection targets vs input",
-                    {
-                        "input_target_obj_name": getattr(target_obj, "Name", None),
-                        "selection_targets_count": len(selection_targets),
-                        "first_target_name": getattr(target, "Name", None),
-                        "first_five_slot_names": _slots,
-                        "root_part_name": getattr(root_part, "Name", None),
-                    },
-                )
-            except Exception:
-                pass
-            # endregion
-
+            # 3. Final window restoration check
             try:
                 win32gui.ShowWindow(hw, win32con.SW_RESTORE)
                 win32gui.SetForegroundWindow(hw)
@@ -1969,68 +2023,51 @@ class RoughStockService:
             except Exception:
                 pass
 
+            # 4. Perform the "Rough Stock" body selection
             if not RoughStockService._apply_rough_stock_body_selection(
-                catia,
-                root_part,
-                scope_product,
-                anchor_asm_doc,
-                target,
+                catia, root_part, scope_product, anchor_asm_doc, target
             ):
                 return None, None, None
 
+            # 5. SURVIVAL CHECK: Is window still alive after heavy COM call?
+            if not win32gui.IsWindow(hw):
+                return None, None, None
+
+            # 6. Optimized SPA shortcut (if requested)
             if not skip_axis_spa_shortcuts:
-                axis_dims = RoughStockService._try_spa_bbox_in_preferred_axis(
-                    catia, root_part, selection_targets
-                )
-                if axis_dims is not None:
-                    return axis_dims
+                axis_dims = RoughStockService._try_spa_bbox_in_preferred_axis(catia, root_part, selection_targets)
+                if axis_dims is not None: return axis_dims
+                world_dims = RoughStockService._try_spa_axis_aligned_bbox_mm(catia, root_part, selection_targets)
+                if world_dims is not None: return world_dims
 
-                world_dims = RoughStockService._try_spa_axis_aligned_bbox_mm(
-                    catia, root_part, selection_targets
-                )
-                if world_dims is not None:
-                    return world_dims
-
+            # 7. Match retry loop
             for body_try in range(_RS_BODY_LABEL_MATCH_ATTEMPTS):
+                if not win32gui.IsWindow(hw): break
                 if body_try > 0:
                     RoughStockService._apply_rough_stock_body_selection(
-                        catia,
-                        root_part,
-                        scope_product,
-                        anchor_asm_doc,
-                        target,
+                        catia, root_part, scope_product, anchor_asm_doc, target
                     )
                 time.sleep(_SCRAPE_PRE_DELAY_SEC)
                 shown = RoughStockService._scrape_part_body_to_offset_text(hw)
-                logger.info("Rough Stock: Part body to offset (read): %r", shown)
                 if RoughStockService._part_body_label_matches(shown, root_part, target):
-                    if body_try > 0:
-                        logger.info(
-                            "Rough Stock: Part body field matched target after %s re-select(s): %r",
-                            body_try,
-                            shown,
-                        )
                     break
-                logger.warning(
-                    "Rough Stock: Part body field %r does not match %s\\%s — re-selecting (%s/%s).",
-                    shown,
-                    getattr(root_part, "Name", "?"),
-                    getattr(target, "Name", "?"),
-                    body_try + 1,
-                    _RS_BODY_LABEL_MATCH_ATTEMPTS,
-                )
-            else:
-                logger.warning(
-                    "Rough Stock: Part body field never matched after %s tries; scraping dialog anyway.",
-                    _RS_BODY_LABEL_MATCH_ATTEMPTS,
-                )
 
-            dx, dy, dz = RoughStockService._scrape_dims_until_settled(hw)
-            return dx, dy, dz
-            
+            # 8. Final Scrape
+            if not win32gui.IsWindow(hw):
+                return None, None, None
+            return RoughStockService._scrape_dims_until_settled(hw)
+
         except Exception as e:
-            logger.error(f"Interactive measurement failed for {getattr(target_obj, 'Name', 'obj')}: {e}")
+            logger.error(f"Armor measurement failed: {e}")
             return None, None, None
+        finally:
+            # 9. Guaranteed Cleanup
+            try:
+                if hw and win32gui.IsWindow(hw):
+                    RoughStockService._close_rough_stock_dialog(catia, hw)
+            except Exception:
+                pass
+            pythoncom.CoUninitialize()
 
     @staticmethod
     def _dx_dy_dz_from_edit_window_positions(edit_hw_text):
@@ -2090,6 +2127,40 @@ class RoughStockService:
         return float(dx), float(dy), float(dz)
 
     @staticmethod
+    def _safe_get_text(hwnd, max_chars=2048, timeout_ms=5000):
+        """Read window text using SendMessageTimeout to prevent deadlocks."""
+        import ctypes
+        import ctypes.wintypes
+        SMTO_ABORTIFHUNG = 0x0002
+        WM_GETTEXTLENGTH = 0x000E
+        WM_GETTEXT = 0x000D
+        result = ctypes.wintypes.DWORD(0)
+        try:
+            # Get text length with timeout
+            ret = ctypes.windll.user32.SendMessageTimeoutW(
+                hwnd, WM_GETTEXTLENGTH, 0, 0,
+                SMTO_ABORTIFHUNG, timeout_ms, ctypes.byref(result)
+            )
+            if ret == 0:
+                # Timed out or window hung
+                return ""
+            length = result.value
+            if length <= 0:
+                return ""
+            length = min(length, max_chars)
+            buf = ctypes.create_unicode_buffer(length + 1)
+            result2 = ctypes.wintypes.DWORD(0)
+            ret2 = ctypes.windll.user32.SendMessageTimeoutW(
+                hwnd, WM_GETTEXT, length + 1, buf,
+                SMTO_ABORTIFHUNG, timeout_ms, ctypes.byref(result2)
+            )
+            if ret2 == 0:
+                return ""
+            return (buf.value or "").strip()
+        except Exception:
+            return ""
+
+    @staticmethod
     def _scrape_current_window_dims(hw, read_passes=5, log_controls=True):
         """Helper to scrape the Edit controls of an open Rough Stock window."""
         import ctypes
@@ -2106,31 +2177,26 @@ class RoughStockService:
                 if not win32gui.IsWindowVisible(hwnd): return True
                 cls = win32gui.GetClassName(hwnd)
                 try:
-                    length = win32gui.SendMessage(hwnd, win32con.WM_GETTEXTLENGTH, 0, 0)
-                    buffer = ctypes.create_unicode_buffer(length + 1)
-                    win32gui.SendMessage(hwnd, win32con.WM_GETTEXT, length + 1, buffer)
-                    text = buffer.value
+                    text = RoughStockService._safe_get_text(hwnd, timeout_ms=5000)
                 except:
                     text = ""
                 results.append((hwnd, cls, text))
                 return True
 
-            win32gui.EnumChildWindows(hw, callback, controls)
+            try:
+                win32gui.EnumChildWindows(hw, callback, controls)
+            except Exception as e:
+                logger.warning(f"Rough Stock: EnumChildWindows failed: {e}")
+                continue
             if log_controls:
-                raw_parts = [f"{c}:{repr(t)}" for _h, c, t in controls if t is not None and str(t).strip()]
-                if raw_parts:
-                    joined = " | ".join(raw_parts)
-                    logger.info(
-                        "Rough Stock dialog raw control texts (attempt %s, %s controls): %s",
-                        attempt,
-                        len(controls),
-                        joined[:4000] + ("..." if len(joined) > 4000 else ""),
-                    )
+                # Silenced to prevent flooding.
+                pass
             edits_hw = [(h, t) for h, c, t in controls if c == "Edit"]
             edits = [t for _h, t in edits_hw]
 
             if edits and log_controls:
-                logger.info(f"Scrape Attempt {attempt}: RAW Edits: {[repr(e) for e in edits]}")
+                # Silenced RAW Edits list to prevent flooding.
+                pass
                 
             if len(edits) >= 9:
                 all_vals = [RoughStockService._parse_mm(e) for e in edits]
@@ -2141,7 +2207,7 @@ class RoughStockService:
                 if spatial is not None and sum(spatial) > 0.1:
                     if log_controls:
                         logger.info(
-                            "Captured dimensions from 3×3 edit layout (screen order): %s",
+                            "Captured dimensions from 3x3 edit layout (screen order): %s",
                             list(spatial),
                         )
                     return spatial[0], spatial[1], spatial[2]
@@ -2166,17 +2232,30 @@ class RoughStockService:
 
     @staticmethod
     def _scrape_dims_until_settled(hw):
-        """Repeat dimension scrape until two consecutive reads match (Z often lags X/Y)."""
+        """Repeat dimension scrape until two consecutive reads match (Z often lags X/Y).
+        Hard 60-second global deadline prevents infinite hang if CATIA dialog is unresponsive."""
+        _HARD_DEADLINE_SEC = 60.0
+        deadline = time.time() + _HARD_DEADLINE_SEC
         last = None
         chosen = None
         for i in range(_RS_DIM_SETTLE_ATTEMPTS):
+            if time.time() > deadline:
+                logger.warning(
+                    "Rough Stock: hit hard %ss deadline in settlement loop; returning best available dims.",
+                    _HARD_DEADLINE_SEC,
+                )
+                break
             if i > 0:
                 time.sleep(_RS_DIM_SETTLE_PAUSE_SEC)
             quiet = i > 0
-            cur = RoughStockService._scrape_current_window_dims(
-                hw, read_passes=1 if quiet else 5, log_controls=not quiet
-            )
-            if cur[0] is None:
+            try:
+                cur = RoughStockService._scrape_current_window_dims(
+                    hw, read_passes=1 if quiet else 5, log_controls=not quiet
+                )
+            except Exception as e:
+                logger.warning(f"Rough Stock: scrape attempt {i} raised exception: {e}")
+                continue
+            if cur is None or cur[0] is None:
                 continue
             if last is not None:
                 deltas = (

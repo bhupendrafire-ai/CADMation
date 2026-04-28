@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Hexagon outer frame -->
+  <polygon
+    points="32,4 56,18 56,46 32,60 8,46 8,18"
+    fill="#2A2B2A"
+  />
+  <!-- Inner ring -->
+  <polygon
+    points="32,14 48,23 48,41 32,50 16,41 16,23"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="1.5"
+    stroke-opacity="0.3"
+    stroke-linejoin="round"
+  />
+  <!-- Stylized C arc -->
+  <path
+    d="M 42,22 A 16,16 0 1,0 42,42"
+    fill="none"
+    stroke="#E63F26"
+    stroke-width="5"
+    stroke-linecap="round"
+  />
+  <!-- C apex dot -->
+  <circle cx="43" cy="32" r="3" fill="#E63F26" />
+  <!-- Tick marks -->
+  <line x1="32" y1="6" x2="32" y2="11" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/>
+  <line x1="54" y1="18" x2="50" y2="21" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/>
+  <line x1="54" y1="46" x2="50" y2="43" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/>
+  <line x1="32" y1="58" x2="32" y2="53" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/>
+  <line x1="10" y1="46" x2="14" y2="43" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/>
+  <line x1="10" y1="18" x2="14" y2="21" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/>
+</svg>

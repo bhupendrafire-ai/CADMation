@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="320" height="80">
+  <defs>
+    <style>
+      .txt { font-family: 'Roboto Flex', 'Roboto', system-ui, sans-serif; fill: #2A2B2A; }
+    </style>
+  </defs>
+
+  <!-- ========== SYMBOL ========== -->
+  <!-- Hexagon outer shell with "C" cutout — precision engineering aesthetic -->
+  <g id="symbol" transform="translate(40, 40)">
+    <!-- Hexagon frame -->
+    <polygon
+      points="0,-28 24.25,-14 24.25,14 0,28 -24.25,14 -24.25,-14"
+      fill="none"
+      stroke="#2A2B2A"
+      stroke-width="4"
+      stroke-linejoin="round"
+    />
+    <!-- Inner precision ring -->
+    <polygon
+      points="0,-18 15.59,-9 15.59,9 0,18 -15.59,9 -15.59,-9"
+      fill="#2A2B2A"
+      fill-opacity="0.08"
+      stroke="#2A2B2A"
+      stroke-width="1.5"
+      stroke-linejoin="round"
+    />
+    <!-- Stylized "C" arc — left gap for C shape -->
+    <path
+      d="M 10,-12 A 14,14 0 1,0 10,12"
+      fill="none"
+      stroke="#E63F26"
+      stroke-width="5"
+      stroke-linecap="round"
+    />
+    <!-- C apex dot — precision highlight -->
+    <circle cx="11" cy="0" r="3" fill="#E63F26" />
+    <!-- Radial precision tick marks -->
+    <line x1="0" y1="-24" x2="0" y2="-21" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/>
+    <line x1="20.78" y1="-12" x2="18.49" y2="-10.67" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/>
+    <line x1="20.78" y1="12" x2="18.49" y2="10.67" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/>
+    <line x1="0" y1="24" x2="0" y2="21" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/>
+    <line x1="-20.78" y1="12" x2="-18.49" y2="10.67" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/>
+    <line x1="-20.78" y1="-12" x2="-18.49" y2="-10.67" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- ========== WORDMARK ========== -->
+  <!-- CAD  -->
+  <text x="84" y="38" font-family="'Roboto Flex', 'Roboto', system-ui, sans-serif" font-weight="900" font-size="32" fill="#2A2B2A" letter-spacing="-0.5">CAD</text>
+  <!-- Mation — M in bold, ation in regular weight for "M-ation" split -->
+  <text x="84" y="62" font-family="'Roboto Flex', 'Roboto', system-ui, sans-serif" font-weight="400" font-size="14" fill="#6B6B6B" letter-spacing="0.5">MATION</text>
+  <!-- hidden version below for reference
+  <text x="84" y="62" font-family="'Roboto Flex', 'Roboto', system-ui, sans-serif" font-weight="400" font-size="14" fill="#6B6B6B" letter-spacing="0.5">MATION</text> -->
+
+  <!-- Accent underline on CAD -->
+  <rect x="84" y="44" width="70" height="3" fill="#E63F26" rx="1.5"/>
+</svg>

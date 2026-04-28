@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 're
 import BOMEditor from './BOMEditor'
 import BOMSelectionList from './BOMSelectionList'
 
-const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, onBomExport, onInteractiveAction, onMeasurementAction, onBomSelectionComplete }, ref) => {
+const ChatWindow = forwardRef(({ messages, activeDoc, onSendMessage, onUpdateBomMessage, onBomExport, onInteractiveAction, onMeasurementAction, onBomSelectionComplete, onBomDraftUpdate, isEmbedded }, ref) => {
     const [input, setInput] = useState('')
     const messagesEndRef = useRef(null)
     const textareaRef = useRef(null)
@@ -32,8 +32,12 @@ const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, on
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }
 
+    const prevMessagesLength = useRef(messages.length)
     useEffect(() => {
-        scrollToBottom()
+        if (messages.length > prevMessagesLength.current) {
+            scrollToBottom()
+        }
+        prevMessagesLength.current = messages.length
     }, [messages])
 
     const handleSubmit = (e) => {
@@ -62,23 +66,48 @@ const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, on
                         </div>
 
                         {msg.bomEditor && (
-                            <BOMEditor
-                                items={msg.bomEditor.items}
-                                onItemsChange={(items) => onUpdateBomMessage?.(i, { ...msg.bomEditor, items })}
-                                onExport={(items) => onBomExport?.(i, items)}
-                                disabled={msg.bomEditor.exporting}
-                            />
+                            <div className={isEmbedded ? "mt-3 rounded-lg overflow-hidden border border-white/5 bg-white/5" : ""}>
+                                {isEmbedded ? (
+                                    <div className="p-3 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                            <span className="text-[11px] font-bold text-white/70">{msg.bomEditor.items?.length || 0} items in BOM</span>
+                                        </div>
+                                        <span className="text-[9px] text-white/30 uppercase tracking-widest font-mono">Synced to Workspace</span>
+                                    </div>
+                                ) : (
+                                    <BOMEditor
+                                        items={msg.bomEditor.items}
+                                        projectName={activeDoc}
+                                        onItemsChange={(items) => onUpdateBomMessage?.(i, { ...msg.bomEditor, items })}
+                                        onExport={(items) => onBomExport?.(i, items)}
+                                        disabled={msg.bomEditor.exporting}
+                                    />
+                                )}
+                            </div>
                         )}
                         
                         {msg.interactive && msg.interactive.type === 'bom-selector' && (
-                            <BOMSelectionList
-                                items={msg.interactive.items}
-                                bomOptions={msg.interactive.bomOptions}
-                                onAction={onMeasurementAction}
-                                onCalculationComplete={(payload) => {
-                                    onBomSelectionComplete?.(i, payload)
-                                }}
-                            />
+                            <div className={isEmbedded ? "mt-3 rounded-lg overflow-hidden border border-white/5 bg-white/5" : ""}>
+                                {isEmbedded ? (
+                                    <div className="p-4 text-center">
+                                         <p className="text-[11px] text-white/50 mb-3">BOM selection required for {msg.interactive.items?.length || 0} parts.</p>
+                                         <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Active in BOM Workspace</p>
+                                    </div>
+                                ) : (
+                                    <BOMSelectionList
+                                        items={msg.interactive.items}
+                                        projectName={activeDoc}
+                                        bomOptions={msg.interactive.bomOptions}
+                                        onAction={onMeasurementAction}
+                                        onUpdate={(items) => onBomDraftUpdate?.(i, items)}
+                                        onCalculationComplete={(payload) => {
+                                            onBomSelectionComplete?.(i, payload)
+                                        }}
+                                        onPartialExport={(items) => onBomExport?.(i, items)}
+                                    />
+                                )}
+                            </div>
                         )}
 
                         {msg.interactive && msg.interactive.type === 'choice' && (
@@ -109,15 +138,15 @@ const ChatWindow = forwardRef(({ messages, onSendMessage, onUpdateBomMessage, on
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-6 border-t border-white/5">
+            <div className={`p-6 border-t border-white/5 ${isEmbedded ? 'bg-white/[0.02]' : ''}`}>
                 <form onSubmit={handleSubmit} className="relative max-w-4xl mx-auto">
                     <textarea
                         ref={textareaRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Ask the copilot to modify the CATIA model..."
-                        className="w-full bg-secondary/50 border border-white/10 rounded-2xl py-4 pl-4 pr-14 focus:outline-none focus:ring-1 focus:ring-white/20 resize-none h-14 min-h-[56px] text-sm overflow-hidden placeholder:text-muted-foreground/50 transition-all focus:bg-secondary/70"
+                        placeholder={isEmbedded ? "Ask Copilot..." : "Ask the copilot to modify the CATIA model..."}
+                        className={`w-full bg-secondary/50 border border-white/10 rounded-2xl py-4 pl-4 pr-14 focus:outline-none focus:ring-1 focus:ring-white/20 resize-none h-14 min-h-[56px] text-sm overflow-hidden placeholder:text-muted-foreground/50 transition-all focus:bg-secondary/70 ${isEmbedded ? 'text-xs' : ''}`}
                         rows={1}
                     />
                     <button

@@ -7,16 +7,19 @@ CATIA integration endpoints.
 
 from typing import Optional
 
+from pydantic import BaseModel
+from app.services.bom_cache_service import bom_cache
 from fastapi import APIRouter, Body, HTTPException, Query, WebSocket, WebSocketDisconnect
 from app.services.catia_bridge import catia_bridge
 from app.debug_agent_log import agent_ndjson, start_new_bom_debug_log
+from app.services.com_worker import com_sentinel
 import json
 import logging
 import asyncio
 import os
 import re
 
-# Per-item measurement timeout (seconds); prevents hanging on Rough Stock / CATIA Search
+# Per-item measurement timeout (seconds)
 BOM_MEASURE_TIMEOUT = 90
 
 logger = logging.getLogger(__name__)
@@ -27,8 +30,12 @@ router = APIRouter(prefix="/catia", tags=["CATIA"])
 @router.get("/status")
 def catia_status():
     """Check if CATIA V5 is running and accessible via COM."""
-    is_connected = catia_bridge.check_connection()
-    doc_name = catia_bridge.get_active_document_name() if is_connected else None
+    try:
+        is_connected = com_sentinel.run(catia_bridge.check_connection)
+        doc_name = com_sentinel.run(catia_bridge.get_active_document_name) if is_connected else None
+    except Exception:
+        is_connected = False
+        doc_name = None
     
     return {
         "connected": is_connected,
@@ -36,24 +43,44 @@ def catia_status():
     }
 
 
+class BOMEdit(BaseModel):
+    projectName: str
+    instanceName: str
+    data: dict
+
+@router.post("/bom/cache_edit")
+async def cache_bom_edit(edit: BOMEdit):
+    """Saves a manual edit (like STD/MFG or Body choice) to the BOM Brain instantly."""
+    try:
+        bom_cache.save_item(edit.projectName, edit.instanceName, edit.data)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 from app.services.tree_extractor import tree_extractor
 
 @router.get("/tree")
 def catia_tree():
     """Extract the active document's specification tree as JSON."""
-    tree = tree_extractor.get_full_tree()
-    if tree is None:
-        return {"error": "No active CATIA session found"}
-    return tree
+    try:
+        tree = com_sentinel.run(tree_extractor.get_full_tree)
+        if tree is None:
+            return {"error": "No active CATIA session found"}
+        return tree
+    except Exception as e:
+        return {"error": f"Sentinel error: {e}"}
 
 @router.get("/bom")
 def catia_bom():
     """Extract tree with focused properties for BOM generation."""
-    # Reuse full tree for now as properties were added to the main extractor
-    tree = tree_extractor.get_full_tree(include_props=True)
-    if tree is None:
-        return {"error": "No active CATIA session found"}
-    return tree
+    try:
+        tree = com_sentinel.run(tree_extractor.get_full_tree, True)
+        if tree is None:
+            return {"error": "No active CATIA session found"}
+        return tree
+    except Exception as e:
+        return {"error": f"Sentinel error: {e}"}
 
 from app.services.drafting_service import drafting_service
 from app.services.drafting_axis_resolve import (
@@ -523,6 +550,8 @@ def _resolve_body_in_part(part_obj, part_number: str, instance_name: str):
         return None, [], logs
 
 
+from app.services.bom_cache_service import bom_cache
+
 @router.websocket("/bom/calculate/ws")
 async def bom_calculate_ws(websocket: WebSocket):
     await websocket.accept()
@@ -535,6 +564,32 @@ async def bom_calculate_ws(websocket: WebSocket):
         selected_items = payload.get("items", [])
         method = payload.get("method", "AUTO")
         
+        # MARSHALING SAFETY: Load global settings as strings
+        rs_window = payload.get("roughStockWindow", "Product Rough Stock")
+        rs_scope_id = payload.get("roughStockScopeProduct")
+        rs_scope_name = rs_scope_id # Use the ID name string directly
+
+        # Resolve Project Name: Use provided name or fall back to ActiveDoc
+        provided_name = payload.get("projectName")
+        if provided_name:
+            active_doc_name = os.path.splitext(provided_name)[0]
+        else:
+            def get_adn(caa): 
+                try:
+                    name = caa.ActiveDocument.Name
+                    return os.path.splitext(name)[0] # NORMALIZE: Strip .CATProduct
+                except:
+                    return "unknown_asm"
+            try:
+                active_doc_name = await asyncio.to_thread(com_sentinel.run, get_adn)
+            except Exception:
+                active_doc_name = "unknown_asm"
+            
+        project_cache = bom_cache.load_all(active_doc_name)
+        msg = f"--- STARTING BOM SCAN (Brain: {active_doc_name}, Cached Items: {len(project_cache)}) ---"
+        bom_service._log_op(msg)
+        await websocket.send_text(json.dumps({"log": msg}))
+
         if not selected_items:
             await websocket.send_text(json.dumps({"error": "No items selected"}))
             await websocket.close()
@@ -613,68 +668,135 @@ async def bom_calculate_ws(websocket: WebSocket):
         except Exception:
             pass
 
-        for idx, item in enumerate(selected_items):
-            if cancelled_ref[0]:
-                break
+        # BATCHING & MEMORY PURGING: Process in small chunks to prevent COM bloat
+        BATCH_SIZE = 5
+        for i in range(0, total, BATCH_SIZE):
+            if cancelled_ref[0]: break
             
-            item_id = item.get("id")
-            qty = item.get("qty", 1)
-            instances = item.get("instances") or []
-            instance_name = item.get("instanceName") or (item.get("instances") or [f"{item_id}.1"])[0]
+            current_batch = selected_items[i : i + BATCH_SIZE]
+            bom_service._log_op(f"Processing Batch {i//BATCH_SIZE + 1} ({len(current_batch)} items)...")
             
-            # MULTI-PART DEFERRAL LOGIC
-            # If multiple instances, defer to STL Phase at the end to avoid "clubbing" in Rough Stock
-            if method in ("ROUGH_STOCK", "AUTO") and (qty > 1 or len(instances) > 1):
-                msg = f"-> Deferring {item_id} (x{qty}) to STL measurement phase..."
-                bom_service._log_op(msg)
-                await websocket.send_text(json.dumps({"log": msg}))
-                stl_defer_items.append(item)
-                continue
+            for idx_in_batch, item in enumerate(current_batch):
+                idx = i + idx_in_batch
+                if cancelled_ref[0]: break
+                
+                item_id = item.get("id")
+                qty = item.get("qty", 1)
+                instances = item.get("instances") or []
+                instance_name = item.get("instanceName") or (item.get("instances") or [f"{item_id}.1"])[0]
+                
+                # 0. CHECK CACHE FOR RESUME/AUTO-SKIP
+                cached_data = project_cache.get(instance_name, {})
+                existing_size = cached_data.get("stock_size")
+            
+                # --- PERSISTENCE INJECTION (TYPES & SELECTIONS) ---
+                # If we know the type from a previous run, force it now so the UI doesn't ask again
+                if "isStd" in cached_data:
+                    item["isStd"] = cached_data["isStd"]
+                    item["classification"] = "Standard" if cached_data["isStd"] else "Manufacturing"
+                
+                if "measurementBodyName" in cached_data:
+                    item["measurementBodyName"] = cached_data["measurementBodyName"]
 
-            progress = int(((idx + 1) / total) * 100)
-            msg = f"Measuring {item_id}..."
-            bom_service._log_op(msg)
-            await websocket.send_text(json.dumps({"progress": progress, "log": msg}))
-            
-            # --- MEASUREMENT LOGIC ---
-            _mb = (item.get("measurementBodyName") or item.get("roughStockBodyName") or "").strip()
-            cache_key = f"{item_id}|{instance_name}|{method}|{_mb}"
-            if cache_key in measurement_cache:
-                msg = f"-> Using cached data for {item_id}"
-                bom_service._log_op(msg)
-                await websocket.send_text(json.dumps({"log": msg}))
-                bbox = measurement_cache[cache_key]
-            else:
-                # Find and measure
-                bbox = {"stock_size": "Unknown"}
-                try:
-                    obj = _resolve_bom_item_object(caa, item)
+                # --- SKIP LOGIC (AGGRESSIVE RESUME) ---
+                if existing_size and existing_size != "Measuring...":
+                    status_msg = f" (Already measured: {existing_size})"
+                    msg = f"-> {item_id}: Skipping{status_msg}"
+                    bom_service._log_op(msg)
+                    
+                    # Reconstruct bbox from cache to build full row
+                    cached_bbox = {
+                        "stock_size": existing_size,
+                        "method_used": cached_data.get("methodUsed", method),
+                        "rawDims": cached_data.get("rawDims", []),
+                        "orderedDims": cached_data.get("orderedDims", []),
+                        "stockForm": cached_data.get("stockForm", ""),
+                        "measurement_confidence": cached_data.get("measurementConfidence", ""),
+                    }
+                    measured_row = bom_service.build_measured_row(
+                        {
+                            **item,
+                            "id": idx + 1,
+                            "name": item_id,
+                            "partNumber": item.get("partNumber", item_id),
+                            "instanceName": instance_name,
+                            "qty": qty,
+                            "instances": instances,
+                        },
+                        cached_bbox,
+                        cached_bbox["method_used"],
+                    )
+                    results.append(measured_row)
+                    
+                    await websocket.send_text(json.dumps({
+                        "log": msg, 
+                        "itemId": item_id, 
+                        "stock_size": existing_size, # Pass the cached size back
+                        "done": True,
+                        "isStd": item.get("isStd"),
+                        "measurementBodyName": item.get("measurementBodyName"),
+                        "result": measured_row
+                    }))
+                    continue
 
-                    # Map BOM row to PartDesign body: UI-selected name wins, else auto match, else chat prompt.
-                    skip_body_measure = False
-                    body_target, candidates, resolve_logs = (None, [], [])
+                msg = f"-> {item_id}: Resuming session..."
+                await websocket.send_text(json.dumps({"log": msg}))
+                
+                # --- MEASUREMENT LOGIC ---
+                _mb = (item.get("measurementBodyName") or item.get("roughStockBodyName") or "").strip()
+                cache_key = f"{item_id}|{instance_name}|{method}|{_mb}"
+                if cache_key in measurement_cache:
+                    msg = f"-> Using cached data for {item_id}"
+                    bom_service._log_op(msg)
+                    await websocket.send_text(json.dumps({"log": msg}))
+                    bbox = measurement_cache[cache_key]
+                else:
+                    # Find and measure
+                    bbox = {"stock_size": "Unknown"}
                     try:
-                        user_bn = (item.get("measurementBodyName") or item.get("roughStockBodyName") or "").strip()
-                        if obj is not None and user_bn and user_bn.lower() not in ("auto", "(auto)"):
-                            part_scope = geometry_service._resolve_to_part(obj)
-                            bodies = getattr(part_scope, "Bodies", None)
-                            if bodies:
-                                eff_bn = _effective_bom_body_name(
-                                    item, part_scope, user_bn, resolution_map
-                                )
-                                uu = eff_bn.upper()
-                                for j in range(1, bodies.Count + 1):
-                                    b = bodies.Item(j)
-                                    if (getattr(b, "Name", "") or "").upper() == uu:
-                                        body_target = b
-                                        resolve_logs.append(
-                                            f"-> Measure body: using BOM-selector choice '{b.Name}' for {item_id}."
-                                        )
-                                        break
-                                if body_target is None:
-                                    resolve_logs.append(
-                                        f"-> WARNING: measure body '{user_bn}' not found; auto body rules apply."
+                        obj = _resolve_bom_item_object(caa, item)
+
+                        # Map BOM row to PartDesign body: UI-selected name wins, else auto match, else chat prompt.
+                        skip_body_measure = False
+                        body_target, candidates, resolve_logs = (None, [], [])
+                        try:
+                            user_bn = (item.get("measurementBodyName") or item.get("roughStockBodyName") or "").strip()
+                            if obj is not None and user_bn and user_bn.lower() not in ("auto", "(auto)"):
+                                # Log the intent to help debug
+                                logger.info("BOM calculate: item %s has user-selected body: '%s'", item_id, user_bn)
+                                
+                                part_scope = geometry_service._resolve_to_part(obj)
+                                bodies = getattr(part_scope, "Bodies", None)
+                                if bodies:
+                                    eff_bn = _effective_bom_body_name(
+                                        item, part_scope, user_bn, resolution_map
                                     )
+                                    uu = eff_bn.strip().upper()
+                                    found_match = False
+                                    for j in range(1, bodies.Count + 1):
+                                        b = bodies.Item(j)
+                                        b_name = (getattr(b, "Name", "") or "").strip()
+                                        if b_name.upper() == uu:
+                                            body_target = b
+                                            resolve_logs.append(
+                                                f"-> Measure body: using BOM-selector choice '{b.Name}' for {item_id}."
+                                            )
+                                            found_match = True
+                                            break
+                                
+                                if not found_match:
+                                    # List available bodies in log to diagnose mismatch
+                                    all_b = [bodies.Item(k).Name for k in range(1, bodies.Count + 1)]
+                                    logger.warning(
+                                        "BOM calculate: body '%s' (normalized: '%s') not found in %s. Available: %s",
+                                        user_bn, uu, item_id, all_b
+                                    )
+                                    resolve_logs.append(
+                                        f"-> WARNING: manual choice '{user_bn}' not found in CATIA bodies. falling back to auto-resolve."
+                                    )
+                        except Exception as e:
+                            logger.error(f"Error resolving user body: {e}")
+
                         if body_target is None and obj is not None:
                             body_target, candidates, resolve_logs = _resolve_body_in_part(
                                 obj, item_id, instance_name
@@ -732,105 +854,156 @@ async def bom_calculate_ws(websocket: WebSocket):
                             msg = f"-> Resolved {item_id} to body {getattr(obj, 'Name', 'Unknown')}."
                             bom_service._log_op(msg)
                             await websocket.send_text(json.dumps({"log": msg}))
-                    except Exception as e:
-                        logger.error(f"Error resolving body: {e}")
 
-                    if skip_body_measure:
-                        pass
-                    elif obj:
-                        try:
-                            resolved_name = getattr(obj, "Name", None) or instance_name
-                        except Exception:
-                            resolved_name = instance_name
-                        msg = f"-> Resolved {item_id} to {resolved_name}. Measuring..."
-                        bom_service._log_op(msg)
-                        await websocket.send_text(json.dumps({"log": msg}))
-                        # NOTE: _resolve_to_part can block on some COM objects; GeometryService resolves internally.
-                        try:
-                            rs_scope = _resolve_rough_stock_scope_product(
-                                caa, obj, instance_name, item_id
-                            )
+
+                        if skip_body_measure:
+                            pass
+                        elif obj:
+                            try:
+                                resolved_name = getattr(obj, "Name", None) or instance_name
+                            except Exception:
+                                resolved_name = instance_name
+                            msg = f"-> Resolved {item_id} to {resolved_name}. Measuring..."
+                            bom_service._log_op(msg)
+                            await websocket.send_text(json.dumps({"log": msg}))
+                            # NOTE: _resolve_to_part can block on some COM objects; GeometryService resolves internally.
+                            # MARSHALING SAFETY: We do NOT resolve the scope object here. 
+                            # We pass the name and GeometryService resolves it locally in the Sentinel thread.
+                            processed_rs_scope_name = rs_scope_name
+                            if not processed_rs_scope_name:
+                                # If no global scope, we might need a local one? 
+                                # Usually Product Rough Stock uses the top assembly.
+                                processed_rs_scope_name = None
+
+                            # Auto-persist body selection to 'BOM Brain'
+                            if body_target is not None:
+                                bom_cache.save_item(active_doc_name, instance_name, {
+                                    "measurementBodyName": getattr(body_target, "Name", "")
+                                })
+                                # region agent log
+                                try:
+                                    adn = getattr(getattr(caa, "ActiveDocument", None), "Name", None)
+                                    agent_ndjson(
+                                        "H3",
+                                        "catia.bom_calculate_ws:before_get_bbox",
+                                        "BOM row measure context",
+                                        {
+                                            "item_id": item_id,
+                                            "instance_name": instance_name,
+                                            "measurementBodyName": _mb,
+                                            "resolved_obj_name": getattr(obj, "Name", None),
+                                            "ws_cache_key": cache_key,
+                                            "active_doc_name": adn,
+                                        },
+                                    )
+                                except Exception:
+                                    pass
+                                # endregion
+                            
+                            # 1. Prepare for background measurement via re-resolution
+                            obj_name = getattr(obj, "Name", None)
+                            
+                            # 2. RUN MEASUREMENT ON DEDICATED SENTINEL THREAD
+                            # The sentinel ensures the physical thread never changes during the task.
+                            try:
+                                bbox = await asyncio.to_thread(
+                                    com_sentinel.run, 
+                                    geometry_service.get_bounding_box,
+                                    obj_name,
+                                    method,
+                                    rs_window,
+                                    False,
+                                    True,
+                                    None, # scope_product
+                                    processed_rs_scope_name # rough_stock_scope_product name
+                                )
+                                if bbox and bbox.get("stock_size"):
+                                    # SAVE TO BOM BRAIN (Including results and metadata)
+                                    bom_cache.save_item(active_doc_name, instance_name, {
+                                        "stock_size": bbox["stock_size"],
+                                        "isStd": item.get("isStd"),
+                                        "methodUsed": bbox.get("method_used", method),
+                                        "measurementBodyName": item.get("measurementBodyName"),
+                                        "rawDims": bbox.get("rawDims", []),
+                                        "orderedDims": bbox.get("orderedDims", []),
+                                        "stockForm": bbox.get("stockForm", ""),
+                                        "measurementConfidence": bbox.get("measurement_confidence", bbox.get("measurementConfidence", ""))
+                                    })
+                                if not bbox:
+                                    bbox = {"stock_size": "Not Measurable"}
+                            except Exception as e:
+                                msg = f"-> Error measuring {item_id} (Sentinel): {e}"
+                                bom_service._log_op(msg)
+                                await websocket.send_text(json.dumps({"log": msg}))
+                                bbox = {"stock_size": "Not Measurable"}
+                            
+                            except Exception as e:
+                                msg = f"-> Bridge Error {item_id}: {e}"
+                                bom_service._log_op(msg)
+                                await websocket.send_text(json.dumps({"log": msg}))
+                                bbox = {"stock_size": "Not Measurable"}
+
                             # region agent log
                             try:
-                                adn = getattr(getattr(caa, "ActiveDocument", None), "Name", None)
                                 agent_ndjson(
-                                    "H3",
-                                    "catia.bom_calculate_ws:before_get_bbox",
-                                    "BOM row measure context",
+                                    "H2",
+                                    "catia.bom_calculate_ws:after_get_bbox",
+                                    "measurement result",
                                     {
                                         "item_id": item_id,
-                                        "instance_name": instance_name,
-                                        "measurementBodyName": _mb,
-                                        "resolved_obj_name": getattr(obj, "Name", None),
-                                        "ws_cache_key": cache_key,
-                                        "active_doc_name": adn,
+                                        "stock_size": bbox.get("stock_size"),
+                                        "rawDims": bbox.get("rawDims"),
+                                        "method_used": bbox.get("method_used"),
                                     },
                                 )
                             except Exception:
                                 pass
                             # endregion
-                            bbox = geometry_service.get_bounding_box(
-                                obj,
-                                method=method,
-                                rough_stock_window=rs_window,
-                                fast_mode=False,
-                                stay_open=True,
-                                rough_stock_scope_product=rs_scope,
-                            ) or {"stock_size": "Not Measurable"}
-                        except Exception as e:
-                            msg = f"-> Error measuring {item_id}: {e}"
+                            measurement_cache[cache_key] = bbox
+                            res_size = bbox.get('stock_size', 'Not Measurable')
+                            msg = f"-> Result for {item_id}: {res_size}"
+                            if "Fallback" in res_size or "Not Measurable" in res_size:
+                                msg = f"-> WARNING: Measurement failed for {item_id} (Resolved to {resolved_name})."
                             bom_service._log_op(msg)
                             await websocket.send_text(json.dumps({"log": msg}))
-                            bbox = {"stock_size": "Not Measurable"}
-                        # region agent log
-                        try:
-                            agent_ndjson(
-                                "H2",
-                                "catia.bom_calculate_ws:after_get_bbox",
-                                "measurement result",
-                                {
-                                    "item_id": item_id,
-                                    "stock_size": bbox.get("stock_size"),
-                                    "rawDims": bbox.get("rawDims"),
-                                    "method_used": bbox.get("method_used"),
-                                },
-                            )
-                        except Exception:
-                            pass
-                        # endregion
-                        measurement_cache[cache_key] = bbox
-                        res_size = bbox.get('stock_size', 'Not Measurable')
-                        msg = f"-> Result for {item_id}: {res_size}"
-                        if "Fallback" in res_size or "Not Measurable" in res_size:
-                            msg = f"-> WARNING: Measurement failed for {item_id} (Resolved to {resolved_name})."
-                        bom_service._log_op(msg)
-                        await websocket.send_text(json.dumps({"log": msg}))
-                    else:
-                        msg = f"-> WARNING: Could not resolve {item_id} in tree."
-                        bom_service._log_op(msg)
-                        await websocket.send_text(json.dumps({"log": msg}))
+                        else:
+                            msg = f"-> WARNING: Could not resolve {item_id} in tree."
+                            bom_service._log_op(msg)
+                            await websocket.send_text(json.dumps({"log": msg}))
 
-                except Exception as e:
-                    msg = f"-> Error measuring {item_id}: {str(e)}"
-                    bom_service._log_op(msg)
-                    await websocket.send_text(json.dumps({"log": msg}))
-                    bbox = {"stock_size": "Not Measurable"}
+                    except Exception as e:
+                        msg = f"-> Error measuring {item_id}: {str(e)}"
+                        bom_service._log_op(msg)
+                        await websocket.send_text(json.dumps({"log": msg}))
+                        bbox = {"stock_size": "Not Measurable"}
             
-            measured_row = bom_service.build_measured_row(
-                {
-                    **item,
-                    "id": idx + 1,
-                    "name": item_id,
-                    "partNumber": item.get("partNumber", item_id),
-                    "instanceName": instance_name,
-                    "qty": qty,
-                    "instances": instances,
-                },
-                bbox,
-                method,
-            )
-            results.append(measured_row)
-            await asyncio.sleep(0.01)
+                measured_row = bom_service.build_measured_row(
+                    {
+                        **item,
+                        "id": idx + 1,
+                        "name": item_id,
+                        "partNumber": item.get("partNumber", item_id),
+                        "instanceName": instance_name,
+                        "qty": qty,
+                        "instances": instances,
+                    },
+                    bbox,
+                    method,
+                )
+                results.append(measured_row)
+                # CHECKPOINT: Send individual result to frontend for persistence
+                await websocket.send_text(json.dumps({"result": measured_row}))
+                await asyncio.sleep(0.15)  # Increased throttle to protect UI process and disk bandwidth
+
+            # --- BATCH CLEANUP (Phase 1) ---
+            import pythoncom
+            bom_service._log_op(f"--- Batch {i//BATCH_SIZE + 1} complete: Flushing COM memory... ---")
+            try:
+                # We use com_sentinel to ensure the COFree call happens on the CATIA thread
+                await asyncio.to_thread(com_sentinel.run, lambda caa: pythoncom.CoFreeUnusedLibraries())
+            except Exception as e:
+                logger.warning(f"Batch cleanup failed: {e}")
+            await asyncio.sleep(0.5) # Breath for CATIA UI thread
 
         # Phase 2: Deferred STL Measurements
         if stl_defer_items and not cancelled_ref[0]:
@@ -838,26 +1011,32 @@ async def bom_calculate_ws(websocket: WebSocket):
             bom_service._log_op(msg)
             await websocket.send_text(json.dumps({"log": msg}))
             
-            for idx, item in enumerate(stl_defer_items):
+            for i_stl in range(0, len(stl_defer_items), BATCH_SIZE):
                 if cancelled_ref[0]: break
-                item_id = item.get("id")
-                qty = item.get("qty", 1)
-                instances = item.get("instances") or []
-                instance_name = item.get("instanceName") or (item.get("instances") or [f"{item_id}.1"])[0]
-
-                msg = f"STL Measuring {item_id} (x{qty})..."
-                bom_service._log_op(msg)
-                await websocket.send_text(json.dumps({"log": msg}))
+                batch_stl = stl_defer_items[i_stl : i_stl + BATCH_SIZE]
                 
-                _mb_stl = (item.get("measurementBodyName") or item.get("roughStockBodyName") or "").strip()
-                cache_key = f"{item_id}|{instance_name}|STL|{_mb_stl}"
-                if cache_key in measurement_cache:
-                    msg = f"-> Using cached data for {item_id}"
+                for idx_stl, item in enumerate(batch_stl):
+                    idx = i_stl + idx_stl
+                    if cancelled_ref[0]: break
+                    
+                    item_id = item.get("id")
+                    qty = item.get("qty", 1)
+                    instances = item.get("instances") or []
+                    instance_name = item.get("instanceName") or (item.get("instances") or [f"{item_id}.1"])[0]
+
+                    msg = f"STL Measuring {item_id} (x{qty})..."
                     bom_service._log_op(msg)
                     await websocket.send_text(json.dumps({"log": msg}))
-                    bbox = measurement_cache[cache_key]
-                else:
-                    bbox = {"stock_size": "Not Measurable"}
+                    
+                    _mb_stl = (item.get("measurementBodyName") or item.get("roughStockBodyName") or "").strip()
+                    cache_key = f"{item_id}|{instance_name}|STL|{_mb_stl}"
+                    if cache_key in measurement_cache:
+                        msg = f"-> Using cached data for {item_id}"
+                        bom_service._log_op(msg)
+                        await websocket.send_text(json.dumps({"log": msg}))
+                        bbox = measurement_cache[cache_key]
+                    else:
+                        bbox = {"stock_size": "Not Measurable"}
                     try:
                         obj = _resolve_bom_item_object(caa, item)
 
@@ -957,6 +1136,18 @@ async def bom_calculate_ws(websocket: WebSocket):
                             await websocket.send_text(json.dumps({"log": msg}))
                             bbox = geometry_service.get_bounding_box(obj, method="STL", fast_mode=False, stay_open=True) or {"stock_size": "Not Measurable"}
                             measurement_cache[cache_key] = bbox
+                            
+                            bom_cache.save_item(active_doc_name, instance_name, {
+                                "stock_size": bbox.get("stock_size", "Not Measurable"),
+                                "isStd": item.get("isStd"),
+                                "methodUsed": bbox.get("method_used", "STL"),
+                                "measurementBodyName": item.get("measurementBodyName"),
+                                "rawDims": bbox.get("rawDims", []),
+                                "orderedDims": bbox.get("orderedDims", []),
+                                "stockForm": bbox.get("stockForm", ""),
+                                "measurementConfidence": bbox.get("measurement_confidence", bbox.get("measurementConfidence", ""))
+                            })
+                            
                             res_size = bbox.get('stock_size', 'Not Measurable')
                             msg = f"-> Result for {item_id} (STL): {res_size}"
                             if "Fallback" in res_size or "Not Measurable" in res_size:
@@ -973,21 +1164,31 @@ async def bom_calculate_ws(websocket: WebSocket):
                         await websocket.send_text(json.dumps({"log": msg}))
                         bbox = {"stock_size": "Not Measurable"}
                 
-                measured_row = bom_service.build_measured_row(
-                    {
-                        **item,
-                        "id": idx + 1 + total, # Adjust ID for deferred items if needed, or keep original
-                        "name": item_id,
-                        "partNumber": item.get("partNumber", item_id),
-                        "instanceName": instance_name,
-                        "qty": qty,
-                        "instances": instances,
-                    },
-                    bbox,
-                    "STL",
-                )
-                results.append(measured_row)
-                await asyncio.sleep(0.01)
+                    measured_row = bom_service.build_measured_row(
+                        {
+                            **item,
+                            "id": idx + 1 + total, # Adjust ID for deferred items if needed, or keep original
+                            "name": item_id,
+                            "partNumber": item.get("partNumber", item_id),
+                            "instanceName": instance_name,
+                            "qty": qty,
+                            "instances": instances,
+                        },
+                        bbox,
+                        "STL",
+                    )
+                    results.append(measured_row)
+                    # CHECKPOINT: Send individual result to frontend for persistence
+                    await websocket.send_text(json.dumps({"result": measured_row}))
+                    await asyncio.sleep(0.01)
+            
+                # --- BATCH CLEANUP ---
+                import pythoncom
+                bom_service._log_op("--- Batch complete: Flushing COM memory... ---")
+                try:
+                    await asyncio.to_thread(com_sentinel.run, lambda caa: pythoncom.CoFreeUnusedLibraries())
+                except: pass
+                await asyncio.sleep(0.5) # Give CATIA's UI thread a moment to breathe
 
         # Close Rough Stock if we opened it
         if rs_window:

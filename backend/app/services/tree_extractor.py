@@ -235,4 +235,49 @@ class TreeExtractor:
         except: pass
         return children
 
+    def find_object_by_name(self, caa, name: str) -> Any:
+        """
+        Locates a CATIA object (Part or Product) by its display name.
+        Used for re-resolving objects across COM threads.
+        """
+        if not name: return None
+        try:
+            # 1. Try Selection.Search - High performance for deep hierarchies
+            sel = caa.ActiveDocument.Selection
+            sel.Clear()
+            # We search for any object where Name='name'
+            # Note: We use the exact name match
+            sel.Search(f"Name='{name}',all")
+            
+            if sel.Count > 0:
+                # Return the first match
+                found = sel.Item(1).Value
+                sel.Clear()
+                return found
+            
+            # 2. Fallback: Recursive scan (Slower, but works if Search fails)
+            def find_in_prod(p):
+                if getattr(p, "Name", "") == name: return p
+                try:
+                    for i in range(1, p.Products.Count + 1):
+                        res = find_in_prod(p.Products.Item(i))
+                        if res: return res
+                except: pass
+                return None
+
+            try:
+                doc = caa.ActiveDocument
+                # Check root
+                root = getattr(doc, "Product", None) or getattr(doc, "Part", None)
+                if root and getattr(root, "Name", "") == name: return root
+                
+                if hasattr(doc, "Product"):
+                    return find_in_prod(doc.Product)
+            except: pass
+
+            return None
+        except Exception as e:
+            logger.error(f"TreeExtractor: Failed to find object '{name}': {e}")
+            return None
+
 tree_extractor = TreeExtractor()

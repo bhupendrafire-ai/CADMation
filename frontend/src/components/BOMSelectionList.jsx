@@ -8,26 +8,30 @@ const DEFAULT_METHOD = 'STL'
 /** Re-apply Classify-before-measure fields onto API results (sizes/methods from server, classification from UI). */
 function mergeClassificationIntoResults(classifiedRows, resultRows) {
   const map = new Map()
-  for (const c of classifiedRows || []) {
+  for (const r of resultRows || []) {
     const keys = [
-      c.sourceRowId,
-      `${c.id}|${c.instanceName || ''}`,
-      `${c.partNumber || c.id}|${c.instanceName || ''}`,
+      r.sourceRowId,
+      `${r.id}|${r.instanceName || ''}`,
+      `${r.partNumber || r.id}|${r.instanceName || ''}`,
     ].filter(Boolean)
-    for (const k of keys) map.set(k, c)
+    for (const k of keys) map.set(k, r)
   }
-  return (resultRows || []).map((r) => {
+  
+  return (classifiedRows || []).filter(c => c.selected !== false).map((c) => {
     const k =
-      r.sourceRowId ||
-      `${r.partNumber || r.id}|${r.instanceName || ''}` ||
-      `${r.id}|${r.instanceName || ''}`
-    const c =
-      map.get(r.sourceRowId) ||
-      map.get(`${r.id}|${r.instanceName || ''}`) ||
-      map.get(`${r.partNumber || r.id}|${r.instanceName || ''}`) ||
+      c.sourceRowId ||
+      `${c.partNumber || c.id}|${c.instanceName || ''}` ||
+      `${c.id}|${c.instanceName || ''}`
+    const r =
+      map.get(c.sourceRowId) ||
+      map.get(`${c.id}|${c.instanceName || ''}`) ||
+      map.get(`${c.partNumber || c.id}|${c.instanceName || ''}`) ||
       map.get(k)
-    if (!c) return r
+
+    if (!r) return c
+
     return {
+      ...c,
       ...r,
       isStd: c.isStd,
       sheetCategory: c.sheetCategory,
@@ -35,9 +39,8 @@ function mergeClassificationIntoResults(classifiedRows, resultRows) {
       material: c.material != null && c.material !== '' ? c.material : r.material,
       manufacturer: c.manufacturer != null && c.manufacturer !== '' ? c.manufacturer : r.manufacturer,
       description: c.description || r.description,
-      measurementBodyName: c.measurementBodyName || r.measurementBodyName,
+      measurementBodyName: r.measurementBodyName || c.measurementBodyName,
       bodyNameOptions: c.bodyNameOptions || r.bodyNameOptions,
-      selected: c.selected !== false,
     }
   })
 }
@@ -57,6 +60,7 @@ function normalizeRows(items) {
     return {
       ...item,
       isManualRow,
+      isClonedRow: !!item.isClonedRow,
       sourceRowId: item.sourceRowId || item.id,
       selected: item.selected !== false,
       isStd,
@@ -78,7 +82,7 @@ function normalizeRows(items) {
   })
 }
 
-export default function BOMSelectionList({ items: initialItems, bomOptions = {}, onAction, onCalculationComplete }) {
+export default function BOMSelectionList({ items: initialItems, projectName, bomOptions = {}, onAction, onUpdate, onCalculationComplete, onPartialExport }) {
   const [items, setItems] = useState(() => normalizeRows(initialItems))
   const [calculating, setCalculating] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -94,13 +98,26 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
   const cancelledRef = useRef(false)
   const itemsRef = useRef(items)
 
+  const lastSyncedItemsRef = useRef(null)
+
   useEffect(() => {
-    setItems(normalizeRows(initialItems))
+    // Only update local state if the prop changed from something OTHER than our last local update
+    const nextNormalized = normalizeRows(initialItems)
+    const nextJson = JSON.stringify(nextNormalized)
+    if (nextJson !== lastSyncedItemsRef.current) {
+      setItems(nextNormalized)
+      lastSyncedItemsRef.current = nextJson
+    }
   }, [initialItems])
 
   useEffect(() => {
     itemsRef.current = items
-  }, [items])
+    const nextJson = JSON.stringify(items)
+    if (onUpdate && nextJson !== lastSyncedItemsRef.current) {
+      lastSyncedItemsRef.current = nextJson
+      onUpdate(items);
+    }
+  }, [items, onUpdate])
 
   const bodyFetchKey = useMemo(() => {
     const flag = bomOptions?.tempRenameDuplicateBodies ? '1' : '0'
@@ -202,8 +219,20 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
               }
               const opts = Array.isArray(r.bodies) ? r.bodies : []
               let mb = row.measurementBodyName || ''
-              if (opts.length === 1) mb = opts[0]
-              else if (opts.length > 1 && mb && !opts.includes(mb)) mb = ''
+              
+              if (opts.length === 1) {
+                mb = opts[0]
+              } else if (opts.length > 1 && mb) {
+                // Fuzzy match against new options to avoid accidental clearance
+                const mbNorm = mb.trim().toUpperCase()
+                const canonicalMatch = opts.find(o => o.trim().toUpperCase() === mbNorm)
+                if (canonicalMatch) {
+                  mb = canonicalMatch // Use the exact name from CATIA
+                }
+                // If not found, we RETAIN the old value 'mb' rather than wiping it to ''
+                // This ensures the backend still receives the user's preference.
+              }
+              
               const hint = opts.length === 0 && r.error ? hintFor(r.error) : ''
               return {
                 ...row,
@@ -332,23 +361,44 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
     ])
   }
 
-  const removeManualRow = (id) => {
+  const removeRow = (id) => {
     setSelectorError('')
     setItems((prev) => prev.filter((row) => row.id !== id))
   }
 
+  const splitRow = (item, index) => {
+    const qtyStr = window.prompt(`How many total BOM items exist under part "${item.instanceName || item.name || 'this item'}"?\n(This will create duplicate rows so you can assign a different measure body to each.)`, "2")
+    if (!qtyStr) return
+    const count = parseInt(qtyStr, 10)
+    if (isNaN(count) || count <= 1) return
+
+    setItems(prev => {
+      const next = [...prev]
+      const clones = []
+      for (let i = 1; i < count; i++) {
+        const sid = newManualRowId()
+        clones.push(normalizeRows([{
+          ...item,
+          id: sid,
+          isClonedRow: true,
+          sourceRowId: item.sourceRowId || item.id,
+          measurementBodyName: '', // allow user to pick another body
+          qty: 1, // assume each split body is a qty of 1 for that body
+        }])[0])
+      }
+      next.splice(index + 1, 0, ...clones)
+      return next
+    })
+  }
+
   const validateBeforeMeasurement = (selectedItems) => {
-    const missingMaterialRows = selectedItems.filter((item) => !item.isStd && ['Steel', 'Casting'].includes(item.sheetCategory) && !`${item.material || ''}`.trim())
-    if (missingMaterialRows.length) {
-      return `Material is required for ${missingMaterialRows.length} Steel/Casting row(s) before measurement.`
-    }
     const manualNoInstance = selectedItems.filter((item) => item.isManualRow && !`${item.instanceName || ''}`.trim())
     if (manualNoInstance.length) {
       return 'Manual row(s): enter the CATIA instance name (tree name) before measurement.'
     }
     const manualNoBody = selectedItems.filter(
       (item) =>
-        item.isManualRow &&
+        item.isManualRow && !item.isStd &&
         !`${item.measurementBodyName || ''}`.trim() &&
         (item.bodyNameOptions?.length || 0) === 0,
     )
@@ -369,7 +419,7 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
     }
 
     const ambiguousBody = selectedItems.filter(
-      (it) => (it.bodyNameOptions?.length || 0) > 1 && !`${it.measurementBodyName || ''}`.trim(),
+      (it) => !it.isStd && (it.bodyNameOptions?.length || 0) > 1 && !`${it.measurementBodyName || ''}`.trim(),
     )
     if (ambiguousBody.length) {
       setSelectorError(
@@ -378,15 +428,38 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
       return
     }
 
+    // RESUME LOGIC: Filter out items that already have a result
+    const toMeasure = selectedItems.filter(it => 
+      !it.isStd && (
+      !it.stock_size || 
+      it.stock_size === 'Measuring...' || 
+      it.stock_size === 'Unknown' ||
+      it.stock_size.includes('Error') ||
+      it.stock_size.includes('Not Measurable')
+      )
+    )
+
+    const skippedCount = selectedItems.length - toMeasure.length
+
     setCalculating(true)
     setProgress(0)
-    setLogs(['Connecting to measure engine...'])
+    setLogs([
+      'Connecting to measure engine...',
+      ...(skippedCount > 0 ? [`Skipping ${skippedCount} already measured item(s).`] : [])
+    ])
     setSelectorError('')
     setPendingAction(null)
     cancelledRef.current = false
 
+    if (toMeasure.length === 0) {
+      setLogs(prev => [...prev, 'All selected items are already measured.'])
+      setCalculating(false)
+      return
+    }
+
     const ws = startBomMeasurement({
-      items: selectedItems,
+      items: toMeasure,
+      projectName,
       method: measureMethod,
       tempRenameDuplicateBodies: !!bomOptions?.tempRenameDuplicateBodies,
       onAction: (action, data, ws) => {
@@ -412,6 +485,24 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
         if (!cancelledRef.current) {
           flushSync(() => setLogs((prev) => [...prev, log]))
         }
+      },
+      onResultRow: (row) => {
+        if (cancelledRef.current) return;
+        setItems((prev) => prev.map(it => {
+          // Match by part number and instance name
+          const pMatch = it.partNumber === row.partNumber || it.id === row.id;
+          const iMatch = it.instanceName === row.instanceName;
+          if (pMatch && iMatch) {
+            return {
+              ...it,
+              stock_size: row.stock_size,
+              rawDims: row.rawDims,
+              method_used: row.method_used,
+              measurementBodyName: row.measurementBodyName || it.measurementBodyName
+            };
+          }
+          return it;
+        }));
       },
       onDone: (data) => {
         if (cancelledRef.current) return
@@ -455,19 +546,35 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
     setPendingAction(null);
   }
 
+  const handlePartialExport = () => {
+    const measuredItems = items.filter(it => it.stock_size && it.stock_size !== 'Measuring...' && !it.stock_size.includes('Error') && !it.stock_size.includes('Not Measurable'))
+    if (onPartialExport) {
+        onPartialExport(measuredItems)
+    }
+  }
+
   if (calculating) {
     return (
       <div className="mt-4 p-4 rounded-xl border border-white/10 bg-black/40 space-y-4">
         <div className="flex items-center justify-between text-xs font-medium text-white/50 mb-1 gap-2">
-          <span className="truncate max-w-[60%]">{logs[logs.length - 1]}</span>
+          <span className="truncate max-w-[50%]">{logs[logs.length - 1]}</span>
           <span className="shrink-0">{progress}%</span>
-          <button
-            type="button"
-            onClick={cancelCalculation}
-            className="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30 transition-colors"
-          >
-            Cancel
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePartialExport}
+              className="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-teal-500/20 text-teal-300 border border-teal-500/40 hover:bg-teal-500/30 transition-colors"
+            >
+              Export Partial BOM
+            </button>
+            <button
+              type="button"
+              onClick={cancelCalculation}
+              className="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
         <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
           <div className="h-full bg-white transition-all duration-300" style={{ width: `${progress}%` }} />
@@ -524,10 +631,18 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
         <div className="flex flex-col">
           <span className="text-xs font-semibold text-white/70">Classify Parts Before Measuring</span>
           <span className="text-[10px] mt-1 text-white/40">
-            Drag the grip on the left to reorder rows (measurement runs top to bottom). Choose MFG/STD, route MFG rows into Steel/MS/Casting, rename parts, enter material for Steel/Casting, and pick a measure body when more than one exists. Use Add manual row for a missed part: instance name as in the tree, optional part number, and exact measure body name when bodies do not load.
+            Drag the grip on the left to reorder rows (measurement runs top to bottom). Choose MFG/STD, route MFG rows into Steel/MS/Casting, rename parts, and pick a measure body when more than one exists. Use Add manual row for a missed part: instance name as in the tree, optional part number, and exact measure body name when bodies do not load. Material (Steel Type) can be filled here or later in the editor.
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2 justify-end">
+          {items.some(it => it.stock_size && it.stock_size !== 'Measuring... && !it.stock_size.includes("Error")') && (
+            <button
+              onClick={handlePartialExport}
+              className="text-[10px] font-semibold px-2 py-1 rounded-md bg-teal-500/20 text-teal-300 border border-teal-500/40 hover:bg-teal-500/30 transition-colors"
+            >
+              Export Results So Far
+            </button>
+          )}
           <button
             type="button"
             onClick={addManualRow}
@@ -628,11 +743,11 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
                     <input type="checkbox" checked={item.selected} onChange={() => toggleItem(item.id)} className="rounded border-white/20" />
                   </td>
                   <td className="py-2 px-2 align-top">
-                    {item.isManualRow ? (
+                    {item.isManualRow || item.isClonedRow ? (
                       <button
                         type="button"
-                        title="Remove this manual row"
-                        onClick={() => removeManualRow(item.id)}
+                        title="Remove this row"
+                        onClick={() => removeRow(item.id)}
                         className="text-[10px] text-rose-300/90 hover:text-rose-200 px-1"
                       >
                         ×
@@ -667,8 +782,18 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
                         />
                       </div>
                     ) : (
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-semibold truncate text-white/90">{item.instanceName}</span>
+                      <div className="flex flex-col min-w-0 group">
+                        <div className="flex items-center gap-1.5 overflow-hidden">
+                          <span className="text-xs font-semibold truncate text-white/90 shrink">{item.instanceName}</span>
+                          <button
+                            type="button"
+                            onClick={() => splitRow(item, idx)}
+                            className="shrink-0 opacity-0 group-hover:opacity-100 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all rounded w-4 h-4"
+                            title="Split into multiple items for this part"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8"/><path d="M21 3l-6 6"/><path d="M3 3l6 6"/></svg>
+                          </button>
+                        </div>
                         <span className="text-[10px] font-mono opacity-50 truncate">{item.name}</span>
                       </div>
                     )}
@@ -701,8 +826,8 @@ export default function BOMSelectionList({ items: initialItems, bomOptions = {},
                       type="text"
                       value={item.isStd ? (item.manufacturer || '') : (item.material || '')}
                       onChange={(e) => updateItem(item.id, (row) => ({ ...row, [row.isStd ? 'manufacturer' : 'material']: e.target.value }))}
-                      placeholder={item.isStd ? 'MISUMI / Vendor' : 'Required for Steel/Casting'}
-                      className={`w-full min-w-[120px] text-[11px] border rounded px-2 py-1 ${!item.isStd && ['Steel', 'Casting'].includes(item.sheetCategory) && !`${item.material || ''}`.trim() ? 'bg-red-500/10 border-red-500/30' : 'bg-white/5 border-white/10'}`}
+                      placeholder={item.isStd ? 'MISUMI / Vendor' : 'Optional at this step'}
+                      className={`w-full min-w-[120px] text-[11px] border rounded px-2 py-1 bg-white/5 border-white/10`}
                     />
                   </td>
                   <td className="py-2 px-2 align-top">

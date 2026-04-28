@@ -40,19 +40,27 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import catia, chat
+from app.routers.catia import router as catia_router
+from app.routers.chat import router as chat_router
 
+
+from app.services.com_worker import com_sentinel
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup / shutdown hooks. Currently a placeholder for future COM init."""
+    # Startup
+    logger.info("Starting CADMation backend services...")
+    com_sentinel.start()
     yield
+    # Shutdown
+    logger.info("Stopping CADMation backend services...")
+    com_sentinel.stop()
 
 
 app = FastAPI(
-    title="CADMation",
-    version="2.0.0",
-    description="Local AI copilot for CATIA V5 sheet metal design",
+    title="CADMation Enterprise",
+    version="2.3.0",
+    description="Professional Enterprise AI copilot for CATIA V5 sheet metal design",
     lifespan=lifespan,
 )
 
@@ -70,14 +78,14 @@ from fastapi.responses import FileResponse
 import os
 
 # --- Routers ---
-app.include_router(catia.router, prefix="/api")
-app.include_router(chat.router, prefix="/api")
+app.include_router(catia_router, prefix="/api")
+app.include_router(chat_router, prefix="/api")
 
-# --- Frontend Serving (Final Step Logic) ---
-import sys
-# Path to the built frontend
-base_path = getattr(sys, '_MEIPASS', os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-FRONTEND_DIST = os.path.join(base_path, "frontend", "dist")
+if getattr(sys, 'frozen', False):
+    FRONTEND_DIST = os.path.join(sys._MEIPASS, "frontend", "dist")
+else:
+    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    FRONTEND_DIST = os.path.join(base_path, "frontend", "dist")
 
 @app.get("/api/health")
 async def health():
@@ -89,7 +97,12 @@ async def health():
 
 
 if os.path.exists(FRONTEND_DIST):
-    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
+    # Mount the /assets directory only if it exists, to prevent startup crashes
+    assets_dir = os.path.join(FRONTEND_DIST, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+    else:
+        logger.warning(f"Frontend assets directory not found at {assets_dir}")
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
@@ -100,7 +113,13 @@ if os.path.exists(FRONTEND_DIST):
         static_file = os.path.join(FRONTEND_DIST, full_path)
         if os.path.isfile(static_file):
             return FileResponse(static_file)
-        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+        
+        # Fallback to index.html for SPA routing
+        index_file = os.path.join(FRONTEND_DIST, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+        
+        raise HTTPException(status_code=404, detail="Static content not found")
 
 
 from app.services.catia_bridge import catia_bridge
@@ -112,7 +131,7 @@ if __name__ == "__main__":
     import sys
     try:
         print("\n" + "="*60)
-        print("  CADMation AI Copilot for CATIA V5 - Standalone Server")
+        print("  CADMation Enterprise for CATIA V5 - Standalone Server")
         print("="*60)
         print(f"  * Mode:        {'Standalone' if getattr(sys, 'frozen', False) else 'Development'}")
         print("  * Access UI:   http://localhost:8000")

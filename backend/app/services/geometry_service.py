@@ -224,18 +224,40 @@ class GeometryService:
         self,
         part_or_product: Any,
         method: str = "AUTO",
+        rough_stock_window: Any = None,
         fast_mode: bool = False,
         stay_open: bool = False,
-        rough_stock_window: int = 0,
+        scope_product: Any = None,
         rough_stock_scope_product: Any = None,
-    ) -> Dict[str, Any]:
-        """Calculates the bounding box of a Part or Product using multiple Tiers.
-        Three-Tier Measurement Strategy:
-        1. Tier 0: Rough Stock Scraper (Method=ROUGH_STOCK or AUTO)
-        2. Tier 1: Direct SPA (Fastest fallback)
-        3. Tier 2: Copy-Paste Flattening (Nuclear STL)
+    ) -> Dict[str, Any] | None:
         """
-        raw_input = self._get_com(part_or_product)
+        Calculates the bounding box (Stock Size) of a target component.
+        Thread Safety: part_or_product can be a string (PartNumber) for local re-resolution.
+        """
+        caa = catia_bridge.get_application()
+        if not caa:
+            return None
+
+        # 1. Resolve COM object from name if passed as string (Thread Isolation Path)
+        target_obj = part_or_product
+        from app.services.tree_extractor import tree_extractor
+        
+        if isinstance(part_or_product, str):
+            target_obj = tree_extractor.find_object_by_name(caa, part_or_product)
+            if target_obj is None:
+                logger.error(f"GeometryService: Could not find component '{part_or_product}' by name.")
+                return None
+        
+        # 1b. Resolve Scope Product (Marshaling Safety)
+        actual_scope = scope_product
+        if isinstance(scope_product, str):
+            actual_scope = tree_extractor.find_object_by_name(caa, scope_product)
+            
+        actual_rs_scope = rough_stock_scope_product
+        if isinstance(rough_stock_scope_product, str):
+            actual_rs_scope = tree_extractor.find_object_by_name(caa, rough_stock_scope_product)
+
+        raw_input = self._get_com(target_obj)
         if not raw_input:
             return self._get_fallback_bbox()
         # STL should preserve instance-level context; ROUGH_STOCK/SPA can resolve to Part.
@@ -294,6 +316,16 @@ class GeometryService:
         cache_key = ""
         try:
             part_for_key = self._resolve_to_part(raw_pop)
+            # Resolve hint text early while COM is stable (before any modal dialogs/sweeps)
+            cached_hint = ""
+            try:
+                cached_hint = getattr(rs_dialog_target, "Name", "") or ""
+            except Exception:
+                try:
+                    cached_hint = (getattr(raw_pop, "PartNumber", "") or getattr(raw_pop, "Name", ""))
+                except Exception:
+                    pass
+
             cache_key = f"{_MEASUREMENT_CACHE_KEY_VER}::{self._measurement_cache_key(part_for_key, method)}"
             inp_c, pop_c = self._get_com(raw_input), self._get_com(raw_pop)
             if not self._same_com_object(inp_c, pop_c):
@@ -373,12 +405,15 @@ class GeometryService:
                             caa,
                             rs_dialog_target,
                             rough_stock_window,
-                            scope_product=scope_product,
+                            scope_product=actual_scope,
                             anchor_asm_doc=anchor_asm_doc,
                             skip_axis_spa_shortcuts=(rs_dialog_target is not raw_pop),
+                            rough_stock_scope_product=actual_rs_scope
                         )
                         if dx is not None:
-                            result = build_measurement_payload(dx, dy, dz, "ROUGH_STOCK")
+                            result = build_measurement_payload(
+                                dx, dy, dz, "ROUGH_STOCK", hint_text=cached_hint
+                            )
                             result["method_used"] = "ROUGH_STOCK_INTERACTIVE"
                             if cache_key: self._measurement_cache[cache_key] = result
                             return result
@@ -431,7 +466,7 @@ class GeometryService:
                         "xmin": 0, "ymin": 0, "zmin": 0,
                         "xmax": dx, "ymax": dy, "zmax": dz
                     })
-                    res.update(build_measurement_payload(dx, dy, dz, "ROUGH_STOCK"))
+                    res.update(build_measurement_payload(dx, dy, dz, "ROUGH_STOCK", hint_text=cached_hint))
                     res["method_used"] = "ROUGH_STOCK"
                     logger.info(f"  Tier 0 Rough Stock Success: {res['stock_size']}")
                     if cache_key: self._measurement_cache[cache_key] = res
@@ -490,7 +525,7 @@ class GeometryService:
                         "xmin": bb[0]*MM_PER_M, "ymin": bb[2]*MM_PER_M, "zmin": bb[4]*MM_PER_M,
                         "xmax": bb[1]*MM_PER_M, "ymax": bb[3]*MM_PER_M, "zmax": bb[5]*MM_PER_M
                     })
-                    result.update(build_measurement_payload(dx, dy, dz, "SPA"))
+                    result.update(build_measurement_payload(dx, dy, dz, "SPA", hint_text=getattr(raw_pop, "Name", "")))
                     return result
         except: pass
         return None
@@ -558,7 +593,7 @@ class GeometryService:
             if os.path.exists(temp_stl): os.remove(temp_stl)
 
             if result:
-                result.update(build_measurement_payload(result["x"], result["y"], result["z"], "STL"))
+                result.update(build_measurement_payload(result["x"], result["y"], result["z"], "STL", hint_text=getattr(raw_pop, "Name", "")))
                 result["method_used"] = "STL"
                 return result
         except: pass
@@ -630,7 +665,7 @@ class GeometryService:
             return self._get_fallback_bbox()
         dx, dy, dz = global_max[0]-global_min[0], global_max[1]-global_min[1], global_max[2]-global_min[2]
         res = self._round_bbox({"x": dx, "y": dy, "z": dz})
-        res.update(build_measurement_payload(dx, dy, dz, method))
+        res.update(build_measurement_payload(dx, dy, dz, method, hint_text=getattr(product, "Name", "")))
         return res
 
     def _get_fallback_bbox(self) -> Dict[str, Any]:

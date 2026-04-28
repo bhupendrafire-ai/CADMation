@@ -12,18 +12,33 @@ def _pair_close(a: float, b: float, tolerance_ratio: float = 0.08, absolute_floo
     return delta <= limit
 
 
-def infer_stock_form_from_dims(dx: float, dy: float, dz: float) -> Dict[str, Any]:
+ROUND_KEYWORDS = (
+    "PIN", "PILLAR", "BUSH", "BUSHING", "ROD", "SHAFT", "ROLLER",
+    "POST", "SPACER", "SLEEVE", "PUNCH", "DOWEL", "GUIDE", "CYLINDER"
+)
+
+
+def infer_stock_form_from_dims(dx: float, dy: float, dz: float, hint_text: str = "") -> Dict[str, Any]:
     dims = [round(abs(float(dx)), 2), round(abs(float(dy)), 2), round(abs(float(dz)), 2)]
     dims_sorted = sorted(dims)
     low, mid, high = dims_sorted
 
+    # Only automatically infer diameter if we have a "Round" keyword hint, 
+    # OR if it's exceptionally square AND not explicitly a block/plate hint.
+    # User's complaint: "took some square blocks as dia too"
+    hint_upper = (hint_text or "").upper()
+    is_round_hint = any(k in hint_upper for k in ROUND_KEYWORDS)
+    is_block_hint = any(k in hint_upper for k in ("BLOCK", "PLATE", "STEEL", "FLANGE"))
+
     if _pair_close(low, mid) and not _pair_close(mid, high):
-        dia = round((low + mid) / 2.0, 2)
-        return {"kind": "diameter", "dims": [dia, high], "ordered_dims": [high, dia, dia], "stockForm": "round"}
+        if is_round_hint or not is_block_hint:
+            dia = round((low + mid) / 2.0, 2)
+            return {"kind": "diameter", "dims": [dia, high], "ordered_dims": [high, dia, dia], "stockForm": "round"}
 
     if _pair_close(mid, high) and not _pair_close(low, mid):
-        dia = round((mid + high) / 2.0, 2)
-        return {"kind": "diameter", "dims": [dia, low], "ordered_dims": [dia, dia, low], "stockForm": "round"}
+        if is_round_hint or not is_block_hint:
+            dia = round((mid + high) / 2.0, 2)
+            return {"kind": "diameter", "dims": [dia, low], "ordered_dims": [dia, dia, low], "stockForm": "round"}
 
     ordered = normalize_linear_dims(dims)
     return {"kind": "box", "dims": ordered[:3], "ordered_dims": ordered[:3], "stockForm": "rectangular"}
@@ -88,8 +103,8 @@ def build_size_payload(size_value: str) -> Dict[str, Any]:
     }
 
 
-def build_measurement_payload(dx: float, dy: float, dz: float, method_used: str = "") -> Dict[str, Any]:
-    inferred = infer_stock_form_from_dims(dx, dy, dz)
+def build_measurement_payload(dx: float, dy: float, dz: float, method_used: str = "", hint_text: str = "") -> Dict[str, Any]:
+    inferred = infer_stock_form_from_dims(dx, dy, dz, hint_text=hint_text)
     if inferred["kind"] == "diameter":
         formatted = format_size(inferred)
     else:

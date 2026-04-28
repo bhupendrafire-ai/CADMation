@@ -4,6 +4,12 @@ import ChatWindow from './components/ChatWindow'
 import SpecTree from './components/SpecTree'
 import StatusIndicator from './components/StatusIndicator'
 import ChatSidebar from './components/ChatSidebar'
+import Sidebar from './components/Sidebar'
+import Header from './components/Header'
+import Dashboard from './components/Dashboard'
+import BOMEditor from './components/BOMEditor'
+import BOMSelectionList from './components/BOMSelectionList'
+import HowToUseModal from './components/HowToUseModal'
 import { measureBomItems } from './utils/bomMeasurement'
 
 function App() {
@@ -20,7 +26,11 @@ function App() {
   // Session / History Management
   const [sessionId, setSessionId] = useState(null)
   const [sessions, setSessions] = useState([])
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [activeTab, setActiveTab] = useState('dashboard')
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false)
+  const [showGuide, setShowGuide] = useState(() => {
+    return localStorage.getItem('cadmation_hide_guide') !== 'true'
+  })
   
   const chatWindowRef = useRef(null)
   const messagesRef = useRef(messages)
@@ -227,6 +237,8 @@ function App() {
         },
       },
     ])
+    setActiveTab('bom')
+    setIsCopilotOpen(true)
   }
 
   const mergeBomResults = (existingItems, retryResults) => {
@@ -261,6 +273,7 @@ function App() {
       const bomOpts = messagesRef.current[messageIndex]?.interactive?.bomOptions
       const data = await measureBomItems({
         items: requestedItems,
+        projectName: activeDoc,
         method: method,
         tempRenameDuplicateBodies: !!bomOpts?.tempRenameDuplicateBodies,
         onLog: (log) => {
@@ -339,18 +352,21 @@ function App() {
       try {
         const data = await measureBomItems({
           items: action.items || [],
+          projectName: activeDoc,
           method: 'STL',
           onAction: handleMeasurementAction
         })
+        let mergedItems = []
         setMessages((prev) => {
           const next = [...prev]
           const targetMsg = next[action.targetMessageIndex]
           if (targetMsg?.bomEditor) {
+            mergedItems = mergeBomResults(targetMsg.bomEditor.items, data.results || [])
             next[action.targetMessageIndex] = {
               ...targetMsg,
               bomEditor: {
                 ...targetMsg.bomEditor,
-                items: mergeBomResults(targetMsg.bomEditor.items, data.results || []),
+                items: mergedItems,
               },
             }
           }
@@ -367,6 +383,23 @@ function App() {
         ])
       }
     }
+  }
+
+  const handleBomDraftUpdate = (messageIndex, items) => {
+    setMessages((prev) => {
+      const msg = prev[messageIndex];
+      if (!msg || !msg.interactive || msg.interactive.type !== 'bom-selector') {
+        return prev;
+      }
+      
+      const currentItemsJson = JSON.stringify(msg.interactive.items);
+      const nextItemsJson = JSON.stringify(items);
+      if (currentItemsJson === nextItemsJson) return prev;
+
+      return prev.map((m, i) => 
+        i === messageIndex ? { ...m, interactive: { ...m.interactive, items } } : m
+      );
+    });
   }
 
   const handleUpdateBomMessage = (messageIndex, bomData) => {
@@ -431,63 +464,177 @@ function App() {
     }
   }, [isConnected])
 
-  return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-foreground">
-      {/* Header */}
-      <header className="h-14 border-b border-white/5 flex items-center px-6 justify-between shrink-0 glass z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-6 h-6 bg-white rounded-sm rotate-45 flex items-center justify-center">
-            <div className="w-3 h-3 bg-black rounded-full"></div>
+  const lastBomMsg = [...messages].reverse().find(m => m.bomEditor || (m.interactive && m.interactive.type === 'bom-selector'))
+  const stats = {
+    totalItems: treeData?.node_count || 0,
+    pendingReviews: messages.filter(m => m.bomEditor?.items?.some(it => it.reviewStatus === 'needs_review')).length,
+    readyForExport: messages.filter(m => m.bomEditor?.items?.length > 0).length,
+    activeDrafts: sessions.length
+  }
+
+  const renderActiveWorkspace = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <Dashboard stats={stats} onNavigate={setActiveTab} />
+      case 'tree':
+        return (
+          <div className="flex-1 flex overflow-hidden">
+             <SpecTree
+               treeData={treeData}
+               onRefresh={handleRefreshTree}
+               taggedNode={taggedNode}
+               onNodeTag={handleNodeTag}
+               onGenerateBOM={(items, err, opts) => {
+                 handleGenerateBOM(items, err, opts)
+                 setActiveTab('bom')
+                 setIsCopilotOpen(true)
+               }}
+             />
+             <div className="flex-1 bg-black/20 flex items-center justify-center text-white/20">
+                <div className="text-center">
+                  <svg className="w-16 h-16 mx-auto mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+                  <p className="text-sm font-medium uppercase tracking-widest">Select a node to inspect properties</p>
+                </div>
+             </div>
           </div>
-          <h1 className="text-sm font-bold tracking-widest uppercase">CADMation</h1>
-          <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-muted-foreground font-mono">V0.1.0</span>
-        </div>
+        )
+      case 'bom':
+        if (lastBomMsg) {
+          const i = messages.indexOf(lastBomMsg)
+          return (
+            <div className="flex-1 overflow-hidden p-6 bg-black/10">
+              {lastBomMsg.bomEditor && (
+                <BOMEditor
+                  items={lastBomMsg.bomEditor.items}
+                  projectName={activeDoc}
+                  onItemsChange={(items) => onUpdateBomMessage?.(i, { ...lastBomMsg.bomEditor, items })}
+                  onExport={(items) => onBomExport?.(i, items)}
+                  disabled={lastBomMsg.bomEditor.exporting}
+                  isFullscreen={true}
+                />
+              )}
+              {lastBomMsg.interactive && lastBomMsg.interactive.type === 'bom-selector' && (
+                <div className="max-w-6xl mx-auto">
+                  <BOMSelectionList
+                    items={lastBomMsg.interactive.items}
+                    projectName={activeDoc}
+                    bomOptions={lastBomMsg.interactive.bomOptions}
+                    onAction={handleMeasurementAction}
+                    onUpdate={(items) => handleBomDraftUpdate?.(i, items)}
+                    onCalculationComplete={(payload) => {
+                      handleBomSelectionComplete?.(i, payload)
+                    }}
+                    onPartialExport={(items) => handleBomExport?.(i, items)}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        }
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center text-white/20 p-10">
+            <svg className="w-20 h-20 mb-6 opacity-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            <h3 className="text-lg font-bold text-white/40 mb-2">No Active BOM</h3>
+            <p className="text-sm text-center max-w-md">Go to the Assembly Tree to scan your CATIA project and generate a new Bill of Materials.</p>
+            <button onClick={() => setActiveTab('tree')} className="mt-8 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-500 transition-all shadow-xl shadow-blue-600/20">Go to Assembly Tree</button>
+          </div>
+        )
+      case 'drafting':
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center text-white/20 p-10 bg-blue-600/[0.02]">
+            <div className="w-24 h-24 mb-8 bg-blue-600/5 rounded-[2rem] flex items-center justify-center border border-blue-600/10">
+               <svg className="w-12 h-12 text-blue-500/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+            </div>
+            <h3 className="text-xl font-bold text-white/80 mb-3 tracking-tight">2D Drafting Automation</h3>
+            <p className="text-sm text-center max-w-md text-white/40 leading-relaxed">
+              Automated multi-view generation, axis propagation, and title block synchronization are currently being finalized for Enterprise v2.3.
+            </p>
+            <div className="mt-8 flex gap-4">
+              <span className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-bold text-blue-400 uppercase tracking-widest">Early Access</span>
+              <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-white/30 uppercase tracking-widest">Q3 2026</span>
+            </div>
+          </div>
+        )
+    }
+  }
 
-        <StatusIndicator isConnected={isConnected} />
-      </header>
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-[#09090b] text-foreground font-sans antialiased">
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        <Header isConnected={isConnected} activeDoc={activeDoc} />
+        
+        <main className="flex-1 flex flex-col overflow-hidden relative">
+          {renderActiveWorkspace()}
+          
+          {/* Copilot Drawer Trigger */}
+          {!isCopilotOpen && (
+            <button 
+              onClick={() => setIsCopilotOpen(true)}
+              className="fixed bottom-8 right-8 w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-600/40 hover:scale-110 active:scale-95 transition-all z-50 group"
+              title="Open Copilot"
+            >
+              <svg className="w-6 h-6 text-white group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[#09090b] flex items-center justify-center">
+                <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+              </div>
+            </button>
+          )}
 
-      {/* Main Content */}
-      <main className="flex-1 flex overflow-hidden">
-        <SpecTree
-          treeData={treeData}
-          onRefresh={handleRefreshTree}
-          taggedNode={taggedNode}
-          onNodeTag={handleNodeTag}
-          onGenerateBOM={handleGenerateBOM}
-        />
+          {/* Copilot / Chat Drawer */}
+          <div className={`fixed inset-y-0 right-0 w-[450px] bg-[#0d0d0e] border-l border-white/5 shadow-2xl transition-all duration-500 transform z-[60] flex flex-col ${isCopilotOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className="h-16 border-b border-white/5 flex items-center px-6 justify-between shrink-0 bg-white/[0.02]">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 bg-blue-500 rounded-lg flex items-center justify-center">
+                   <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+                </div>
+                <h3 className="text-sm font-bold text-white/80">AI Copilot</h3>
+              </div>
+              <button 
+                onClick={() => setIsCopilotOpen(false)}
+                className="p-2 hover:bg-white/5 rounded-lg text-white/30 hover:text-white transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <ChatWindow
+                ref={chatWindowRef}
+                messages={messages}
+                activeDoc={activeDoc}
+                onSendMessage={handleSendMessage}
+                onUpdateBomMessage={handleUpdateBomMessage}
+                onBomExport={handleBomExport}
+                onInteractiveAction={handleInteractiveAction}
+                onMeasurementAction={handleMeasurementAction}
+                onBomSelectionComplete={handleBomSelectionComplete}
+                onBomDraftUpdate={handleBomDraftUpdate}
+                isEmbedded={true}
+              />
+            </div>
 
-        <ChatWindow
-          ref={chatWindowRef}
-          messages={messages}
-          onSendMessage={handleSendMessage}
-          onUpdateBomMessage={handleUpdateBomMessage}
-          onBomExport={handleBomExport}
-          onInteractiveAction={handleInteractiveAction}
-          onMeasurementAction={handleMeasurementAction}
-          onBomSelectionComplete={handleBomSelectionComplete}
-        />
+            <div className="p-4 bg-white/[0.02] border-t border-white/5">
+              <ChatSidebar
+                isOpen={true}
+                onToggle={() => {}}
+                sessions={sessions}
+                currentSessionId={sessionId}
+                onSelectSession={handleSelectSession}
+                onNewChat={startNewSession}
+                isCompact={true}
+              />
+            </div>
+          </div>
+        </main>
+      </div>
 
-        <ChatSidebar
-          isOpen={isSidebarOpen}
-          onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-          sessions={sessions}
-          currentSessionId={sessionId}
-          onSelectSession={handleSelectSession}
-          onNewChat={startNewSession}
-        />
-      </main>
-
-      {/* Connection Toggle (Hidden/Dev only) */}
-      <button
-        onClick={() => setIsConnected(!isConnected)}
-        className="fixed bottom-4 right-4 text-[9px] text-white/10 hover:text-white/40 transition-colors uppercase font-mono"
-      >
-        Toggle Dev Connection
-      </button>
+      {showGuide && <HowToUseModal onClose={() => setShowGuide(false)} />}
 
       {/* Interactive Axis Selection Modal */}
       {pendingAxisWs && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl">
           <div className="glass p-10 rounded-[2rem] border border-white/10 max-w-lg w-full shadow-2xl shadow-blue-500/10 animate-in zoom-in-95 slide-in-from-bottom-5 duration-500">
              <div className="flex items-center gap-4 mb-8">
                 <div className="w-12 h-12 bg-blue-500/20 rounded-2xl flex items-center justify-center">
