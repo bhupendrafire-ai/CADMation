@@ -5,31 +5,36 @@
   padding: 0;
 }
 
+/* ═══════════════════════════════════════════════
+   Industrial Zen — Motion & Animation
+   ═══════════════════════════════════════════════ */
+
 .animate-in {
-  animation: animate-in 0.3s ease-out;
+  animation: zen-enter 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes animate-in {
+@keyframes zen-enter {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(16px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-/* Glassmorphism */
+/* Glassmorphism — Zen Glass Override */
 .glass {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.80);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--color-zen-border, #E2E4E5);
 }
 
-/* Sticky Columns */
+/* ═══════════════════════════════════════════════
+   Sticky Columns (BOM table)
+   ═══════════════════════════════════════════════ */
 .sticky-column {
   position: sticky !important;
   z-index: 20;
@@ -45,36 +50,41 @@ thead th.sticky-column {
   z-index: 30;
 }
 
-/* Enhanced Table Styles */
+/* ═══════════════════════════════════════════════
+   BOM Table Styles — Industrial Zen
+   ═══════════════════════════════════════════════ */
 .bom-table-row:nth-child(even) {
-  background: rgba(255, 255, 255, 0.01);
+  background: var(--color-zen-surface-alt, #F2F4F4);
 }
 
 .bom-table-row:hover {
-  background: rgba(255, 255, 255, 0.05) !important;
+  background: var(--color-zen-surface-alt, #F2F4F4) !important;
 }
 
 .column-header {
-  background: #0d0d0e;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-  font-weight: 600;
+  background: var(--color-zen-surface, #FFFFFF);
+  border-bottom: 2px solid var(--color-zen-border, #E2E4E5);
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.15em;
   font-size: 10px;
+  color: var(--color-zen-text-muted, #94A3B8);
 }
 
-/* Sidebar Styling */
+/* ═══════════════════════════════════════════════
+   Sidebar Styling — Industrial Zen
+   ═══════════════════════════════════════════════ */
 .drafting-sidebar {
   position: fixed;
   top: 0;
   right: 0;
   height: 100vh;
-  width: 320px;
-  background: #09090b;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  width: 340px;
+  background: var(--color-zen-surface, #FFFFFF);
+  border-left: 1px solid var(--color-zen-border, #E2E4E5);
   z-index: 100;
-  box-shadow: -10px 0 30px rgba(0,0,0,0.5);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: -16px 0 48px rgba(0, 0, 0, 0.08);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .drafting-sidebar.closed {
@@ -84,7 +94,38 @@ thead th.sticky-column {
 .drafting-sidebar-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(4px);
   z-index: 90;
+}
+
+/* ═══════════════════════════════════════════════
+   Custom Scrollbars — Industrial Zen
+   ═══════════════════════════════════════════════ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-zen-border, #E2E4E5);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-zen-text-muted, #94A3B8);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Global selection color */
+::selection {
+  background: rgba(26, 26, 26, 0.08);
+  color: var(--color-zen-primary, #1A1A1A);
 }

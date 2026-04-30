@@ -7,6 +7,7 @@ import ChatSidebar from './components/ChatSidebar'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import Dashboard from './components/Dashboard'
+import DraftingPage from './components/DraftingPage'
 import BOMEditor from './components/BOMEditor'
 import BOMSelectionList from './components/BOMSelectionList'
 import HowToUseModal from './components/HowToUseModal'
@@ -28,6 +29,12 @@ function App() {
   const [sessions, setSessions] = useState([])
   const [activeTab, setActiveTab] = useState('dashboard')
   const [isCopilotOpen, setIsCopilotOpen] = useState(false)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(true)
+  const [exportStatus, setExportStatus] = useState({ 
+    status: 'idle', 
+    path: '', 
+    error: '' 
+  })
   const [showGuide, setShowGuide] = useState(() => {
     return localStorage.getItem('cadmation_hide_guide') !== 'true'
   })
@@ -228,6 +235,7 @@ function App() {
     setMessages((prev) => [
       ...prev,
       {
+        id: `bom-${Date.now()}`,
         role: 'ai',
         content: 'I have scanned the active document (ignoring hidden items). Please select the items you wish to measure for the BOM:',
         interactive: {
@@ -419,7 +427,10 @@ function App() {
   }
 
   const handleBomExport = async (messageIndex, items) => {
-    const msg = messages[messageIndex]
+    const msg = messageIndex !== null ? messages[messageIndex] : null
+    
+    setExportStatus({ status: 'exporting', path: '', error: '' })
+
     if (msg?.bomEditor) {
       setMessages((prev) =>
         prev.map((m, i) =>
@@ -435,14 +446,18 @@ function App() {
       })
       const data = await res.json()
       if (data.status === 'success') {
+        setExportStatus({ status: 'success', path: data.file_path, error: '' })
         setMessages((prev) => [
           ...prev,
           { role: 'ai', content: `BOM exported to:\n${data.file_path}` },
         ])
       } else {
-        setMessages((prev) => [...prev, { role: 'ai', content: `Export failed: ${data.error}` }])
+        const err = data.error || 'Export failed'
+        setExportStatus({ status: 'error', path: '', error: err })
+        setMessages((prev) => [...prev, { role: 'ai', content: `Export failed: ${err}` }])
       }
     } catch (err) {
+      setExportStatus({ status: 'error', path: '', error: 'Failed to connect for BOM export.' })
       setMessages((prev) => [...prev, { role: 'ai', content: 'Failed to connect for BOM export.' }])
     } finally {
       if (msg?.bomEditor) {
@@ -452,6 +467,22 @@ function App() {
           )
         )
       }
+    }
+  }
+
+  const handleOpenFile = async (path) => {
+    try {
+      const res = await fetch('/api/catia/bom/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        alert(`Failed to open file: ${data.error || 'Unknown error'}`)
+      }
+    } catch (err) {
+      alert(`Request failed: ${err.message}`)
     }
   }
 
@@ -490,10 +521,10 @@ function App() {
                  setIsCopilotOpen(true)
                }}
              />
-             <div className="flex-1 bg-black/20 flex items-center justify-center text-white/20">
+              <div className="flex-1 bg-zen-surface-alt flex items-center justify-center text-zen-text-muted">
                 <div className="text-center">
                   <svg className="w-16 h-16 mx-auto mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
-                  <p className="text-sm font-medium uppercase tracking-widest">Select a node to inspect properties</p>
+                   <p className="text-sm font-medium uppercase tracking-widest text-zen-text-muted">Select a node to inspect properties</p>
                 </div>
              </div>
           </div>
@@ -502,13 +533,13 @@ function App() {
         if (lastBomMsg) {
           const i = messages.indexOf(lastBomMsg)
           return (
-            <div className="flex-1 overflow-hidden p-6 bg-black/10">
+            <div className="flex-1 overflow-hidden p-6 bg-zen-bg">
               {lastBomMsg.bomEditor && (
                 <BOMEditor
                   items={lastBomMsg.bomEditor.items}
                   projectName={activeDoc}
-                  onItemsChange={(items) => onUpdateBomMessage?.(i, { ...lastBomMsg.bomEditor, items })}
-                  onExport={(items) => onBomExport?.(i, items)}
+                  onItemsChange={(items) => handleUpdateBomMessage?.(i, { ...lastBomMsg.bomEditor, items })}
+                  onExport={(items) => handleBomExport?.(i, items)}
                   disabled={lastBomMsg.bomEditor.exporting}
                   isFullscreen={true}
                 />
@@ -516,6 +547,7 @@ function App() {
               {lastBomMsg.interactive && lastBomMsg.interactive.type === 'bom-selector' && (
                 <div className="max-w-6xl mx-auto">
                   <BOMSelectionList
+                    key={lastBomMsg.id || messages.indexOf(lastBomMsg)}
                     items={lastBomMsg.interactive.items}
                     projectName={activeDoc}
                     bomOptions={lastBomMsg.interactive.bomOptions}
@@ -532,34 +564,22 @@ function App() {
           )
         }
         return (
-          <div className="flex-1 flex flex-col items-center justify-center text-white/20 p-10">
-            <svg className="w-20 h-20 mb-6 opacity-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-            <h3 className="text-lg font-bold text-white/40 mb-2">No Active BOM</h3>
+          <div className="flex-1 flex flex-col items-center justify-center text-zen-text-muted p-10">
+            <svg className="w-20 h-20 mb-6 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            <h3 className="text-lg font-bold text-zen-text-dim mb-2">No Active BOM</h3>
             <p className="text-sm text-center max-w-md">Go to the Assembly Tree to scan your CATIA project and generate a new Bill of Materials.</p>
-            <button onClick={() => setActiveTab('tree')} className="mt-8 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-500 transition-all shadow-xl shadow-blue-600/20">Go to Assembly Tree</button>
+            <button onClick={() => setActiveTab('tree')} className="zen-pill mt-8 px-8 py-3 text-sm">Go to Assembly Tree</button>
           </div>
         )
       case 'drafting':
         return (
-          <div className="flex-1 flex flex-col items-center justify-center text-white/20 p-10 bg-blue-600/[0.02]">
-            <div className="w-24 h-24 mb-8 bg-blue-600/5 rounded-[2rem] flex items-center justify-center border border-blue-600/10">
-               <svg className="w-12 h-12 text-blue-500/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-            </div>
-            <h3 className="text-xl font-bold text-white/80 mb-3 tracking-tight">2D Drafting Automation</h3>
-            <p className="text-sm text-center max-w-md text-white/40 leading-relaxed">
-              Automated multi-view generation, axis propagation, and title block synchronization are currently being finalized for Enterprise v2.3.
-            </p>
-            <div className="mt-8 flex gap-4">
-              <span className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-bold text-blue-400 uppercase tracking-widest">Early Access</span>
-              <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-white/30 uppercase tracking-widest">Q3 2026</span>
-            </div>
-          </div>
+          <DraftingPage activeDoc={activeDoc} isConnected={isConnected} lastBomMsg={lastBomMsg} />
         )
     }
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#09090b] text-foreground font-sans antialiased">
+    <div className="flex h-screen w-screen overflow-hidden bg-zen-bg text-zen-text-main font-sans antialiased">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
@@ -572,28 +592,28 @@ function App() {
           {!isCopilotOpen && (
             <button 
               onClick={() => setIsCopilotOpen(true)}
-              className="fixed bottom-8 right-8 w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-600/40 hover:scale-110 active:scale-95 transition-all z-50 group"
+              className="fixed bottom-8 right-8 w-14 h-14 bg-zen-primary rounded-2xl flex items-center justify-center shadow-[0_16px_48px_-8px_rgba(26,26,26,0.3)] hover:scale-110 active:scale-95 transition-all z-50 group"
               title="Open Copilot"
             >
               <svg className="w-6 h-6 text-white group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[#09090b] flex items-center justify-center">
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-zen-error rounded-full border-2 border-zen-bg flex items-center justify-center">
                 <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
               </div>
             </button>
           )}
 
           {/* Copilot / Chat Drawer */}
-          <div className={`fixed inset-y-0 right-0 w-[450px] bg-[#0d0d0e] border-l border-white/5 shadow-2xl transition-all duration-500 transform z-[60] flex flex-col ${isCopilotOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-            <div className="h-16 border-b border-white/5 flex items-center px-6 justify-between shrink-0 bg-white/[0.02]">
+          <div className={`fixed inset-y-0 right-0 w-[450px] bg-zen-surface border-l border-zen-border shadow-[−16px_0_48px_rgba(0,0,0,0.08)] transition-all duration-500 transform z-[60] flex flex-col ${isCopilotOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className="h-16 border-b border-zen-border flex items-center px-6 justify-between shrink-0 bg-zen-surface-alt">
               <div className="flex items-center gap-3">
-                <div className="w-6 h-6 bg-blue-500 rounded-lg flex items-center justify-center">
+                <div className="w-6 h-6 bg-zen-primary rounded-lg flex items-center justify-center">
                    <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
                 </div>
-                <h3 className="text-sm font-bold text-white/80">AI Copilot</h3>
+                <h3 className="text-sm font-bold text-zen-text-main">AI Copilot</h3>
               </div>
               <button 
                 onClick={() => setIsCopilotOpen(false)}
-                className="p-2 hover:bg-white/5 rounded-lg text-white/30 hover:text-white transition-all"
+                className="p-2 hover:bg-zen-surface-alt rounded-lg text-zen-text-muted hover:text-zen-text-main transition-all"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
@@ -615,10 +635,10 @@ function App() {
               />
             </div>
 
-            <div className="p-4 bg-white/[0.02] border-t border-white/5">
+            <div className="p-4 bg-zen-surface-alt border-t border-zen-border">
               <ChatSidebar
-                isOpen={true}
-                onToggle={() => {}}
+                isOpen={isHistoryOpen}
+                onToggle={() => setIsHistoryOpen(!isHistoryOpen)}
                 sessions={sessions}
                 currentSessionId={sessionId}
                 onSelectSession={handleSelectSession}
@@ -632,48 +652,134 @@ function App() {
 
       {showGuide && <HowToUseModal onClose={() => setShowGuide(false)} />}
 
-      {/* Interactive Axis Selection Modal */}
       {pendingAxisWs && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl">
-          <div className="glass p-10 rounded-[2rem] border border-white/10 max-w-lg w-full shadow-2xl shadow-blue-500/10 animate-in zoom-in-95 slide-in-from-bottom-5 duration-500">
-             <div className="flex items-center gap-4 mb-8">
-                <div className="w-12 h-12 bg-blue-500/20 rounded-2xl flex items-center justify-center">
-                   <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                </div>
-                <div>
-                   <h2 className="text-2xl font-bold tracking-tight">Manual Action Required</h2>
-                   <p className="text-blue-400 text-xs font-mono uppercase tracking-widest mt-1">CATIA V5 Interaction</p>
-                </div>
-             </div>
-             
-             <div className="bg-white/5 rounded-2xl p-6 mb-8 border border-white/5">
-                <p className="text-sm text-neutral-300 leading-relaxed font-medium">
-                   {pendingAxisWs.log}
-                </p>
-             </div>
-
-             <div className="flex flex-col gap-3">
-                <button
-                  onClick={() => {
-                    if (pendingAxisWs.ws && pendingAxisWs.ws.readyState === WebSocket.OPEN) {
-                      pendingAxisWs.ws.send(JSON.stringify({ command: 'AXIS_CONFIRMED' }));
-                    }
-                    setMessages(prev => [...prev, { role: 'ai', content: '✅ Axis selection confirmed. Resuming measurement...' }]);
-                    setPendingAxisWs(null);
-                  }}
-                  className="w-full h-14 bg-white text-black rounded-2xl font-bold hover:bg-neutral-200 active:scale-[0.98] transition-all shadow-xl shadow-white/5"
-                >
-                   I have selected the Axis
-                </button>
-                <p className="text-[10px] text-center text-neutral-500 uppercase tracking-widest font-bold">
-                   Resuming automation after confirmation
-                </p>
-             </div>
-          </div>
-        </div>
+        <AxisSelectionModal
+          isOpen={!!pendingAxisWs}
+          onClose={() => setPendingAxisWs(null)}
+          onConfirm={() => {
+            if (pendingAxisWs.ws && pendingAxisWs.ws.readyState === WebSocket.OPEN) {
+              pendingAxisWs.ws.send(JSON.stringify({ command: 'AXIS_CONFIRMED' }));
+              setMessages(prev => [...prev, { 
+                role: 'ai', 
+                content: '✅ Axis selection confirmed. Resuming measurement...' 
+              }]);
+            }
+            setPendingAxisWs(null);
+          }}
+          log={pendingAxisWs.log}
+        />
       )}
+
+      <ExportModal 
+        state={exportStatus} 
+        onClose={() => setExportStatus({ ...exportStatus, status: 'idle' })} 
+        onOpenFile={handleOpenFile}
+      />
     </div>
   )
+}
+
+function AxisSelectionModal({ isOpen, onClose, onConfirm, log }) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
+      <div className="zen-card w-full max-w-md border border-zen-border overflow-hidden">
+        <div className="p-6">
+          <div className="w-12 h-12 bg-zen-warning/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+            <svg className="w-6 h-6 text-zen-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-bold text-zen-text-main text-center mb-2">Axis Selection Required</h3>
+          <p className="text-zen-text-dim text-sm text-center mb-6 leading-relaxed">
+            {log || "Please select the 'AP_AXIS' Publication in CATIA before proceeding."}
+          </p>
+          
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={onConfirm}
+              className="zen-pill w-full py-3 text-sm"
+            >
+              I have selected the Axis
+            </button>
+            <button
+              onClick={onClose}
+              className="w-full py-3 bg-zen-surface-alt text-zen-text-dim font-medium rounded-full hover:bg-zen-border transition-all"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExportModal({ state, onClose, onOpenFile }) {
+  if (state.status === 'idle') return null;
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/20 backdrop-blur-md animate-in">
+      <div className="zen-card w-full max-w-md border border-zen-border overflow-hidden p-8 flex flex-col items-center text-center">
+        
+        {state.status === 'exporting' && (
+          <>
+            <div className="w-16 h-16 rounded-full border-2 border-zen-border border-t-zen-primary animate-spin mb-6"></div>
+            <h3 className="text-xl font-bold text-zen-text-main mb-2">Generating Excel BOM</h3>
+            <p className="text-zen-text-dim text-sm">Please wait while we compile your measurements and styles into a production-ready Excel sheet...</p>
+          </>
+        )}
+
+        {state.status === 'success' && (
+          <>
+            <div className="w-16 h-16 bg-zen-success/10 rounded-full flex items-center justify-center mb-6">
+              <svg className="w-8 h-8 text-zen-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-zen-text-main mb-2">Export Successful</h3>
+            <div className="w-full bg-zen-surface-alt rounded-xl p-4 mb-6 border border-zen-border">
+               <p className="zen-label text-left mb-1">Save Location</p>
+               <p className="text-[11px] text-zen-success font-mono break-all text-left">{state.path}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <button
+                onClick={() => onOpenFile(state.path)}
+                className="zen-pill py-3.5 text-sm flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                Open Excel
+              </button>
+              <button
+                onClick={onClose}
+                className="py-3.5 bg-zen-surface-alt text-zen-text-dim font-bold rounded-full hover:bg-zen-border transition-all"
+              >
+                Dismiss
+              </button>
+            </div>
+          </>
+        )}
+
+        {state.status === 'error' && (
+          <>
+            <div className="w-16 h-16 bg-zen-error/10 rounded-full flex items-center justify-center mb-6">
+              <svg className="w-8 h-8 text-zen-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-zen-text-main mb-2">Export Failed</h3>
+            <p className="text-zen-error text-sm mb-8">{state.error}</p>
+            <button
+              onClick={onClose}
+              className="zen-pill w-full py-4 text-sm"
+            >
+              Try Again
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default App

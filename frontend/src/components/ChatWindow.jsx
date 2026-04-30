@@ -54,26 +54,26 @@ const ChatWindow = forwardRef(({ messages, activeDoc, onSendMessage, onUpdateBom
     }
 
     return (
-        <section className="flex-1 flex flex-col min-w-0 bg-background">
+        <section className="flex-1 flex flex-col min-w-0 bg-zen-bg">
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {messages.map((msg, i) => (
                     <div
                         key={i}
-                        className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                        className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'} animate-in`}
                     >
                         <div className="text-sm leading-relaxed whitespace-pre-wrap font-sans">
                             {msg.content}
                         </div>
 
                         {msg.bomEditor && (
-                            <div className={isEmbedded ? "mt-3 rounded-lg overflow-hidden border border-white/5 bg-white/5" : ""}>
+                            <div className={isEmbedded ? "mt-3 rounded-xl overflow-hidden border border-zen-border bg-zen-surface-alt" : ""}>
                                 {isEmbedded ? (
                                     <div className="p-3 flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                            <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                            <span className="text-[11px] font-bold text-white/70">{msg.bomEditor.items?.length || 0} items in BOM</span>
+                                            <svg className="w-4 h-4 text-zen-info" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                            <span className="text-[11px] font-bold text-zen-text-dim">{msg.bomEditor.items?.length || 0} items in BOM</span>
                                         </div>
-                                        <span className="text-[9px] text-white/30 uppercase tracking-widest font-mono">Synced to Workspace</span>
+                                        <span className="text-[9px] text-zen-text-muted uppercase tracking-widest font-mono">Synced to Workspace</span>
                                     </div>
                                 ) : (
                                     <BOMEditor
@@ -88,11 +88,11 @@ const ChatWindow = forwardRef(({ messages, activeDoc, onSendMessage, onUpdateBom
                         )}
                         
                         {msg.interactive && msg.interactive.type === 'bom-selector' && (
-                            <div className={isEmbedded ? "mt-3 rounded-lg overflow-hidden border border-white/5 bg-white/5" : ""}>
+                            <div className={isEmbedded ? "mt-3 rounded-xl overflow-hidden border border-zen-border bg-zen-surface-alt" : ""}>
                                 {isEmbedded ? (
                                     <div className="p-4 text-center">
-                                         <p className="text-[11px] text-white/50 mb-3">BOM selection required for {msg.interactive.items?.length || 0} parts.</p>
-                                         <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Active in BOM Workspace</p>
+                                         <p className="text-[11px] text-zen-text-dim mb-3">BOM selection required for {msg.interactive.items?.length || 0} parts.</p>
+                                         <p className="text-[10px] font-bold text-zen-info uppercase tracking-widest">Active in BOM Workspace</p>
                                     </div>
                                 ) : (
                                     <BOMSelectionList
@@ -111,7 +111,7 @@ const ChatWindow = forwardRef(({ messages, activeDoc, onSendMessage, onUpdateBom
                         )}
 
                         {msg.interactive && msg.interactive.type === 'choice' && (
-                            <div className="mt-4 flex flex-wrap gap-2 pt-4 border-t border-white/5">
+                            <div className="mt-4 flex flex-wrap gap-2 pt-4 border-t border-zen-border">
                                 {msg.interactive.options.map((opt) => (
                                     <button
                                         key={opt.id}
@@ -122,10 +122,10 @@ const ChatWindow = forwardRef(({ messages, activeDoc, onSendMessage, onUpdateBom
                                             }
                                             onSendMessage(opt.value || opt.label)
                                         }}
-                                        className={`text-xs px-3 py-1.5 rounded-lg border transition-all active:scale-95 ${
+                                        className={`text-xs px-4 py-2 rounded-full border transition-all active:scale-95 ${
                                             opt.primary 
-                                            ? 'bg-white text-black border-white hover:bg-neutral-200' 
-                                            : 'bg-transparent text-white/70 border-white/10 hover:border-white/30 hover:text-white'
+                                            ? 'bg-zen-primary text-white border-zen-primary hover:scale-105' 
+                                            : 'bg-zen-surface text-zen-text-dim border-zen-border hover:border-zen-text-muted hover:text-zen-text-main'
                                         }`}
                                     >
                                         {opt.label}
@@ -138,7 +138,7 @@ const ChatWindow = forwardRef(({ messages, activeDoc, onSendMessage, onUpdateBom
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className={`p-6 border-t border-white/5 ${isEmbedded ? 'bg-white/[0.02]' : ''}`}>
+            <div className={`p-6 border-t border-zen-border ${isEmbedded ? 'bg-zen-surface-alt' : ''}`}>
                 <form onSubmit={handleSubmit} className="relative max-w-4xl mx-auto">
                     <textarea
                         ref={textareaRef}
@@ -146,13 +146,13 @@ const ChatWindow = forwardRef(({ messages, activeDoc, onSendMessage, onUpdateBom
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder={isEmbedded ? "Ask Copilot..." : "Ask the copilot to modify the CATIA model..."}
-                        className={`w-full bg-secondary/50 border border-white/10 rounded-2xl py-4 pl-4 pr-14 focus:outline-none focus:ring-1 focus:ring-white/20 resize-none h-14 min-h-[56px] text-sm overflow-hidden placeholder:text-muted-foreground/50 transition-all focus:bg-secondary/70 ${isEmbedded ? 'text-xs' : ''}`}
+                        className={`w-full bg-zen-surface border border-zen-border rounded-2xl py-4 pl-4 pr-14 focus:outline-none focus:ring-1 focus:ring-zen-text-muted resize-none h-14 min-h-[56px] text-sm overflow-hidden placeholder:text-zen-text-muted transition-all focus:border-zen-border-strong text-zen-text-main ${isEmbedded ? 'text-xs' : ''}`}
                         rows={1}
                     />
                     <button
                         type="submit"
                         disabled={!input.trim()}
-                        className="absolute right-2 top-2 p-2 rounded-xl bg-white text-black hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+                        className="absolute right-2 top-2 p-2 rounded-full bg-zen-primary text-white hover:scale-105 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="22" y1="2" x2="11" y2="13" />

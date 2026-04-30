@@ -5,7 +5,6 @@ import { getNameSuggestions } from '../utils/bomNaming'
 
 const DEFAULT_METHOD = 'STL'
 
-/** Re-apply Classify-before-measure fields onto API results (sizes/methods from server, classification from UI). */
 function mergeClassificationIntoResults(classifiedRows, resultRows) {
   const map = new Map()
   for (const r of resultRows || []) {
@@ -101,7 +100,6 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
   const lastSyncedItemsRef = useRef(null)
 
   useEffect(() => {
-    // Only update local state if the prop changed from something OTHER than our last local update
     const nextNormalized = normalizeRows(initialItems)
     const nextJson = JSON.stringify(nextNormalized)
     if (nextJson !== lastSyncedItemsRef.current) {
@@ -223,14 +221,11 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
               if (opts.length === 1) {
                 mb = opts[0]
               } else if (opts.length > 1 && mb) {
-                // Fuzzy match against new options to avoid accidental clearance
                 const mbNorm = mb.trim().toUpperCase()
                 const canonicalMatch = opts.find(o => o.trim().toUpperCase() === mbNorm)
                 if (canonicalMatch) {
-                  mb = canonicalMatch // Use the exact name from CATIA
+                  mb = canonicalMatch
                 }
-                // If not found, we RETAIN the old value 'mb' rather than wiping it to ''
-                // This ensures the backend still receives the user's preference.
               }
               
               const hint = opts.length === 0 && r.error ? hintFor(r.error) : ''
@@ -299,26 +294,6 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
     setItems((prev) => prev.map((item) => ({ ...item, selected })))
   }
 
-  const updateClassification = (id, classification) => {
-    setSelectorError('')
-    updateItem(id, (item) => {
-      if (classification === 'STD') {
-        return {
-          ...item,
-          isStd: true,
-          sheetCategory: 'STD',
-          manufacturer: item.manufacturer || 'MISUMI',
-        }
-      }
-      const nextCategory = item.sheetCategory && ['Steel', 'MS', 'Casting'].includes(item.sheetCategory) ? item.sheetCategory : 'Steel'
-      return {
-        ...item,
-        isStd: false,
-        sheetCategory: nextCategory,
-      }
-    })
-  }
-
   const updateSheetCategory = (id, value) => {
     setSelectorError('')
     updateItem(id, (item) => ({
@@ -367,7 +342,7 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
   }
 
   const splitRow = (item, index) => {
-    const qtyStr = window.prompt(`How many total BOM items exist under part "${item.instanceName || item.name || 'this item'}"?\n(This will create duplicate rows so you can assign a different measure body to each.)`, "2")
+    const qtyStr = window.prompt(`How many total BOM items exist under part "${item.instanceName || item.name || 'this item'}"?`, "2")
     if (!qtyStr) return
     const count = parseInt(qtyStr, 10)
     if (isNaN(count) || count <= 1) return
@@ -381,9 +356,9 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
           ...item,
           id: sid,
           isClonedRow: true,
-          sourceRowId: item.sourceRowId || item.id,
-          measurementBodyName: '', // allow user to pick another body
-          qty: 1, // assume each split body is a qty of 1 for that body
+          sourceRowId: sid,
+          measurementBodyName: '',
+          qty: 1,
         }])[0])
       }
       next.splice(index + 1, 0, ...clones)
@@ -393,18 +368,9 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
 
   const validateBeforeMeasurement = (selectedItems) => {
     const manualNoInstance = selectedItems.filter((item) => item.isManualRow && !`${item.instanceName || ''}`.trim())
-    if (manualNoInstance.length) {
-      return 'Manual row(s): enter the CATIA instance name (tree name) before measurement.'
-    }
-    const manualNoBody = selectedItems.filter(
-      (item) =>
-        item.isManualRow && !item.isStd &&
-        !`${item.measurementBodyName || ''}`.trim() &&
-        (item.bodyNameOptions?.length || 0) === 0,
-    )
-    if (manualNoBody.length) {
-      return 'Manual row(s): enter the measure body name exactly as in CATIA, or wait until bodies load from the assembly.'
-    }
+    if (manualNoInstance.length) return 'Manual row(s): enter the CATIA instance name before measurement.'
+    const manualNoBody = selectedItems.filter(item => item.isManualRow && !item.isStd && !`${item.measurementBodyName || ''}`.trim() && (item.bodyNameOptions?.length || 0) === 0)
+    if (manualNoBody.length) return 'Manual row(s): enter the measure body name exactly as in CATIA.'
     return ''
   }
 
@@ -418,27 +384,13 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
       return
     }
 
-    const ambiguousBody = selectedItems.filter(
-      (it) => !it.isStd && (it.bodyNameOptions?.length || 0) > 1 && !`${it.measurementBodyName || ''}`.trim(),
-    )
+    const ambiguousBody = selectedItems.filter(it => !it.isStd && (it.bodyNameOptions?.length || 0) > 1 && !`${it.measurementBodyName || ''}`.trim())
     if (ambiguousBody.length) {
-      setSelectorError(
-        `Choose a measure body for ${ambiguousBody.length} part(s) with multiple bodies (Measure body column).`,
-      )
+      setSelectorError(`Choose a measure body for ${ambiguousBody.length} part(s) with multiple bodies.`)
       return
     }
 
-    // RESUME LOGIC: Filter out items that already have a result
-    const toMeasure = selectedItems.filter(it => 
-      !it.isStd && (
-      !it.stock_size || 
-      it.stock_size === 'Measuring...' || 
-      it.stock_size === 'Unknown' ||
-      it.stock_size.includes('Error') ||
-      it.stock_size.includes('Not Measurable')
-      )
-    )
-
+    const toMeasure = selectedItems.filter(it => !it.isStd && (!it.stock_size || it.stock_size === 'Measuring...' || it.stock_size === 'Unknown' || it.stock_size.includes('Error') || it.stock_size.includes('Not Measurable')))
     const skippedCount = selectedItems.length - toMeasure.length
 
     setCalculating(true)
@@ -463,7 +415,6 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
       method: measureMethod,
       tempRenameDuplicateBodies: !!bomOptions?.tempRenameDuplicateBodies,
       onAction: (action, data, ws) => {
-        console.log(`[BOMSelectionList] Action received: ${action}`, data);
         setPendingAction({ type: action, data, ws });
         onAction?.(action, data, ws);
       },
@@ -472,24 +423,19 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
         flushSync(() => {
           setLogs((prev) => [
             ...prev,
-            `Starting measurement (${measureMethod === 'STL' ? 'STL — temp part window' : 'Rough Stock'})...`,
+            `Starting measurement (${measureMethod === 'STL' ? 'STL' : 'Rough Stock'})...`,
           ])
         })
       },
       onProgress: (nextProgress) => {
-        if (!cancelledRef.current) {
-          flushSync(() => setProgress(nextProgress))
-        }
+        if (!cancelledRef.current) flushSync(() => setProgress(nextProgress))
       },
       onLog: (log) => {
-        if (!cancelledRef.current) {
-          flushSync(() => setLogs((prev) => [...prev, log]))
-        }
+        if (!cancelledRef.current) flushSync(() => setLogs((prev) => [...prev, log]))
       },
       onResultRow: (row) => {
         if (cancelledRef.current) return;
         setItems((prev) => prev.map(it => {
-          // Match by part number and instance name
           const pMatch = it.partNumber === row.partNumber || it.id === row.id;
           const iMatch = it.instanceName === row.instanceName;
           if (pMatch && iMatch) {
@@ -506,7 +452,7 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
       },
       onDone: (data) => {
         if (cancelledRef.current) return
-        setLogs((prev) => [...prev, 'Done! Finalizing results...'])
+        setLogs((prev) => [...prev, `Done! Finalizing results...`])
         setTimeout(() => {
           const classified = itemsRef.current || []
           const merged = mergeClassificationIntoResults(classified, data.results || [])
@@ -528,7 +474,6 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
 
   const cancelCalculation = (e) => {
     e?.preventDefault?.()
-    e?.stopPropagation?.()
     cancelledRef.current = true
     if (wsRef.current) {
       try { wsRef.current.close() } catch (_) {}
@@ -536,74 +481,58 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
     }
     setCalculating(false)
     setProgress(0)
-    setLogs((prev) => (prev.length > 50 ? ['Cancelled.'] : [...prev, 'Cancelled by user.']))
+    setLogs((prev) => [...prev, 'Cancelled by user.'])
   }
 
   const handleActionConfirm = (command, extra = {}) => {
     if (!pendingAction?.ws) return;
     pendingAction.ws.send(JSON.stringify({ command, ...extra }));
-    setLogs(prev => [...prev, `✅ User confirmed: ${command} ${extra.bodyName || ''}`]);
+    setLogs(prev => [...prev, `✅ Confirmed: ${command} ${extra.bodyName || ''}`]);
     setPendingAction(null);
   }
 
   const handlePartialExport = () => {
     const measuredItems = items.filter(it => it.stock_size && it.stock_size !== 'Measuring...' && !it.stock_size.includes('Error') && !it.stock_size.includes('Not Measurable'))
-    if (onPartialExport) {
-        onPartialExport(measuredItems)
-    }
+    onPartialExport?.(measuredItems)
   }
 
   if (calculating) {
     return (
-      <div className="mt-4 p-4 rounded-xl border border-white/10 bg-black/40 space-y-4">
-        <div className="flex items-center justify-between text-xs font-medium text-white/50 mb-1 gap-2">
-          <span className="truncate max-w-[50%]">{logs[logs.length - 1]}</span>
-          <span className="shrink-0">{progress}%</span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handlePartialExport}
-              className="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-teal-500/20 text-teal-300 border border-teal-500/40 hover:bg-teal-500/30 transition-colors"
-            >
-              Export Partial BOM
-            </button>
-            <button
-              type="button"
-              onClick={cancelCalculation}
-              className="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30 transition-colors"
-            >
-              Cancel
-            </button>
+      <div className="mt-4 p-6 zen-card border border-zen-border space-y-6 animate-in fade-in duration-500">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="zen-label text-zen-primary">Measurement in Progress</span>
+            <span className="text-[10px] text-zen-text-muted mt-1 truncate max-w-[300px] font-mono">{logs[logs.length - 1]}</span>
+          </div>
+          <div className="flex items-center gap-3">
+             <span className="text-xl font-bold text-zen-primary">{progress}%</span>
+             <div className="flex items-center gap-2">
+                <button type="button" onClick={handlePartialExport} className="text-[10px] font-bold px-4 py-2 rounded-full bg-zen-success/10 text-zen-success border border-zen-success/20 hover:bg-zen-success/20 transition-all">Partial Export</button>
+                <button type="button" onClick={cancelCalculation} className="text-[10px] font-bold px-4 py-2 rounded-full bg-zen-error/10 text-zen-error border border-zen-error/20 hover:bg-zen-error/20 transition-all">Cancel</button>
+             </div>
           </div>
         </div>
-        <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-          <div className="h-full bg-white transition-all duration-300" style={{ width: `${progress}%` }} />
+
+        <div className="w-full h-1.5 bg-zen-surface-alt rounded-full overflow-hidden border border-zen-border/50">
+          <div className="h-full bg-zen-primary transition-all duration-500 ease-out" style={{ width: `${progress}%` }} />
         </div>
 
         {pendingAction && (
-          <div className="p-3 rounded-lg bg-white/5 border border-amber-500/35 ring-2 ring-amber-500/30 shadow-[0_0_24px_rgba(245,158,11,0.2)] animate-pulse animate-in fade-in slide-in-from-top-2">
-            <p className="text-xs font-semibold text-amber-200 mb-2 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-              Manual Action Required
+          <div className="p-5 rounded-3xl bg-zen-warning/5 border border-zen-warning/20 shadow-sm animate-pulse">
+            <p className="text-xs font-bold text-zen-warning mb-2 flex items-center gap-2 uppercase tracking-widest">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              Manual Intervention
             </p>
-            <p className="text-[11px] text-white/70 mb-3">{pendingAction.data?.log || 'Please interact with CATIA as requested.'}</p>
+            <p className="text-[11px] text-zen-text-main mb-4 leading-relaxed">{pendingAction.data?.log || 'Please interact with CATIA as requested.'}</p>
             
             <div className="flex flex-wrap gap-2">
               {pendingAction.type === 'REQUIRE_AXIS_SELECTION' && (
-                <button
-                  onClick={() => handleActionConfirm('AXIS_CONFIRMED')}
-                  className="px-4 py-2 bg-white text-black text-[11px] font-bold rounded-lg hover:bg-neutral-200 transition-all shadow-lg active:scale-95 flex items-center gap-2"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <button onClick={() => handleActionConfirm('AXIS_CONFIRMED')} className="zen-pill px-6 py-2.5 text-[10px]">
                   Confirm Axis Selected
                 </button>
               )}
               {pendingAction.type === 'REQUIRE_BODY_SELECTION' && (pendingAction.data?.candidates || []).map((name) => (
-                <button
-                  key={name}
-                  onClick={() => handleActionConfirm('BODY_SELECTED', { bodyName: name })}
-                  className="px-3 py-1.5 text-[11px] font-medium rounded-lg border transition-all active:scale-95 bg-white/5 text-white/80 border-white/15 hover:bg-white/10"
-                >
+                <button key={name} onClick={() => handleActionConfirm('BODY_SELECTED', { bodyName: name })} className="px-4 py-2 text-[10px] font-bold rounded-full border border-zen-border bg-zen-surface text-zen-text-main hover:bg-zen-surface-alt transition-all">
                   {name}
                 </button>
               ))}
@@ -611,12 +540,11 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
           </div>
         )}
 
-        <p className="text-[10px] text-white/30">First part may take time. You can Cancel to stop.</p>
-        <div className="text-[10px] text-white/40 font-mono h-32 overflow-y-auto bg-black/40 p-2 rounded border border-white/5 custom-scrollbar">
+        <div className="text-[10px] text-zen-text-muted font-mono h-40 overflow-y-auto bg-zen-surface-alt/50 p-4 rounded-2xl border border-zen-border no-scrollbar">
           {logs.map((entry, i) => (
-            <div key={i} className="mb-0.5 leading-relaxed">
-              <span className="opacity-30 mr-2">[{new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>
-              {entry}
+            <div key={i} className="mb-1 flex gap-3 opacity-80 hover:opacity-100 transition-opacity">
+              <span className="text-zen-text-muted/40 shrink-0">[{new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>
+              <span className={entry.includes('Error') ? 'text-zen-error' : entry.includes('Done') ? 'text-zen-success font-bold' : ''}>{entry}</span>
             </div>
           ))}
           <div ref={logEndRef} />
@@ -626,68 +554,59 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
   }
 
   return (
-    <div className="mt-4 rounded-xl border border-white/10 bg-black/20 overflow-hidden">
-      <div className="p-3 border-b border-white/10 flex items-center justify-between bg-white/5">
-        <div className="flex flex-col">
-          <span className="text-xs font-semibold text-white/70">Classify Parts Before Measuring</span>
-          <span className="text-[10px] mt-1 text-white/40">
-            Drag the grip on the left to reorder rows (measurement runs top to bottom). Choose MFG/STD, route MFG rows into Steel/MS/Casting, rename parts, and pick a measure body when more than one exists. Use Add manual row for a missed part: instance name as in the tree, optional part number, and exact measure body name when bodies do not load. Material (Steel Type) can be filled here or later in the editor.
+    <div className="mt-4 zen-card border border-zen-border overflow-hidden animate-in fade-in duration-500">
+      <div className="p-5 border-b border-zen-border flex items-center justify-between bg-zen-surface-alt/50">
+        <div className="flex flex-col gap-1">
+          <span className="zen-label text-zen-primary">BOM Classification</span>
+          <span className="text-[10px] text-zen-text-muted max-w-2xl leading-relaxed">
+            Verify part categories and measurement bodies before starting the engine. Drag rows to prioritize specific parts.
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2 justify-end">
-          {items.some(it => it.stock_size && it.stock_size !== 'Measuring... && !it.stock_size.includes("Error")') && (
-            <button
-              onClick={handlePartialExport}
-              className="text-[10px] font-semibold px-2 py-1 rounded-md bg-teal-500/20 text-teal-300 border border-teal-500/40 hover:bg-teal-500/30 transition-colors"
-            >
-              Export Results So Far
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={addManualRow}
-            className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/10 text-white/90 border border-white/15 hover:bg-white/15 transition-colors"
-          >
-            Add manual row
+        <div className="flex flex-wrap items-center gap-3 justify-end">
+          <button type="button" onClick={addManualRow} className="text-[10px] font-bold px-4 py-2 rounded-full bg-zen-surface border border-zen-border hover:bg-zen-surface-alt text-zen-text-main transition-all">+ Manual Row</button>
+          <div className="flex bg-zen-bg p-1 rounded-full border border-zen-border">
+            <button onClick={() => selectAll(true)} className="text-[9px] px-3 py-1 text-zen-text-muted hover:text-zen-primary font-bold uppercase tracking-tighter">All</button>
+            <button onClick={() => selectAll(false)} className="text-[9px] px-3 py-1 text-zen-text-muted hover:text-zen-error font-bold uppercase tracking-tighter">None</button>
+          </div>
+          <button onClick={startCalculation} disabled={items.filter(i => i.selected).length === 0} className="zen-pill px-6 py-2 text-[10px] disabled:opacity-30">
+            Start Measure
           </button>
-          <button onClick={() => selectAll(true)} className="text-[10px] text-white/40 hover:text-white transition-colors">Select All</button>
-          <span className="text-white/10">|</span>
-          <button onClick={() => selectAll(false)} className="text-[10px] text-white/40 hover:text-white transition-colors">None</button>
         </div>
       </div>
 
       {selectorError && (
-        <div className="px-3 py-2 text-[11px] text-amber-300 bg-amber-500/10 border-b border-amber-500/20">
+        <div className="px-6 py-3 text-[11px] text-zen-warning bg-zen-warning/5 border-b border-zen-warning/20 flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
           {selectorError}
         </div>
       )}
       {bodyListError && !selectorError && (
-        <div className="px-3 py-2 text-[11px] text-rose-300/90 bg-rose-500/10 border-b border-rose-500/20">
-          {bodyListError}
+        <div className="px-6 py-3 text-[11px] text-zen-error bg-zen-error/5 border-b border-zen-error/20 flex items-center gap-2">
+           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+           {bodyListError}
         </div>
       )}
 
-      <div className="overflow-x-auto max-h-[55vh] overflow-y-auto">
-        <table className="w-full text-[11px] border-collapse">
-          <thead className="sticky top-0 bg-black/50 z-10">
-            <tr className="border-b border-white/10">
-              <th className="text-left py-2 px-1 w-7" title="Drag to reorder"> </th>
-              <th className="text-left py-2 px-2 w-8">In</th>
-              <th className="text-left py-2 px-2 w-8" aria-label="Remove manual row" />
-              <th className="text-left py-2 px-2 min-w-[150px]">Instance</th>
-              <th className="text-left py-2 px-2 min-w-[180px]">Rename / Description</th>
-              <th className="text-left py-2 px-2 min-w-[100px]">Type</th>
-              <th className="text-left py-2 px-2 min-w-[110px]">Sheet</th>
-              <th className="text-left py-2 px-2 min-w-[120px]">Material / Vendor</th>
-              <th className="text-left py-2 px-2 min-w-[140px]">Measure body</th>
-              <th className="text-left py-2 px-2 w-16">Qty</th>
+      <div className="overflow-x-auto max-h-[55vh] overflow-y-auto no-scrollbar">
+        <table className="w-full text-[11px] border-collapse min-w-max">
+          <thead className="sticky top-0 bg-zen-surface z-20 border-b border-zen-border">
+            <tr className="bg-zen-surface-alt/30">
+              <th className="w-8 py-3 px-1"></th>
+              <th className="w-8 py-3 px-2 text-center text-[9px] font-bold text-zen-text-muted uppercase tracking-tighter">In</th>
+              <th className="w-8 py-3 px-1"></th>
+              <th className="text-left py-3 px-4 min-w-[160px] text-[9px] font-bold text-zen-primary uppercase tracking-widest">Part Instance</th>
+              <th className="text-left py-3 px-4 min-w-[200px] text-[9px] font-bold text-zen-text-muted uppercase tracking-tighter">Description</th>
+              <th className="text-left py-3 px-4 min-w-[100px] text-[9px] font-bold text-zen-text-muted uppercase tracking-tighter">Type</th>
+              <th className="text-left py-3 px-4 min-w-[110px] text-[9px] font-bold text-zen-text-muted uppercase tracking-tighter">Sheet</th>
+              <th className="text-left py-3 px-4 min-w-[140px] text-[9px] font-bold text-zen-text-muted uppercase tracking-tighter">Material / Vendor</th>
+              <th className="text-left py-3 px-4 min-w-[160px] text-[9px] font-bold text-zen-info uppercase tracking-widest">Measure Body</th>
+              <th className="text-center py-3 px-4 w-16 text-[9px] font-bold text-zen-text-muted uppercase tracking-tighter">Qty</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-zen-border/50">
             {items.map((item, idx) => {
               const suggestions = getNameSuggestions(item)
               const datalistId = `bom-name-suggestions-${item.id}`
-              const classification = item.isStd ? 'STD' : 'MFG'
               const categoryOptions = item.isStd ? ['STD'] : ['Steel', 'MS', 'Casting']
               const isDragOver = dropTargetIndex === idx && dragRowIndex !== null && dragRowIndex !== idx
               return (
@@ -707,17 +626,15 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
                     setDragRowIndex(null)
                     setDropTargetIndex(null)
                   }}
-                  className={`border-b border-white/5 transition-colors ${item.selected ? 'bg-white/[0.03]' : ''} ${
-                    dragRowIndex === idx ? 'opacity-50' : ''
-                  } ${isDragOver ? 'bg-sky-500/15 ring-1 ring-inset ring-sky-400/40' : ''}`}
+                  className={`transition-colors duration-200 group ${item.selected ? 'bg-zen-info/[0.02]' : ''} ${
+                    dragRowIndex === idx ? 'opacity-30' : ''
+                  } ${isDragOver ? 'bg-zen-info/10' : 'hover:bg-zen-surface-alt/50'}`}
                 >
-                  <td className="py-2 px-1 align-middle w-7">
+                  <td className="py-2 px-1 align-middle text-center">
                     <span
                       role="button"
                       tabIndex={0}
                       draggable
-                      title="Drag to reorder"
-                      aria-label="Drag row to reorder"
                       onDragStart={(e) => {
                         e.dataTransfer.setData('text/plain', String(idx))
                         e.dataTransfer.effectAllowed = 'move'
@@ -727,191 +644,97 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
                         setDragRowIndex(null)
                         setDropTargetIndex(null)
                       }}
-                      className="inline-flex cursor-grab active:cursor-grabbing text-white/35 hover:text-white/70 p-0.5 rounded hover:bg-white/10 outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+                      className="inline-flex cursor-grab active:cursor-grabbing text-zen-text-muted/30 group-hover:text-zen-primary p-1.5 rounded-lg hover:bg-zen-surface transition-all outline-none"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                        <circle cx="9" cy="6" r="1.35" />
-                        <circle cx="15" cy="6" r="1.35" />
-                        <circle cx="9" cy="12" r="1.35" />
-                        <circle cx="15" cy="12" r="1.35" />
-                        <circle cx="9" cy="18" r="1.35" />
-                        <circle cx="15" cy="18" r="1.35" />
-                      </svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
                     </span>
                   </td>
-                  <td className="py-2 px-2">
-                    <input type="checkbox" checked={item.selected} onChange={() => toggleItem(item.id)} className="rounded border-white/20" />
+                  <td className="py-2 px-2 text-center">
+                    <input type="checkbox" checked={item.selected} onChange={() => toggleItem(item.id)} className="w-3.5 h-3.5 rounded border-zen-border bg-zen-bg checked:bg-zen-primary transition-all cursor-pointer" />
                   </td>
-                  <td className="py-2 px-2 align-top">
+                  <td className="py-2 px-1 text-center">
                     {item.isManualRow || item.isClonedRow ? (
-                      <button
-                        type="button"
-                        title="Remove this row"
-                        onClick={() => removeRow(item.id)}
-                        className="text-[10px] text-rose-300/90 hover:text-rose-200 px-1"
-                      >
-                        ×
-                      </button>
+                      <button type="button" onClick={() => removeRow(item.id)} className="text-zen-error/40 hover:text-zen-error transition-all font-bold text-lg leading-none p-1">×</button>
                     ) : (
-                      <span className="text-white/15 select-none">·</span>
+                      <span className="text-zen-text-muted/10 font-bold">·</span>
                     )}
                   </td>
-                  <td className="py-2 px-2">
+                  <td className="py-2 px-4">
                     {item.isManualRow ? (
-                      <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex flex-col gap-1.5 min-w-0">
                         <input
                           type="text"
                           value={item.instanceName || ''}
                           onChange={(e) => {
                             const v = e.target.value
-                            updateItem(item.id, (row) => ({
-                              ...row,
-                              instanceName: v,
-                              instances: v.trim() ? [v.trim()] : [],
-                            }))
+                            updateItem(item.id, (row) => ({ ...row, instanceName: v, instances: v.trim() ? [v.trim()] : [] }))
                           }}
-                          placeholder="CATIA instance name"
-                          className="w-full min-w-[140px] text-[11px] bg-amber-500/10 border border-amber-500/25 rounded px-2 py-1 placeholder:text-white/35"
+                          placeholder="CATIA Instance Name"
+                          className="w-full min-w-[140px] text-xs font-bold bg-zen-warning/5 border border-zen-warning/20 rounded-lg px-3 py-1.5 placeholder:text-zen-warning/30 text-zen-warning focus:bg-zen-warning/10 outline-none transition-all"
                         />
                         <input
                           type="text"
                           value={item.partNumber || ''}
                           onChange={(e) => updateItem(item.id, (row) => ({ ...row, partNumber: e.target.value }))}
-                          placeholder="Part number (optional, helps resolve)"
-                          className="w-full text-[10px] font-mono bg-white/5 border border-white/10 rounded px-2 py-0.5 placeholder:text-white/30"
+                          placeholder="Part Number"
+                          className="w-full text-[10px] font-mono bg-zen-surface-alt border border-zen-border rounded-md px-2 py-1 placeholder:text-zen-text-muted/30 text-zen-text-muted outline-none"
                         />
                       </div>
                     ) : (
-                      <div className="flex flex-col min-w-0 group">
-                        <div className="flex items-center gap-1.5 overflow-hidden">
-                          <span className="text-xs font-semibold truncate text-white/90 shrink">{item.instanceName}</span>
+                      <div className="flex flex-col min-w-0 group/split">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <span className="text-xs font-bold truncate text-zen-primary shrink">{item.instanceName}</span>
                           <button
                             type="button"
                             onClick={() => splitRow(item, idx)}
-                            className="shrink-0 opacity-0 group-hover:opacity-100 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-all rounded w-4 h-4"
-                            title="Split into multiple items for this part"
+                            className="shrink-0 opacity-0 group-hover/split:opacity-100 flex items-center justify-center bg-zen-surface border border-zen-border hover:bg-zen-surface-alt text-zen-text-muted hover:text-zen-primary transition-all rounded p-1"
+                            title="Split into multiple items"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8"/><path d="M21 3l-6 6"/><path d="M3 3l6 6"/></svg>
                           </button>
                         </div>
-                        <span className="text-[10px] font-mono opacity-50 truncate">{item.name}</span>
+                        <span className="text-[10px] font-mono text-zen-text-muted/60 truncate">{item.partNumber || '—'}</span>
+                        {item.isClonedRow && <span className="text-[8px] font-bold text-zen-info uppercase tracking-widest mt-0.5">Split Result</span>}
                       </div>
                     )}
                   </td>
-                  <td className="py-2 px-2">
-                    <input
-                      list={datalistId}
-                      type="text"
-                      value={item.description || ''}
-                      onChange={(e) => updateItem(item.id, (row) => ({ ...row, description: e.target.value }))}
-                      className="w-full min-w-[160px] text-[11px] bg-white/5 border border-white/10 rounded px-2 py-1"
-                    />
-                    <datalist id={datalistId}>
-                      {suggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}
-                    </datalist>
+                  <td className="py-2 px-4">
+                    <input list={datalistId} type="text" value={item.description || ''} onChange={(e) => updateItem(item.id, (row) => ({ ...row, description: e.target.value }))} placeholder="Description" className="w-full bg-transparent border-transparent hover:border-zen-border focus:bg-zen-bg rounded-lg px-2 py-1.5 text-xs text-zen-text-main transition-all outline-none" />
+                    <datalist id={datalistId}>{suggestions.map(s => <option key={s} value={s} />)}</datalist>
                   </td>
-                  <td className="py-2 px-2">
-                    <select value={classification} onChange={(e) => updateClassification(item.id, e.target.value)} className="w-full min-w-[80px] text-[11px] bg-white/5 border border-white/10 rounded px-2 py-1">
-                      <option value="MFG">MFG</option>
-                      <option value="STD">STD</option>
-                    </select>
+                  <td className="py-2 px-4">
+                     <button type="button" onClick={() => updateSheetCategory(item.id, item.isStd ? 'Steel' : 'STD')} className={`text-[9px] font-bold px-3 py-1 rounded-full border tracking-widest transition-all ${item.isStd ? 'bg-zen-warning/10 text-zen-warning border-zen-warning/10' : 'bg-zen-primary text-white border-zen-primary'}`}>
+                        {item.isStd ? 'STD' : 'MFG'}
+                     </button>
                   </td>
-                  <td className="py-2 px-2">
-                    <select value={item.sheetCategory || ''} onChange={(e) => updateSheetCategory(item.id, e.target.value)} className="w-full min-w-[96px] text-[11px] bg-white/5 border border-white/10 rounded px-2 py-1">
-                      {categoryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                    </select>
+                  <td className="py-2 px-4">
+                     <select value={item.sheetCategory || ''} onChange={(e) => updateSheetCategory(item.id, e.target.value)} className="w-full bg-zen-surface-alt border border-zen-border rounded-lg text-[10px] font-bold px-2 py-1.5 outline-none cursor-pointer text-zen-text-main">
+                        {categoryOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                     </select>
                   </td>
-                  <td className="py-2 px-2">
-                    <input
-                      type="text"
-                      value={item.isStd ? (item.manufacturer || '') : (item.material || '')}
-                      onChange={(e) => updateItem(item.id, (row) => ({ ...row, [row.isStd ? 'manufacturer' : 'material']: e.target.value }))}
-                      placeholder={item.isStd ? 'MISUMI / Vendor' : 'Optional at this step'}
-                      className={`w-full min-w-[120px] text-[11px] border rounded px-2 py-1 bg-white/5 border-white/10`}
-                    />
+                  <td className="py-2 px-4">
+                     <input type="text" value={item.isStd ? (item.manufacturer || '') : (item.material || '')} onChange={(e) => updateItem(item.id, row => ({ ...row, [item.isStd ? 'manufacturer' : 'material']: e.target.value }))} placeholder={item.isStd ? "Manufacturer" : "Material"} className="w-full bg-transparent border-transparent hover:border-zen-border focus:bg-zen-bg rounded-lg px-2 py-1.5 text-xs text-zen-text-main transition-all outline-none" />
                   </td>
-                  <td className="py-2 px-2 align-top">
-                    {!item.selected ? (
-                      <span className="text-white/25 text-[10px]">—</span>
-                    ) : item._bodyFetchPending ? (
-                      <span className="text-white/35 text-[10px]">Loading…</span>
-                    ) : item.isManualRow && (item.bodyNameOptions?.length || 0) === 0 ? (
-                      <input
-                        type="text"
-                        value={item.measurementBodyName || ''}
-                        onChange={(e) => updateMeasurementBody(item.id, e.target.value)}
-                        placeholder="Exact body name in CATIA"
-                        className="w-full max-w-[200px] text-[10px] bg-amber-500/10 border border-amber-500/25 rounded px-2 py-1 placeholder:text-white/35"
-                      />
-                    ) : (item.bodyNameOptions?.length || 0) === 0 ? (
-                      <span
-                        className="text-rose-300/85 text-[10px] leading-snug block max-w-[168px]"
-                        title={item.measureBodyColumnHint || 'No bodies loaded'}
-                      >
-                        {item.measureBodyColumnHint || '—'}
-                      </span>
-                    ) : (item.bodyNameOptions?.length || 0) === 1 ? (
-                      <span className="text-[10px] text-white/60 font-mono truncate block max-w-[160px]" title={item.bodyNameOptions[0]}>
-                        {item.bodyNameOptions[0]}
-                      </span>
-                    ) : (
-                      <select
-                        value={item.measurementBodyName || ''}
-                        onChange={(e) => updateMeasurementBody(item.id, e.target.value)}
-                        className="w-full max-w-[180px] text-[10px] bg-white/5 border border-white/10 rounded px-2 py-1"
-                      >
-                        <option value="">Auto (BOM name match)</option>
-                        {item.bodyNameOptions.map((bn) => (
-                          <option key={bn} value={bn}>
-                            {bn}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+                  <td className="py-2 px-4">
+                     <div className="flex flex-col gap-1">
+                        <div className="relative">
+                           <select value={item.measurementBodyName || ''} onChange={(e) => updateMeasurementBody(item.id, e.target.value)} disabled={item.isStd || item._bodyFetchPending} className={`w-full bg-zen-info/[0.03] border border-zen-info/20 rounded-lg text-xs font-bold px-3 py-2 outline-none cursor-pointer transition-all ${item.isStd ? 'opacity-20 grayscale' : 'hover:border-zen-info'}`}>
+                              <option value="">{item._bodyFetchPending ? 'Loading bodies...' : (item.bodyNameOptions?.length > 0 ? '-- Pick Body --' : '-- No Bodies Found --')}</option>
+                              {(item.bodyNameOptions || []).map(o => <option key={o} value={o}>{o}</option>)}
+                           </select>
+                           {item._bodyFetchPending && <div className="absolute right-3 top-2.5 w-3 h-3 border-2 border-zen-info/20 border-t-zen-info rounded-full animate-spin"></div>}
+                        </div>
+                        {item.measureBodyColumnHint && <span className="text-[8px] font-bold text-zen-error uppercase tracking-widest ml-1">{item.measureBodyColumnHint}</span>}
+                     </div>
                   </td>
-                  <td className="py-2 px-2 text-white/60">{item.qty || 1}</td>
+                  <td className="py-2 px-4">
+                     <input type="number" min="1" value={item.qty || 1} onChange={(e) => updateItem(item.id, row => ({ ...row, qty: parseInt(e.target.value, 10) || 1 }))} className="w-12 bg-transparent border-transparent hover:border-zen-border focus:bg-zen-bg rounded-lg text-center text-xs font-bold text-zen-primary transition-all outline-none" />
+                  </td>
                 </tr>
               )
             })}
           </tbody>
         </table>
-      </div>
-
-      <div className="p-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] text-white/40 uppercase tracking-wide">Measure with</span>
-          <button
-            type="button"
-            onClick={() => setMeasureMethod('STL')}
-            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
-              measureMethod === 'STL'
-                ? 'bg-emerald-500/25 text-emerald-200 border-emerald-500/50'
-                : 'bg-white/5 text-white/50 border-white/10 hover:border-white/25'
-            }`}
-          >
-            STL (default)
-          </button>
-          <button
-            type="button"
-            onClick={() => setMeasureMethod('ROUGH_STOCK')}
-            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
-              measureMethod === 'ROUGH_STOCK'
-                ? 'bg-amber-500/25 text-amber-200 border-amber-500/50'
-                : 'bg-white/5 text-white/50 border-white/10 hover:border-white/25'
-            }`}
-          >
-            Rough Stock
-          </button>
-        </div>
-        <button
-          onClick={startCalculation}
-          className="bg-white text-black text-xs font-bold px-4 py-2 rounded-lg hover:bg-neutral-200 transition-all active:scale-95 flex items-center gap-2 shrink-0"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-          </svg>
-          Calculate dimensions
-        </button>
       </div>
     </div>
   )

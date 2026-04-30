@@ -1,71 +1,144 @@
 @import "tailwindcss";
 
 @theme {
-  /* Industrial Palette directly in the theme */
-  --color-background: #0d0d0e;
-  --color-foreground: #fcfcfc;
-  --color-card: #141415;
-  --color-card-foreground: #fcfcfc;
-  --color-popover: #0d0d0e;
-  --color-popover-foreground: #fcfcfc;
-  --color-primary: #ffffff;
-  --color-primary-foreground: #0d0d0e;
-  --color-secondary: #1f1f21;
-  --color-secondary-foreground: #fcfcfc;
-  --color-muted: #27272a;
-  --color-muted-foreground: #a1a1aa;
-  --color-accent: #27272a;
-  --color-accent-foreground: #fcfcfc;
-  --color-border: #27272a;
-  --color-input: #27272a;
-  --color-ring: #d4d4d8;
+  /* ═══════════════════════════════════════════════
+     Industrial Zen — Neutral-First Design System
+     ═══════════════════════════════════════════════ */
+
+  /* Zen Core Palette */
+  --color-zen-primary: #1A1A1A;
+  --color-zen-bg: #F9F9F9;
+  --color-zen-surface: #FFFFFF;
+  --color-zen-surface-alt: #F2F4F4;
+
+  --color-zen-text-main: #2D3435;
+  --color-zen-text-dim: #5A6061;
+  --color-zen-text-muted: #94A3B8;
+
+  /* Zen Status Tokens */
+  --color-zen-success: #10B981;
+  --color-zen-warning: #F59E0B;
+  --color-zen-error: #9F403D;
+  --color-zen-info: #2F617C;
+
+  /* Zen Borders & Structure */
+  --color-zen-border: #E2E4E5;
+  --color-zen-border-strong: #CDD0D1;
+
+  /* Mapped Tailwind Tokens (for existing class compat) */
+  --color-background: #F9F9F9;
+  --color-foreground: #2D3435;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #2D3435;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #2D3435;
+  --color-primary: #1A1A1A;
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: #F2F4F4;
+  --color-secondary-foreground: #2D3435;
+  --color-muted: #E8EAEB;
+  --color-muted-foreground: #5A6061;
+  --color-accent: #F2F4F4;
+  --color-accent-foreground: #2D3435;
+  --color-border: #E2E4E5;
+  --color-input: #E2E4E5;
+  --color-ring: #94A3B8;
 
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 }
 
 @layer base {
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: var(--color-zen-bg);
+    color: var(--color-zen-text-main);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* OS dropdown often uses a light surface while inheriting body color → white on white */
+  /* Ensure native selects render correctly on light surface */
   select {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   select option {
-    background-color: var(--color-secondary);
-    color: var(--color-foreground);
+    background-color: var(--color-zen-surface);
+    color: var(--color-zen-text-main);
   }
 }
 
 @layer components {
+  /* Zen Glass — Navigation & Overlays */
   .glass {
-    @apply bg-white/5 backdrop-blur-md border border-white/10;
+    background: rgba(255, 255, 255, 0.80);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid var(--color-zen-border);
   }
 
+  /* Spec-tree node styling */
   .spec-tree-node {
-    @apply flex items-center gap-2 py-1 px-2 hover:bg-white/5 rounded cursor-pointer transition-colors;
+    @apply flex items-center gap-2 py-1.5 px-2 rounded-lg cursor-pointer transition-colors duration-200;
+  }
+  .spec-tree-node:hover {
+    background-color: var(--color-zen-surface-alt);
   }
 
+  /* Chat bubbles */
   .chat-bubble {
     @apply max-w-[85%] p-4 rounded-2xl;
   }
-
   .chat-bubble-user {
-    @apply bg-secondary self-end;
+    background-color: var(--color-zen-primary);
+    color: #FFFFFF;
+    align-self: flex-end;
+  }
+  .chat-bubble-ai {
+    background-color: var(--color-zen-surface-alt);
+    color: var(--color-zen-text-main);
+    align-self: flex-start;
   }
 
-  .chat-bubble-ai {
-    @apply bg-muted/50 self-start;
+  /* Zen Pill — Primary CTA */
+  .zen-pill {
+    @apply inline-flex items-center justify-center gap-2 font-semibold rounded-full transition-all duration-200;
+    background-color: var(--color-zen-primary);
+    color: #FFFFFF;
+  }
+  .zen-pill:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 24px rgba(26, 26, 26, 0.2);
+  }
+  .zen-pill:active {
+    transform: scale(0.98);
+  }
+
+  /* Zen Card — Primary Container */
+  .zen-card {
+    background-color: var(--color-zen-surface);
+    border-radius: 1.25rem;
+    box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.08);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .zen-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Functional label typography */
+  .zen-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--color-zen-text-muted);
   }
 }
 
-/* Custom Scrollbar */
+/* ═══════════════════════════════════════════════
+   Custom Scrollbar — Light Theme
+   ═══════════════════════════════════════════════ */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -76,10 +149,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted rounded-full;
+  background-color: var(--color-zen-border-strong);
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(161, 161, 170, 0.5);
-  /* muted-foreground/50 */
+  background-color: var(--color-zen-text-muted);
 }

@@ -66,24 +66,24 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
         return (
             <div key={nodeId} className="flex flex-col">
                 <div 
-                    className={`spec-tree-node group cursor-pointer transition-colors ${isTagged ? 'bg-white/10 text-white' : 'hover:bg-white/5'}`}
+                    className={`spec-tree-node group cursor-pointer transition-colors ${isTagged ? 'bg-zen-primary/[0.06] text-zen-text-main' : ''}`}
                     style={{ paddingLeft: `${depth * 12 + 8}px` }}
                     onClick={() => onNodeTag(node)}
                 >
                     <span 
-                        className={`text-muted-foreground/60 p-1 hover:text-white transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
+                        className={`text-zen-text-muted p-1 hover:text-zen-text-main transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
                         onClick={(e) => hasChildren ? toggleNode(nodeId, e) : null}
                     >
                         {hasChildren ? '▼' : '•'}
                     </span>
-                    <span className={`font-semibold ${isTagged ? 'text-white' : 'text-foreground/90'}`}>{node.name}</span>
+                    <span className={`font-semibold ${isTagged ? 'text-zen-primary' : 'text-zen-text-main'}`}>{node.name}</span>
                     {node.type && (
-                        <span className={`text-[9px] px-1 rounded uppercase ${isTagged ? 'bg-white/20 text-white' : 'text-muted-foreground/40 bg-white/5'}`}>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-md uppercase ${isTagged ? 'bg-zen-primary/10 text-zen-primary' : 'text-zen-text-muted bg-zen-surface-alt'}`}>
                             {node.type}
                         </span>
                     )}
                     {isTagged && (
-                        <span className="ml-auto mr-2 text-[8px] uppercase tracking-tighter text-blue-400 font-bold">Tagged</span>
+                        <span className="ml-auto mr-2 text-[8px] uppercase tracking-tighter text-zen-info font-bold">Tagged</span>
                     )}
                 </div>
                 {hasChildren && isExpanded && (
@@ -97,13 +97,13 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
 
     return (
         <aside
-            className={`border-r border-white/5 flex flex-col bg-card/30 shrink-0 transition-[width] duration-200 ease-out overflow-hidden ${
+            className={`border-r border-zen-border flex flex-col bg-zen-surface shrink-0 transition-[width] duration-200 ease-out overflow-hidden ${
                 sidebarCollapsed ? 'w-12' : 'w-80'
             }`}
             aria-label="Specification tree"
         >
             <div
-                className={`border-b border-white/5 shrink-0 ${
+                className={`border-b border-zen-border shrink-0 ${
                     sidebarCollapsed ? 'flex flex-col items-center gap-2 py-2 px-1' : 'p-4 flex items-center gap-2'
                 }`}
             >
@@ -111,7 +111,7 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
                     type="button"
                     onClick={() => setSidebarCollapsed((c) => !c)}
                     aria-pressed={sidebarCollapsed}
-                    className="text-muted-foreground hover:text-white p-1.5 rounded-md hover:bg-white/10 shrink-0"
+                    className="text-zen-text-muted hover:text-zen-text-main p-1.5 rounded-md hover:bg-zen-surface-alt shrink-0"
                     title={sidebarCollapsed ? 'Expand specification tree' : 'Collapse specification tree'}
                 >
                     {sidebarCollapsed ? (
@@ -125,7 +125,7 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
                     )}
                 </button>
                 {!sidebarCollapsed && (
-                    <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground flex-1 min-w-0 truncate">
+                    <h2 className="zen-label flex-1 min-w-0 truncate">
                         Specification Tree
                     </h2>
                 )}
@@ -133,11 +133,11 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
                     <button
                         onClick={openBomModal}
                         disabled={isGeneratingBOM || !treeData}
-                        className={`group relative flex items-center justify-center p-1.5 rounded-md transition-all ${isGeneratingBOM ? 'bg-white/5 cursor-wait' : 'hover:bg-white/10 text-muted-foreground hover:text-white active:scale-95'}`}
+                        className={`group relative flex items-center justify-center p-1.5 rounded-md transition-all ${isGeneratingBOM ? 'bg-zen-surface-alt cursor-wait' : 'hover:bg-zen-surface-alt text-zen-text-muted hover:text-zen-text-main active:scale-95'}`}
                         title="Generate Excel BOM"
                     >
                         {isGeneratingBOM ? (
-                            <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                            <div className="w-3.5 h-3.5 border-2 border-zen-border border-t-zen-primary rounded-full animate-spin" />
                         ) : (
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="M9 12h6" /><path d="M9 16h6" /><path d="M9 8h6" />
@@ -146,7 +146,7 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
                     </button>
                     <button
                         onClick={handleRefresh}
-                        className={`text-muted-foreground hover:text-white transition-all p-1.5 rounded-md hover:bg-white/10 ${isRefreshing ? 'animate-spin' : ''}`}
+                        className={`text-zen-text-muted hover:text-zen-text-main transition-all p-1.5 rounded-md hover:bg-zen-surface-alt ${isRefreshing ? 'animate-spin' : ''}`}
                         title="Refresh Tree"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -156,20 +156,20 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
                 </div>
             </div>
             {bomModalOpen && (
-                <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
                     <div
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="bom-opt-title"
-                        className="w-full max-w-md rounded-xl border border-white/15 bg-neutral-950/95 p-5 shadow-2xl"
+                        className="zen-card w-full max-w-md border border-zen-border p-5"
                     >
-                        <h2 id="bom-opt-title" className="text-sm font-bold text-white mb-2">
+                        <h2 id="bom-opt-title" className="text-sm font-bold text-zen-text-main mb-2">
                             BOM measurement options
                         </h2>
-                        <p className="text-[11px] text-white/65 leading-relaxed mb-4">
-                            Duplicate PartDesign body names (e.g. several <span className="font-mono text-white/80">MAIN_BODY</span>)
+                        <p className="text-[11px] text-zen-text-dim leading-relaxed mb-4">
+                            Duplicate PartDesign body names (e.g. several <span className="font-mono text-zen-text-main">MAIN_BODY</span>)
                             can confuse Rough Stock Search. You can optionally assign temporary unique names
-                            (<span className="font-mono text-white/80">MAIN_BODY__CADM0</span>, …) for this measure run only.
+                            (<span className="font-mono text-zen-text-main">MAIN_BODY__CADM0</span>, …) for this measure run only.
                             CADMation does not save your CATPart; CATIA may show the document as modified until names are restored
                             at the end of the run. If restore fails, close without saving or undo.
                         </p>
@@ -178,9 +178,9 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
                                 type="checkbox"
                                 checked={tempRenameDuplicateBodies}
                                 onChange={(e) => setTempRenameDuplicateBodies(e.target.checked)}
-                                className="mt-0.5 rounded border-white/20"
+                                className="mt-0.5 rounded border-zen-border"
                             />
-                            <span className="text-xs text-white/85">
+                            <span className="text-xs text-zen-text-main">
                                 Rename duplicate bodies in CATIA (__CADM0, __CADM1, …) for BOM measurement
                             </span>
                         </label>
@@ -188,14 +188,14 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
                             <button
                                 type="button"
                                 onClick={cancelBomModal}
-                                className="px-3 py-2 text-xs rounded-lg border border-white/15 text-white/80 hover:bg-white/5"
+                                className="px-4 py-2 text-xs rounded-full border border-zen-border text-zen-text-dim hover:bg-zen-surface-alt transition-all"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="button"
                                 onClick={confirmBomModal}
-                                className="px-3 py-2 text-xs rounded-lg bg-white text-black font-semibold hover:bg-neutral-200"
+                                className="zen-pill px-4 py-2 text-xs"
                             >
                                 Continue
                             </button>
@@ -205,12 +205,12 @@ export default function SpecTree({ treeData, onRefresh, taggedNode, onNodeTag, o
             )}
 
             <div
-                className={`flex-1 overflow-y-auto p-2 font-mono text-[11px] selection:bg-white/10 min-h-0 ${
+                className={`flex-1 overflow-y-auto p-2 font-mono text-[11px] selection:bg-zen-info/10 min-h-0 ${
                     sidebarCollapsed ? 'hidden' : ''
                 }`}
             >
                 {!treeData || Object.keys(treeData).length === 0 ? (
-                    <div className="p-4 text-muted-foreground italic leading-relaxed">
+                    <div className="p-4 text-zen-text-muted italic leading-relaxed">
                         No active document detected.
                         <br />
                         Connect to CATIA to view the specification tree.

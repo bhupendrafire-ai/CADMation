@@ -9,16 +9,16 @@ const navItems = [
 
 export default function Sidebar({ activeTab, onTabChange }) {
   return (
-    <aside className="w-64 bg-[#09090b] border-r border-white/5 flex flex-col shrink-0 transition-all duration-300">
+    <aside className="w-64 bg-zen-surface border-r border-zen-border flex flex-col shrink-0 transition-all duration-300">
       <div className="p-6 flex items-center gap-3">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20">
+        <div className="w-8 h-8 bg-zen-primary rounded-lg flex items-center justify-center shadow-md">
           <div className="w-4 h-4 bg-white rounded-sm rotate-45 flex items-center justify-center">
-            <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+            <div className="w-2 h-2 bg-zen-primary rounded-full"></div>
           </div>
         </div>
         <div>
-          <h1 className="text-sm font-bold tracking-tighter text-white">CADMation</h1>
-          <p className="text-[10px] text-white/30 font-mono uppercase tracking-widest">Enterprise v2.3</p>
+          <h1 className="text-sm font-bold tracking-tight text-zen-text-main">CADMation</h1>
+          <p className="text-[10px] text-zen-text-muted font-mono uppercase tracking-widest">Enterprise v2.3</p>
         </div>
       </div>
 
@@ -29,12 +29,12 @@ export default function Sidebar({ activeTab, onTabChange }) {
             onClick={() => onTabChange(item.id)}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-200 group ${
               activeTab === item.id 
-              ? 'bg-blue-600/10 text-blue-400 border border-blue-600/20 shadow-inner' 
-              : 'text-white/40 hover:text-white/70 hover:bg-white/5 border border-transparent'
+              ? 'bg-zen-primary/[0.06] text-zen-primary border border-zen-primary/10 shadow-sm' 
+              : 'text-zen-text-dim hover:text-zen-text-main hover:bg-zen-surface-alt border border-transparent'
             }`}
           >
             <svg 
-              className={`w-5 h-5 transition-colors ${activeTab === item.id ? 'text-blue-400' : 'text-white/20 group-hover:text-white/40'}`} 
+              className={`w-5 h-5 transition-colors ${activeTab === item.id ? 'text-zen-primary' : 'text-zen-text-muted group-hover:text-zen-text-dim'}`} 
               fill="none" 
               stroke="currentColor" 
               viewBox="0 0 24 24" 
@@ -44,23 +44,23 @@ export default function Sidebar({ activeTab, onTabChange }) {
             </svg>
             <span className="font-medium">{item.label}</span>
             {activeTab === item.id && (
-              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]"></div>
+              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-zen-primary"></div>
             )}
           </button>
         ))}
       </nav>
 
-      <div className="p-6 mt-auto border-t border-white/5 bg-white/[0.02]">
+      <div className="p-6 mt-auto border-t border-zen-border">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
-            <svg className="w-6 h-6 text-white/20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+          <div className="w-10 h-10 rounded-full bg-zen-surface-alt border border-zen-border flex items-center justify-center overflow-hidden">
+            <svg className="w-6 h-6 text-zen-text-muted" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
           </div>
           <div>
-            <p className="text-xs font-bold text-white/80">Engineer One</p>
-            <p className="text-[10px] text-white/30 uppercase tracking-wider">Tier 1 Supplier</p>
+            <p className="text-xs font-bold text-zen-text-main">Engineer One</p>
+            <p className="text-[10px] text-zen-text-muted uppercase tracking-wider">Tier 1 Supplier</p>
           </div>
         </div>
-        <button className="w-full py-2 rounded-lg bg-white/5 text-[10px] text-white/40 hover:text-white hover:bg-white/10 transition-all font-bold uppercase tracking-widest border border-white/5">
+        <button className="w-full py-2 rounded-full bg-zen-surface-alt text-[10px] text-zen-text-dim hover:text-zen-text-main hover:bg-zen-primary hover:text-white transition-all font-bold uppercase tracking-widest border border-zen-border hover:border-zen-primary">
           Sign Out
         </button>
       </div>
