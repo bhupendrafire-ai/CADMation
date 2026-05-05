@@ -18,12 +18,19 @@ class Settings(BaseSettings):
     llm_provider: str = "openai"        # "openai" or "anthropic"
     llm_model: str = "gemini-3-flash-preview"
 
+    # ToolRoom ERP integration
+    toolroom_api_url: str = "https://toolroom.saptasati.co.in"
+
     # CORS origins (comma-separated in .env, parsed here as a single string)
     allowed_origins: str = "http://localhost:5173"
 
     class Config:
-        env_file = ".env"
+        import os, sys
         env_file_encoding = "utf-8"
+        if getattr(sys, 'frozen', False):
+            env_file = os.path.join(os.path.dirname(sys.executable), ".env")
+        else:
+            env_file = ".env"
 
 
 # Singleton instance — import this wherever settings are needed

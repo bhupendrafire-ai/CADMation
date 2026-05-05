@@ -871,11 +871,9 @@ class DraftingService:
             global_axis, global_cat_doc = resolve_axis_system_by_name(
                 caa, (global_drafting_axis_name or "").strip()
             )
+        warnings: List[str] = []
         if want_global and global_axis is None:
-            return {
-                "error": "Could not resolve global drafting axis from name or selection.",
-                "status_code": 400,
-            }
+            warnings.append(f"Global drafting axis '{global_drafting_axis_name}' not found. Falling back to part-local searching.")
 
         # Read DefineFrontView cosines before Documents.Add("Drawing"); new drawing can invalidate axis COM refs.
         global_plane_six: Optional[Tuple[float, float, float, float, float, float]] = None
@@ -894,7 +892,6 @@ class DraftingService:
                     "status_code": 400,
                 }
 
-        warnings: List[str] = []
         views_created: List[str] = []
         drawing_doc = None
 
@@ -926,6 +923,7 @@ class DraftingService:
                 part_key = item.get("partNumber") or item.get("id") or f"item_{idx}"
                 resolved = resolve_bom_item_object(caa, item)
                 if resolved is None:
+                    logger.warning("DraftingService: Could not resolve part for item %r (partKey: %s)", item, part_key)
                     warnings.append(f"Unresolved BOM row: {part_key}")
                     continue
 

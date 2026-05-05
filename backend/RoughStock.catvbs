@@ -1,0 +1,71 @@
+Language="VBSCRIPT"
+
+Sub CATMain()
+
+Dim bSTR1
+bSTR1 = CATIA.Name
+
+Dim bSTR2
+bSTR2 = CATIA.Name
+
+Set specsAndGeomWindow1 = CATIA.ActiveWindow
+
+Dim bSTR3
+bSTR3 = specsAndGeomWindow1.Caption
+
+Dim bSTR4
+bSTR4 = CATIA.Name
+
+Dim bSTR5
+bSTR5 = CATIA.Name
+
+Set specsAndGeomWindow1 = CATIA.ActiveWindow
+
+Dim bSTR6
+bSTR6 = specsAndGeomWindow1.Caption
+
+Dim bSTR7
+bSTR7 = CATIA.Name
+
+Dim bSTR8
+bSTR8 = CATIA.Name
+
+Set specsAndGeomWindow1 = CATIA.ActiveWindow
+
+Dim bSTR9
+bSTR9 = specsAndGeomWindow1.Caption
+
+Dim bSTR10
+bSTR10 = CATIA.Name
+
+Dim bSTR11
+bSTR11 = CATIA.Name
+
+Set specsAndGeomWindow1 = CATIA.ActiveWindow
+
+Dim bSTR12
+bSTR12 = specsAndGeomWindow1.Caption
+
+Dim bSTR13
+bSTR13 = CATIA.Name
+
+Dim bSTR14
+bSTR14 = CATIA.Name
+
+Set specsAndGeomWindow1 = CATIA.ActiveWindow
+
+Dim bSTR15
+bSTR15 = specsAndGeomWindow1.Caption
+
+Dim bSTR16
+bSTR16 = CATIA.Name
+
+Dim bSTR17
+bSTR17 = CATIA.Name
+
+Set specsAndGeomWindow1 = CATIA.ActiveWindow
+
+Dim bSTR18
+bSTR18 = specsAndGeomWindow1.Caption
+
+End Sub

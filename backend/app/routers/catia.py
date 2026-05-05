@@ -17,6 +17,7 @@ import json
 import logging
 import asyncio
 import os
+import sys
 import re
 
 # Per-item measurement timeout (seconds)
@@ -130,6 +131,33 @@ def save_bom_excel(payload: dict = Body(..., embed=False)):
     if not file_path:
         return {"error": "Failed to save BOM"}
     return {"status": "success", "file_path": file_path}
+
+
+@router.post("/bom/open")
+def open_bom_file(payload: dict = Body(...)):
+    """Opens a file using the system default handler (e.g. Excel)."""
+    file_path = payload.get("path")
+    if not file_path:
+        return {"error": "No path provided"}
+    
+    # Normalize path for the current OS
+    file_path = os.path.normpath(file_path)
+    
+    if not os.path.exists(file_path):
+        return {"error": f"File not found: {file_path}"}
+    
+    try:
+        import subprocess
+        if sys.platform == "win32":
+            os.startfile(file_path)
+        elif sys.platform == "darwin":
+            subprocess.run(["open", file_path])
+        else:
+            subprocess.run(["xdg-open", file_path])
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Failed to open file: {e}")
+        return {"error": str(e)}
 
 
 @router.post("/bom/body-disambiguation/reset")
@@ -562,7 +590,8 @@ async def bom_calculate_ws(websocket: WebSocket):
         payload = json.loads(data)
         # payload expected: { "items": [...], "method": "STL" | "ROUGH_STOCK" }
         selected_items = payload.get("items", [])
-        method = payload.get("method", "AUTO")
+        method = payload.get("method", "AUTO").upper()
+        if method == "ROUGHSTOCK": method = "ROUGH_STOCK" # Handle Frontend "RoughStock" alias
         
         # MARSHALING SAFETY: Load global settings as strings
         rs_window = payload.get("roughStockWindow", "Product Rough Stock")
@@ -642,6 +671,7 @@ async def bom_calculate_ws(websocket: WebSocket):
             try:
                 conf_data_raw = await websocket.receive_text()
                 conf_data = json.loads(conf_data_raw)
+                logger.info(f"BOM calculate: received command {conf_data.get('command')}")
                 if conf_data.get("command") == "AXIS_CONFIRMED":
                     # Now try to find the window handle
                     rs_window = RoughStockService.open_rough_stock_dialog(caa)
@@ -652,6 +682,7 @@ async def bom_calculate_ws(websocket: WebSocket):
             except Exception as e:
                 logger.error(f"Error waiting for axis confirmation: {e}")
 
+        force_remesure = bool(payload.get("force"))
         results = []
         stl_defer_items = []
         total = len(selected_items)
@@ -669,6 +700,10 @@ async def bom_calculate_ws(websocket: WebSocket):
             pass
 
         # BATCHING & MEMORY PURGING: Process in small chunks to prevent COM bloat
+        # SORTING: Process all Rough Stock items first, then STL fallback items (for multi-qty)
+        if method == "ROUGH_STOCK":
+            selected_items.sort(key=lambda x: 0 if x.get("qty", 1) == 1 else 1)
+        
         BATCH_SIZE = 5
         for i in range(0, total, BATCH_SIZE):
             if cancelled_ref[0]: break
@@ -683,10 +718,14 @@ async def bom_calculate_ws(websocket: WebSocket):
                 item_id = item.get("id")
                 qty = item.get("qty", 1)
                 instances = item.get("instances") or []
-                instance_name = item.get("instanceName") or (item.get("instances") or [f"{item_id}.1"])[0]
+                instance_name = item.get("instanceName") or (instances[0] if instances else f"{item_id}.1")
+                # --- PERSISTENCE & FORK HANDLING ---
+                # Use composite key for forked items: instance + body name suffix
+                _mb_name = (item.get("measurementBodyName") or "").strip()
+                body_suffix = f"[{_mb_name}]" if _mb_name else ""
+                cache_lookup_key = f"{instance_name}{body_suffix}"
                 
-                # 0. CHECK CACHE FOR RESUME/AUTO-SKIP
-                cached_data = project_cache.get(instance_name, {})
+                cached_data = project_cache.get(cache_lookup_key, {})
                 existing_size = cached_data.get("stock_size")
             
                 # --- PERSISTENCE INJECTION (TYPES & SELECTIONS) ---
@@ -698,8 +737,16 @@ async def bom_calculate_ws(websocket: WebSocket):
                 if "measurementBodyName" in cached_data:
                     item["measurementBodyName"] = cached_data["measurementBodyName"]
 
+                # --- CONDITIONAL METHOD OVERRIDE ---
+                # As per business logic: Rough Stock for single qty parts. 
+                # Qty > 1 parts use STL (first instance) for reliability.
+                effective_method = method
+                if method == "ROUGH_STOCK" and item.get("qty", 1) > 1:
+                    effective_method = "STL"
+                    # We will log this later if we don't skip
+                
                 # --- SKIP LOGIC (AGGRESSIVE RESUME) ---
-                if existing_size and existing_size != "Measuring...":
+                if not force_remesure and existing_size and existing_size != "Measuring...":
                     status_msg = f" (Already measured: {existing_size})"
                     msg = f"-> {item_id}: Skipping{status_msg}"
                     bom_service._log_op(msg)
@@ -707,12 +754,16 @@ async def bom_calculate_ws(websocket: WebSocket):
                     # Reconstruct bbox from cache to build full row
                     cached_bbox = {
                         "stock_size": existing_size,
-                        "method_used": cached_data.get("methodUsed", method),
+                        "method_used": cached_data.get("methodUsed", effective_method),
                         "rawDims": cached_data.get("rawDims", []),
                         "orderedDims": cached_data.get("orderedDims", []),
                         "stockForm": cached_data.get("stockForm", ""),
                         "measurement_confidence": cached_data.get("measurementConfidence", ""),
                     }
+                    
+                    # Merge cached body name if frontend is missing it
+                    effective_body = item.get("measurementBodyName") or cached_data.get("measurementBodyName", "")
+                    
                     measured_row = bom_service.build_measured_row(
                         {
                             **item,
@@ -722,6 +773,7 @@ async def bom_calculate_ws(websocket: WebSocket):
                             "instanceName": instance_name,
                             "qty": qty,
                             "instances": instances,
+                            "measurementBodyName": effective_body
                         },
                         cached_bbox,
                         cached_bbox["method_used"],
@@ -734,17 +786,22 @@ async def bom_calculate_ws(websocket: WebSocket):
                         "stock_size": existing_size, # Pass the cached size back
                         "done": True,
                         "isStd": item.get("isStd"),
-                        "measurementBodyName": item.get("measurementBodyName"),
+                        "measurementBodyName": effective_body,
                         "result": measured_row
                     }))
                     continue
 
                 msg = f"-> {item_id}: Resuming session..."
                 await websocket.send_text(json.dumps({"log": msg}))
+
+                if effective_method != method:
+                    msg = f"-> {item_id}: Multi-qty ({item.get('qty')}) detected. Switching to STL for reliability."
+                    bom_service._log_op(msg)
+                    await websocket.send_text(json.dumps({"log": msg}))
                 
                 # --- MEASUREMENT LOGIC ---
                 _mb = (item.get("measurementBodyName") or item.get("roughStockBodyName") or "").strip()
-                cache_key = f"{item_id}|{instance_name}|{method}|{_mb}"
+                cache_key = f"{item_id}|{instance_name}|{effective_method}|{_mb}"
                 if cache_key in measurement_cache:
                     msg = f"-> Using cached data for {item_id}"
                     bom_service._log_op(msg)
@@ -854,6 +911,13 @@ async def bom_calculate_ws(websocket: WebSocket):
                             msg = f"-> Resolved {item_id} to body {getattr(obj, 'Name', 'Unknown')}."
                             bom_service._log_op(msg)
                             await websocket.send_text(json.dumps({"log": msg}))
+                            
+                            # CHECKPOINT: Send partial update so frontend saves the body selection
+                            await websocket.send_text(json.dumps({
+                                "itemId": item_id,
+                                "measurementBodyName": getattr(obj, "Name", ""),
+                                "isPartial": True
+                            }))
 
 
                         if skip_body_measure:
@@ -877,7 +941,7 @@ async def bom_calculate_ws(websocket: WebSocket):
 
                             # Auto-persist body selection to 'BOM Brain'
                             if body_target is not None:
-                                bom_cache.save_item(active_doc_name, instance_name, {
+                                bom_cache.save_item(active_doc_name, cache_lookup_key, {
                                     "measurementBodyName": getattr(body_target, "Name", "")
                                 })
                                 # region agent log
@@ -910,7 +974,7 @@ async def bom_calculate_ws(websocket: WebSocket):
                                     com_sentinel.run, 
                                     geometry_service.get_bounding_box,
                                     obj_name,
-                                    method,
+                                    effective_method,
                                     rs_window,
                                     False,
                                     True,
@@ -919,11 +983,11 @@ async def bom_calculate_ws(websocket: WebSocket):
                                 )
                                 if bbox and bbox.get("stock_size"):
                                     # SAVE TO BOM BRAIN (Including results and metadata)
-                                    bom_cache.save_item(active_doc_name, instance_name, {
+                                    bom_cache.save_item(active_doc_name, cache_lookup_key, {
                                         "stock_size": bbox["stock_size"],
                                         "isStd": item.get("isStd"),
-                                        "methodUsed": bbox.get("method_used", method),
-                                        "measurementBodyName": item.get("measurementBodyName"),
+                                        "methodUsed": bbox.get("method_used", effective_method),
+                                        "measurementBodyName": getattr(obj, "Name", item.get("measurementBodyName")),
                                         "rawDims": bbox.get("rawDims", []),
                                         "orderedDims": bbox.get("orderedDims", []),
                                         "stockForm": bbox.get("stockForm", ""),
@@ -1029,12 +1093,42 @@ async def bom_calculate_ws(websocket: WebSocket):
                     await websocket.send_text(json.dumps({"log": msg}))
                     
                     _mb_stl = (item.get("measurementBodyName") or item.get("roughStockBodyName") or "").strip()
+                    body_suffix_stl = f"[{_mb_stl}]" if _mb_stl else ""
+                    cache_lookup_key = f"{instance_name}{body_suffix_stl}"
                     cache_key = f"{item_id}|{instance_name}|STL|{_mb_stl}"
-                    if cache_key in measurement_cache:
-                        msg = f"-> Using cached data for {item_id}"
+
+                    cached_data = project_cache.get(cache_lookup_key, {})
+                    existing_size = cached_data.get("stock_size")
+
+                    if not force_remesure and (cache_key in measurement_cache or (existing_size and existing_size != "Measuring...")):
+                        msg = f"-> {item_id}: Using cached data"
                         bom_service._log_op(msg)
                         await websocket.send_text(json.dumps({"log": msg}))
-                        bbox = measurement_cache[cache_key]
+                        
+                        if cache_key in measurement_cache:
+                            bbox = measurement_cache[cache_key]
+                        else:
+                             # Reconstruct bbox from persistent cache
+                            bbox = {
+                                "stock_size": existing_size,
+                                "method_used": cached_data.get("methodUsed", "STL"),
+                                "rawDims": cached_data.get("rawDims", []),
+                                "orderedDims": cached_data.get("orderedDims", []),
+                                "stockForm": cached_data.get("stockForm", ""),
+                                "measurement_confidence": cached_data.get("measurementConfidence", ""),
+                            }
+                        
+                        # Report done immediately
+                        await websocket.send_text(json.dumps({
+                            "log": msg, 
+                            "itemId": item_id, 
+                            "stock_size": bbox["stock_size"], 
+                            "done": True,
+                            "isStd": item.get("isStd"),
+                            "measurementBodyName": item.get("measurementBodyName") or cached_data.get("measurementBodyName"),
+                            "result": bom_service.build_measured_row({**item, "measurementBodyName": item.get("measurementBodyName") or cached_data.get("measurementBodyName")}, bbox, bbox["method_used"])
+                        }))
+                        continue
                     else:
                         bbox = {"stock_size": "Not Measurable"}
                     try:
@@ -1121,6 +1215,13 @@ async def bom_calculate_ws(websocket: WebSocket):
                                 msg = f"-> Resolved {item_id} to body {getattr(obj, 'Name', 'Unknown')}."
                                 bom_service._log_op(msg)
                                 await websocket.send_text(json.dumps({"log": msg}))
+                                
+                                # CHECKPOINT: Send partial update so frontend saves the body selection
+                                await websocket.send_text(json.dumps({
+                                    "itemId": item_id,
+                                    "measurementBodyName": getattr(obj, "Name", ""),
+                                    "isPartial": True
+                                }))
                         except Exception as e:
                             logger.error(f"Error resolving body (STL): {e}")
 
@@ -1137,11 +1238,11 @@ async def bom_calculate_ws(websocket: WebSocket):
                             bbox = geometry_service.get_bounding_box(obj, method="STL", fast_mode=False, stay_open=True) or {"stock_size": "Not Measurable"}
                             measurement_cache[cache_key] = bbox
                             
-                            bom_cache.save_item(active_doc_name, instance_name, {
+                            bom_cache.save_item(active_doc_name, cache_lookup_key, {
                                 "stock_size": bbox.get("stock_size", "Not Measurable"),
                                 "isStd": item.get("isStd"),
                                 "methodUsed": bbox.get("method_used", "STL"),
-                                "measurementBodyName": item.get("measurementBodyName"),
+                                "measurementBodyName": getattr(obj, "Name", item.get("measurementBodyName")),
                                 "rawDims": bbox.get("rawDims", []),
                                 "orderedDims": bbox.get("orderedDims", []),
                                 "stockForm": bbox.get("stockForm", ""),

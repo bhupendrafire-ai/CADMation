@@ -1,0 +1,1037 @@
+﻿python : 2026-03-16 
+19:08:11,966 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+At line:1 char:1
++ python h:\CADMation\backend\fi
+nal_verify_rs.py > 
+h:\CADMation\backend ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo              
+: NotSpecified: (2026-    03-16 
+19:0...current th    
+read.:String) [], Remot    
+eException
+    + FullyQualifiedErrorId     
+: NativeCommandError
+ 
+2026-03-16 19:08:12,900 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for Part1.7 
+(Method=ROUGH_STOCK)
+2026-03-16 19:08:12,902 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:08:12,907 [INFO] a
+pp.services.rough_stock_service:
+ Background dialog monitor 
+started.
+2026-03-16 19:08:12,908 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:08:13,974 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 'Part1.7' to 
+Body 'PartBody'
+2026-03-16 19:08:13,980 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+PartBody
+2026-03-16 19:08:16,044 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2767.475 x 1142.5 x 565.0
+2026-03-16 19:08:16,141 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2767.47 x 1142.5 x 565.0
+2026-03-16 19:08:16,646 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for INPUT 
+PART_01.1 (Method=ROUGH_STOCK)
+2026-03-16 19:08:16,647 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:08:16,654 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:08:17,690 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 'INPUT 
+PART_01.1' to Body 'FINAL PART'
+2026-03-16 19:08:17,695 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: FINAL 
+PART
+2026-03-16 19:08:19,721 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2884.737 x 830.514 x 947.543
+2026-03-16 19:08:19,799 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2884.74 x 830.51 x 947.54
+2026-03-16 19:08:20,304 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for Copy (1) 
+of INPUT PART_01.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:08:20,306 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:08:20,312 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:08:21,348 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 'Copy (1) of 
+INPUT PART_01.1' to Body 'FINAL 
+PART REAR_06112023'
+2026-03-16 19:08:21,354 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: FINAL 
+PART REAR_06112023
+2026-03-16 19:08:28,388 
+[WARNING] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock failed for 
+Copy (1) of INPUT PART_01.1
+2026-03-16 19:08:28,388 
+[WARNING] 
+app.services.geometry_service:  
+ Strict ROUGH_STOCK mode: 
+failing measurement.
+2026-03-16 19:08:28,892 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+OUTPUT_PART.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:08:28,894 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:08:28,900 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:08:29,937 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'OUTPUT_PART.1' to Body 
+'PartBody'
+2026-03-16 19:08:29,942 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+PartBody
+2026-03-16 19:08:31,992 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2767.475 x 1142.5 x 565.0
+2026-03-16 19:08:32,096 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2767.47 x 1142.5 x 565.0
+2026-03-16 19:08:32,601 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+FINAL_PART.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:08:32,607 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:08:32,617 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:08:33,656 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'FINAL_PART.1' to Body 'FINAL 
+PART'
+2026-03-16 19:08:33,662 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: FINAL 
+PART
+2026-03-16 19:08:35,690 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2884.737 x 830.514 x 947.543
+2026-03-16 19:08:35,720 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2884.74 x 830.51 x 947.54
+2026-03-16 19:08:36,225 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+ADPATER_GENERAL.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:08:36,226 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:08:36,252 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'ADPATER_GENERAL.1' to Body 
+'PartBody'
+2026-03-16 19:08:36,298 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+PartBody
+2026-03-16 19:08:38,284 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2767.475 x 1142.5 x 565.0
+2026-03-16 19:08:38,393 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2767.47 x 1142.5 x 565.0
+2026-03-16 19:08:38,897 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+ADAPTER_LOWER_AND_UPPER_DIE.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:08:38,899 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:08:38,905 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:08:39,943 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'ADAPTER_LOWER_AND_UPPER_DIE.1' 
+to Body 'PartBody'
+2026-03-16 19:08:39,948 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+PartBody
+2026-03-16 19:08:41,993 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2767.475 x 1142.5 x 565.0
+2026-03-16 19:08:42,097 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2767.47 x 1142.5 x 565.0
+2026-03-16 19:08:42,601 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for PRESS DATA_
+KANSAL_300T_AND_MALKE_400T.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:08:42,603 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:08:42,609 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:08:43,648 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 'PRESS DATA_KA
+NSAL_300T_AND_MALKE_400T.1' to 
+Body 'UPPER_RAM'
+2026-03-16 19:08:43,653 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+UPPER_RAM
+2026-03-16 19:08:45,680 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+1850.2 x 1250.2 x 160.2
+2026-03-16 19:08:45,747 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+1850.2 x 1250.2 x 160.2
+2026-03-16 19:08:46,252 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 000_DIE_TIM
+ING_DIAGRAM_AND_DESIGN_CALCULATI
+ON_1302DD.1 (Method=ROUGH_STOCK)
+2026-03-16 19:08:46,254 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:08:46,260 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:08:47,297 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product '000_DIE_TIMIN
+G_DIAGRAM_AND_DESIGN_CALCULATION
+_1302DD.1' to Body 'PartBody'
+2026-03-16 19:08:47,303 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+PartBody
+2026-03-16 19:08:49,381 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2767.475 x 1142.5 x 565.0
+2026-03-16 19:08:49,503 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2767.47 x 1142.5 x 565.0
+2026-03-16 19:08:50,008 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+ADAPTER_LOWER_FLANGE_STEEL.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:08:50,010 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:08:50,017 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:08:51,054 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'ADAPTER_LOWER_FLANGE_STEEL.1' 
+to Body 'PartBody'
+2026-03-16 19:08:51,060 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+PartBody
+2026-03-16 19:08:53,135 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2767.475 x 1142.5 x 565.0
+2026-03-16 19:08:53,232 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2767.47 x 1142.5 x 565.0
+2026-03-16 19:08:53,738 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for Copy (1) 
+of ADAPTER_LOWER_FLANGE_STEEL.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:08:53,740 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:08:53,747 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:08:54,785 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 'Copy (1) of 
+ADAPTER_LOWER_FLANGE_STEEL.1' 
+to Body 'PartBody'
+2026-03-16 19:08:54,790 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+PartBody
+2026-03-16 19:08:56,841 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2767.475 x 1142.5 x 565.0
+2026-03-16 19:08:56,933 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2767.47 x 1142.5 x 565.0
+2026-03-16 19:08:57,453 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 001_LOWER 
+SHOE .1 (Method=ROUGH_STOCK)
+2026-03-16 19:08:57,454 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:08:57,473 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:08:58,509 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product '001_LOWER 
+SHOE .1' to Body 'MAIN_BODY'
+2026-03-16 19:08:58,516 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+MAIN_BODY
+2026-03-16 19:09:00,480 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+1090.0 x 910.0 x 550.0
+2026-03-16 19:09:00,517 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+1090.0 x 910.0 x 550.0
+2026-03-16 19:09:01,527 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+MWF150-150.2 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:01,529 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:01,554 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'MWF150-150.2' to Body 
+'MWF100-150_1'
+2026-03-16 19:09:01,599 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+MWF100-150_1
+2026-03-16 19:09:03,558 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+710.0 x 150.0 x 100.0
+2026-03-16 19:09:03,638 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+710.0 x 150.0 x 100.0
+2026-03-16 19:09:04,142 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+MWF150-150.4 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:04,144 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:04,149 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:05,185 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'MWF150-150.4' to Body 
+'MWF100-150_1'
+2026-03-16 19:09:05,189 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+MWF100-150_1
+2026-03-16 19:09:07,141 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+710.0 x 150.0 x 100.0
+2026-03-16 19:09:07,217 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+710.0 x 150.0 x 100.0
+2026-03-16 19:09:07,721 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+GPM60-220_1.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:07,723 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:07,728 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:08,762 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'GPM60-220_1.1' to Body '1'
+2026-03-16 19:09:08,767 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 1
+2026-03-16 19:09:10,809 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+345.0 x 45.0 x 182.0
+2026-03-16 19:09:10,889 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+345.0 x 45.0 x 182.0
+2026-03-16 19:09:11,394 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+GPM60-220_1.2 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:11,395 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:11,401 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:12,439 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'GPM60-220_1.2' to Body '1'
+2026-03-16 19:09:12,444 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 1
+2026-03-16 19:09:14,489 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+345.0 x 45.0 x 182.0
+2026-03-16 19:09:14,560 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+345.0 x 45.0 x 182.0
+2026-03-16 19:09:15,064 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+GPM60-220_1.3 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:15,065 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:15,071 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:16,103 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'GPM60-220_1.3' to Body '1'
+2026-03-16 19:09:16,108 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 1
+2026-03-16 19:09:18,193 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+345.0 x 45.0 x 182.0
+2026-03-16 19:09:18,275 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+345.0 x 45.0 x 182.0
+2026-03-16 19:09:18,780 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+GPM60-220_1.4 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:18,782 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:18,787 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:19,822 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'GPM60-220_1.4' to Body '1'
+2026-03-16 19:09:19,826 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 1
+2026-03-16 19:09:21,870 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+345.0 x 45.0 x 182.0
+2026-03-16 19:09:21,960 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+345.0 x 45.0 x 182.0
+2026-03-16 19:09:22,465 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+TRANSPORTAION STRAP.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:22,467 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:22,472 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:23,508 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'TRANSPORTAION STRAP.1' to Body 
+'PartBody'
+2026-03-16 19:09:23,512 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+PartBody
+2026-03-16 19:09:25,561 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2767.475 x 1142.5 x 565.0
+2026-03-16 19:09:25,667 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2767.47 x 1142.5 x 565.0
+2026-03-16 19:09:26,172 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+TRANSPORTAION STRAP.2 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:26,173 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:26,179 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:27,214 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'TRANSPORTAION STRAP.2' to Body 
+'PartBody'
+2026-03-16 19:09:27,219 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+PartBody
+2026-03-16 19:09:29,271 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2767.475 x 1142.5 x 565.0
+2026-03-16 19:09:29,377 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2767.47 x 1142.5 x 565.0
+2026-03-16 19:09:29,881 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+TRANSPORTAION STRAP.3 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:29,883 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:29,888 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:30,921 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'TRANSPORTAION STRAP.3' to Body 
+'PartBody'
+2026-03-16 19:09:30,926 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+PartBody
+2026-03-16 19:09:32,975 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2767.475 x 1142.5 x 565.0
+2026-03-16 19:09:33,068 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2767.47 x 1142.5 x 565.0
+2026-03-16 19:09:33,572 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+TRANSPORTAION STRAP.4 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:33,574 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:33,580 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:34,612 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'TRANSPORTAION STRAP.4' to Body 
+'PartBody'
+2026-03-16 19:09:34,617 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+PartBody
+2026-03-16 19:09:36,664 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2767.475 x 1142.5 x 565.0
+2026-03-16 19:09:36,769 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2767.47 x 1142.5 x 565.0
+2026-03-16 19:09:37,273 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+602-603-921-EJECTION_ASSLY.2 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:37,274 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:37,280 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:38,314 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'602-603-921-EJECTION_ASSLY.2' 
+to Body '911_CYLINDER'
+2026-03-16 19:09:38,319 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+911_CYLINDER
+2026-03-16 19:09:45,355 
+[WARNING] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock failed for 
+602-603-921-EJECTION_ASSLY.2
+2026-03-16 19:09:45,355 
+[WARNING] 
+app.services.geometry_service:  
+ Strict ROUGH_STOCK mode: 
+failing measurement.
+2026-03-16 19:09:45,861 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+602-603-921-EJECTION_ASSLY.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:45,862 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:45,868 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:46,902 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'602-603-921-EJECTION_ASSLY.1' 
+to Body '911_CYLINDER'
+2026-03-16 19:09:46,906 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+911_CYLINDER
+2026-03-16 19:09:53,958 
+[WARNING] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock failed for 
+602-603-921-EJECTION_ASSLY.1
+2026-03-16 19:09:53,958 
+[WARNING] 
+app.services.geometry_service:  
+ Strict ROUGH_STOCK mode: 
+failing measurement.
+2026-03-16 19:09:54,464 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+502_GAUGE_PIN_02.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:54,466 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:54,472 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:55,505 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'502_GAUGE_PIN_02.1' to Body 
+'PartBody'
+2026-03-16 19:09:55,511 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+PartBody
+2026-03-16 19:09:57,620 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+2767.475 x 1142.5 x 565.0
+2026-03-16 19:09:57,736 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+2767.47 x 1142.5 x 565.0
+2026-03-16 19:09:58,241 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+000_LIFTER_DIA_80MM.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:09:58,243 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:09:58,248 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:09:59,285 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'000_LIFTER_DIA_80MM.1' to Body 
+'MANIFOLD_SOLID_BREP #40'
+2026-03-16 19:09:59,291 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+MANIFOLD_SOLID_BREP #40
+2026-03-16 19:10:01,387 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+1090.2 x 710.2 x 260.2
+2026-03-16 19:10:01,454 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+1090.2 x 710.2 x 260.2
+2026-03-16 19:10:01,959 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+000_LIFTER_DIA_80MM.2 
+(Method=ROUGH_STOCK)
+2026-03-16 19:10:01,960 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:10:01,965 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:10:02,998 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'000_LIFTER_DIA_80MM.2' to Body 
+'MANIFOLD_SOLID_BREP #40'
+2026-03-16 19:10:03,004 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+MANIFOLD_SOLID_BREP #40
+2026-03-16 19:10:05,101 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+1090.2 x 710.2 x 260.2
+2026-03-16 19:10:05,185 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+1090.2 x 710.2 x 260.2
+2026-03-16 19:10:05,689 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+000_LIFTER_DIA_80MM.3 
+(Method=ROUGH_STOCK)
+2026-03-16 19:10:05,691 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:10:05,696 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:10:06,731 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'000_LIFTER_DIA_80MM.3' to Body 
+'MANIFOLD_SOLID_BREP #40'
+2026-03-16 19:10:06,737 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+MANIFOLD_SOLID_BREP #40
+2026-03-16 19:10:08,786 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+1090.2 x 710.2 x 260.2
+2026-03-16 19:10:08,855 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+1090.2 x 710.2 x 260.2
+2026-03-16 19:10:09,360 [INFO] 
+app.services.geometry_service: 
+GeometryService: 
+get_bounding_box for 
+000_LIFTER_DIA_80MM.4 
+(Method=ROUGH_STOCK)
+2026-03-16 19:10:09,362 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:10:09,367 [INFO] a
+pp.services.rough_stock_service:
+ Triggering 'c:Creates rough 
+stock' command...
+2026-03-16 19:10:10,402 [INFO] a
+pp.services.rough_stock_service:
+ Resolved Product 
+'000_LIFTER_DIA_80MM.4' to Body 
+'MANIFOLD_SOLID_BREP #40'
+2026-03-16 19:10:10,406 [INFO] a
+pp.services.rough_stock_service:
+ Targeting internal body: 
+MANIFOLD_SOLID_BREP #40
+2026-03-16 19:10:12,459 [INFO] a
+pp.services.rough_stock_service:
+ Scraped Dims (Attempt 0): 
+1090.2 x 710.2 x 260.2
+2026-03-16 19:10:12,541 [INFO] 
+app.services.geometry_service:  
+ Tier 0 Rough Stock Success: 
+1090.2 x 710.2 x 260.2
+Active Document: _0101BZ105930N-940N_011_FLANGE DOWN RESTRIKE_TOOL_OP40.CATProduct
+Scanning assembly for all leaf parts...
+Found 112 parts to measure.
+
+Targeting: 000_ADAPTER_ABSOLUTE SYSTEM
+RESULT: 2767.47 x 1142.5 x 565.0 (3.2s)
+
+Targeting: INPUT PART 
+RESULT: 2884.74 x 830.51 x 947.54 (3.2s)
+
+Targeting: INPUT PART_02
+RESULT: Not Measurable (8.1s)
+
+Targeting: OUTPUT_PART
+RESULT: 2767.47 x 1142.5 x 565.0 (3.2s)
+
+Targeting: FINAL_PART
+RESULT: 2884.74 x 830.51 x 947.54 (3.1s)
+
+Targeting: ADPATER_GENERAL
+RESULT: 2767.47 x 1142.5 x 565.0 (2.2s)
+
+Targeting: ADAPTER_LOWER_AND_UPPER_DIE
+RESULT: 2767.47 x 1142.5 x 565.0 (3.2s)
+
+Targeting: PRESS DATA_C4_LINE
+RESULT: 1850.2 x 1250.2 x 160.2 (3.1s)
+
+Targeting: 000_DIE_TIMING_DIAGRAM_AND_DESIGN_CALCULATION_1302DD
+RESULT: 2767.47 x 1142.5 x 565.0 (3.3s)
+
+Targeting: ADAPTER_LOWER_FLANGE_STEEL
+RESULT: 2767.47 x 1142.5 x 565.0 (3.2s)
+
+Targeting: ADAPTER_UPPER_FLANGE_STEEL
+RESULT: 2767.47 x 1142.5 x 565.0 (3.2s)
+
+Targeting: 001_LOWER SHOE 
+RESULT: 1090.0 x 910.0 x 550.0 (3.1s)
+
+Targeting: ADAPTER_LOWER_AND_UPPER_DIE
+RESULT: 2767.47 x 1142.5 x 565.0 (0.0s)
+
+Targeting: 900-MAIN_WEAR_PLATE
+RESULT: 710.0 x 150.0 x 100.0 (2.1s)
+
+Targeting: 900-MAIN_WEAR_PLATE
+RESULT: 710.0 x 150.0 x 100.0 (3.1s)
+
+Targeting: 901-MAIN_GUIDE_PILLAR_GPM60-220
+RESULT: 345.0 x 45.0 x 182.0 (3.2s)
+
+Targeting: 901-MAIN_GUIDE_PILLAR_GPM60-220
+RESULT: 345.0 x 45.0 x 182.0 (3.2s)
+
+Targeting: 901-MAIN_GUIDE_PILLAR_GPM60-220
+RESULT: 345.0 x 45.0 x 182.0 (3.2s)
+
+Targeting: 901-MAIN_GUIDE_PILLAR_GPM60-220
+RESULT: 345.0 x 45.0 x 182.0 (3.2s)
+
+Targeting: 614-TRANSPORTAION STRAP
+RESULT: 2767.47 x 1142.5 x 565.0 (3.2s)
+
+Targeting: 614-TRANSPORTAION STRAP
+RESULT: 2767.47 x 1142.5 x 565.0 (3.2s)
+
+Targeting: 614-TRANSPORTAION STRAP
+RESULT: 2767.47 x 1142.5 x 565.0 (3.2s)
+
+Targeting: 614-TRANSPORTAION STRAP
+RESULT: 2767.47 x 1142.5 x 565.0 (3.2s)
+
+Targeting: 602-603-911-EJECTION_ASSLY
+RESULT: Not Measurable (8.1s)
+
+Targeting: 604-603-911-EJECTION_ASSLY
+RESULT: Not Measurable (8.1s)
+
+Targeting: 502_GAUGE_PIN_02
+RESULT: 2767.47 x 1142.5 x 565.0 (3.3s)
+
+Targeting: 000_LIFTER_DIA_100MM
+RESULT: 1090.2 x 710.2 x 260.2 (3.2s)
+
+Targeting: 000_LIFTER_DIA_100MM
+RESULT: 1090.2 x 710.2 x 260.2 (3.2s)
+
+Targeting: 000_LIFTER_DIA_100MM
+RESULT: 1090.2 x 710.2 x 260.2 (3.2s)
+
+Targeting: 000_LIFTER_DIA_100MM
+RESULT: 1090.2 x 710.2 x 260.2 (3.2s)
+
+================================================================================
+Part Number                              | Rough Stock Result            
+--------------------------------------------------------------------------------
+000_ADAPTER_ABSOLUTE SYSTEM              | 2767.47 x 1142.5 x 565.0       [OK]
+INPUT PART                               | 2884.74 x 830.51 x 947.54      [OK]
+INPUT PART_02                            | Not Measurable                
+OUTPUT_PART                              | 2767.47 x 1142.5 x 565.0       [OK]
+FINAL_PART                               | 2884.74 x 830.51 x 947.54      [OK]
+ADPATER_GENERAL                          | 2767.47 x 1142.5 x 565.0       [OK]
+ADAPTER_LOWER_AND_UPPER_DIE              | 2767.47 x 1142.5 x 565.0       [OK]
+PRESS DATA_C4_LINE                       | 1850.2 x 1250.2 x 160.2        [OK]
+000_DIE_TIMING_DIAGRAM_AND_DESIGN_CALCULATION_1302DD | 2767.47 x 1142.5 x 565.0       [OK]
+ADAPTER_LOWER_FLANGE_STEEL               | 2767.47 x 1142.5 x 565.0       [OK]
+ADAPTER_UPPER_FLANGE_STEEL               | 2767.47 x 1142.5 x 565.0       [OK]
+001_LOWER SHOE                           | 1090.0 x 910.0 x 550.0         [OK]
+ADAPTER_LOWER_AND_UPPER_DIE              | 2767.47 x 1142.5 x 565.0       [OK]
+900-MAIN_WEAR_PLATE                      | 710.0 x 150.0 x 100.0          [OK]
+900-MAIN_WEAR_PLATE                      | 710.0 x 150.0 x 100.0          [OK]
+901-MAIN_GUIDE_PILLAR_GPM60-220          | 345.0 x 45.0 x 182.0           [OK]
+901-MAIN_GUIDE_PILLAR_GPM60-220          | 345.0 x 45.0 x 182.0           [OK]
+901-MAIN_GUIDE_PILLAR_GPM60-220          | 345.0 x 45.0 x 182.0           [OK]
+901-MAIN_GUIDE_PILLAR_GPM60-220          | 345.0 x 45.0 x 182.0           [OK]
+614-TRANSPORTAION STRAP                  | 2767.47 x 1142.5 x 565.0       [OK]
+614-TRANSPORTAION STRAP                  | 2767.47 x 1142.5 x 565.0       [OK]
+614-TRANSPORTAION STRAP                  | 2767.47 x 1142.5 x 565.0       [OK]
+614-TRANSPORTAION STRAP                  | 2767.47 x 1142.5 x 565.0       [OK]
+602-603-911-EJECTION_ASSLY               | Not Measurable                
+604-603-911-EJECTION_ASSLY               | Not Measurable                
+502_GAUGE_PIN_02                         | 2767.47 x 1142.5 x 565.0       [OK]
+000_LIFTER_DIA_100MM                     | 1090.2 x 710.2 x 260.2         [OK]
+000_LIFTER_DIA_100MM                     | 1090.2 x 710.2 x 260.2         [OK]
+000_LIFTER_DIA_100MM                     | 1090.2 x 710.2 x 260.2         [OK]
+000_LIFTER_DIA_100MM                     | 1090.2 x 710.2 x 260.2         [OK]
+--------------------------------------------------------------------------------
+Summary: 27/30 successful measurements.
+================================================================================

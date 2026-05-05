@@ -156,3 +156,139 @@
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--color-zen-text-muted);
 }
+
+/* ═══════════════════════════════════════════════
+   react-data-grid Industrial Zen Overrides
+   ═══════════════════════════════════════════════ */
+.rdg {
+  --rdg-background-color: var(--color-zen-surface);
+  --rdg-header-background-color: var(--color-zen-surface-alt);
+  --rdg-row-hover-background-color: var(--color-zen-bg);
+  --rdg-selection-color: var(--color-zen-primary);
+  --rdg-border-color: var(--color-zen-border);
+  --rdg-font-size: 11px;
+  --rdg-color: var(--color-zen-text-main);
+  border: 1px solid var(--color-zen-border);
+  border-radius: 12px;
+}
+
+.rdg-cell {
+  border-inline-end: 1px solid var(--color-zen-border-strong);
+  border-block-end: 1px solid var(--color-zen-border);
+  padding-inline: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.rdg-header-row .rdg-cell {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 9px;
+  color: var(--color-zen-text-muted);
+  border-block-end: 2px solid var(--color-zen-border-strong);
+}
+
+.rdg-cell input[type="text"], 
+.rdg-cell input[type="number"] {
+  background: transparent;
+  border: none;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+.rdg-cell:has(input:focus) {
+  outline: 2px solid var(--color-zen-primary);
+  outline-offset: -2px;
+  z-index: 10;
+}
+
+.rdg-row:hover {
+  background-color: var(--color-zen-surface-alt) !important;
+}
+
+.rdg-row[aria-selected="true"] {
+  background-color: rgba(47, 97, 124, 0.05) !important;
+}
+
+.rdg-zen-container {
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+  background: var(--color-zen-surface);
+}
+
+.rdg-zen-container .rdg {
+  border: none;
+  border-radius: 0;
+}
+
+/* Custom RDG text editor refinement */
+.rdg-text-editor {
+  appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding-inline: 8px;
+  border: 2px solid var(--color-zen-primary);
+  vertical-align: top;
+  color: var(--color-zen-text-main);
+  background-color: var(--color-zen-surface);
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+}
+
+/* Editable Cell Indicators */
+.editable-cell {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.editable-cell:hover {
+  background-color: var(--zen-surface-alt) !important;
+  box-shadow: inset 0 0 0 1px var(--zen-primary-dim);
+  cursor: text;
+}
+
+.editable-cell:hover::after {
+  content: '✎';
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  opacity: 0.6;
+  color: var(--zen-primary);
+  pointer-events: none;
+}
+
+/* Dropdown Cell Indicators */
+.dropdown-cell {
+  position: relative;
+}
+
+.dropdown-cell::after {
+  content: '▼';
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 8px;
+  color: var(--color-zen-text-muted);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.dropdown-cell:hover::after {
+  opacity: 1;
+  color: var(--color-zen-primary);
+}
+
+.dropdown-cell:hover {
+  background-color: var(--color-zen-surface-alt);
+  cursor: pointer;
+}

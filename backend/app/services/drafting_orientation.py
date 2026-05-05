@@ -478,7 +478,7 @@ def front_plane_and_axis_for_row(
         primary_define_front=primary_define_front,
     )
     if plane is None:
-        return None, None, None
+        return DEFAULT_FRONT_PLANE, None, catpart_document_for_part(part_scope)
     return plane, ax, catpart_document_for_part(part_scope)
 
 

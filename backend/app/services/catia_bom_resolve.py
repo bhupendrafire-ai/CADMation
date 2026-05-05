@@ -363,14 +363,14 @@ def resolve_bom_item_object(caa, item: dict) -> Any:
     plausible sourceDocPath first, then active CATPart only when path matches (or no path),
     then Part Number search and name fallbacks, last-chance open document by path.
     """
-    if item.get("isManualRow"):
+    item_id = (item.get("partNumber") or item.get("id") or "").strip()
+    if item_id.startswith("manual-") or item.get("isManualRow") or item.get("isClonedRow"):
         item_id = (item.get("partNumber") or "").strip()
-    else:
-        item_id = item.get("id") or item.get("partNumber") or ""
     instances = item.get("instances") or []
     instance_name = item.get("instanceName") or (instances[0] if instances else None) or (
         f"{item_id}.1" if item_id else ""
     )
+    logger.info("resolve_bom_item_object: item_id=%r, instance_name=%r, isManual=%s", item_id, instance_name, item.get("isManualRow"))
     source_doc_path = (item.get("sourceDocPath") or "").strip()
     obj = None
     try:

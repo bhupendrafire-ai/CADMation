@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CADMATION Brand Guidelines</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Flex:wght@300;400;500;600;700;900&display=swap');
+
+:root {
+  --dark-grey: #2A2B2A;
+  --rich-black: #191919;
+  --red-orange: #E63F26;
+  --yellow: #FFCC33;
+  --teal: #98CBCB;
+  --white: #FFFFFF;
+  --panel-grey: #E0E0E0;
+  --text-grey: #6B6B6B;
+  --bg-grey: #F4F4F4;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Roboto Flex', 'Roboto', system-ui, sans-serif; background: var(--white); color: var(--dark-grey); font-size: 11pt; line-height: 1.55; }
+@page { size: A4; margin: 0; }
+
+.page { width: 210mm; min-height: 297mm; padding: 15mm 18mm; page-break-after: always; position: relative; background: var(--white); }
+
+.cover { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 0; background: var(--rich-black) !important; }
+.cover .logo-wrap { margin-bottom: 12mm; }
+.cover .brand-name { font-size: 52pt; font-weight: 900; color: var(--white); letter-spacing: -2px; line-height: 1; margin-bottom: 4px; }
+.cover .brand-tag { font-size: 13pt; font-weight: 400; color: var(--teal); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 8mm; }
+.cover .tagline { font-size: 11pt; font-weight: 300; color: rgba(255,255,255,0.6); max-width: 120mm; line-height: 1.6; }
+.cover .doc-meta { position: absolute; bottom: 18mm; font-size: 9pt; color: rgba(255,255,255,0.3); letter-spacing: 1px; }
+.accent-line { width: 60mm; height: 3px; background: var(--red-orange); margin: 6mm auto; }
+
+.section-header { border-left: 5px solid var(--red-orange); padding-left: 8mm; margin-bottom: 8mm; }
+.section-num { font-size: 9pt; font-weight: 700; color: var(--red-orange); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px; }
+.section-title { font-size: 24pt; font-weight: 900; color: var(--rich-black); line-height: 1.1; }
+
+h3 { font-size: 13pt; font-weight: 700; color: var(--dark-grey); margin: 7mm 0 3mm 0; border-bottom: 1.5px solid var(--panel-grey); padding-bottom: 2mm; }
+p { margin-bottom: 4mm; color: #3a3a3a; }
+
+.logo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin: 6mm 0; }
+.logo-card { border: 1.5px solid var(--panel-grey); padding: 8mm 6mm; text-align: center; border-radius: 3px; }
+.logo-card svg { max-width: 100%; height: auto; margin-bottom: 4mm; }
+.logo-label { font-size: 9pt; font-weight: 600; color: var(--text-grey); letter-spacing: 1px; text-transform: uppercase; }
+.logo-desc { font-size: 8pt; color: var(--text-grey); margin-top: 2mm; }
+
+.color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; margin: 5mm 0; }
+.swatch { text-align: center; }
+.swatch-box { width: 100%; aspect-ratio: 1; border-radius: 3px; margin-bottom: 2.5mm; border: 1px solid rgba(0,0,0,0.1); }
+.swatch-name { font-size: 8.5pt; font-weight: 700; color: var(--dark-grey); }
+.swatch-hex { font-size: 8pt; font-weight: 500; color: var(--text-grey); font-family: monospace; letter-spacing: 0.5px; }
+.swatch-use { font-size: 7.5pt; color: var(--text-grey); margin-top: 1.5mm; }
+
+.type-table { width: 100%; border-collapse: collapse; margin: 5mm 0; }
+.type-table th { text-align: left; font-size: 8.5pt; font-weight: 700; color: var(--white); background: var(--dark-grey); padding: 2.5mm 3mm; letter-spacing: 1px; text-transform: uppercase; }
+.type-table td { padding: 2.5mm 3mm; font-size: 9.5pt; border-bottom: 1px solid var(--panel-grey); vertical-align: middle; }
+.type-table tr:nth-child(even) td { background: var(--bg-grey); }
+.mono { font-family: monospace; font-size: 9pt; }
+
+.prohibition-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; margin: 5mm 0; }
+.prohibition-item { display: flex; align-items: flex-start; gap: 2.5mm; padding: 2.5mm 3mm; background: #FFF5F5; border-left: 3px solid var(--red-orange); border-radius: 0 3px 3px 0; }
+.prohibition-item .icon { font-size: 10pt; color: var(--red-orange); font-weight: 900; flex-shrink: 0; }
+.prohibition-item span { font-size: 8.5pt; color: #4a2020; line-height: 1.4; }
+
+.voice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; margin: 6mm 0; }
+.voice-card { border: 1.5px solid var(--panel-grey); padding: 5mm; border-radius: 4px; text-align: center; }
+.voice-card .pillar { font-size: 18pt; font-weight: 900; color: var(--red-orange); margin-bottom: 2mm; letter-spacing: -0.5px; }
+.voice-card .desc { font-size: 8.5pt; color: var(--text-grey); line-height: 1.5; }
+
+.footer { position: fixed; bottom: 8mm; left: 18mm; right: 18mm; display: flex; justify-content: space-between; align-items: center; font-size: 8pt; color: var(--text-grey); border-top: 1px solid var(--panel-grey); padding-top: 2.5mm; }
+.footer .brand { font-weight: 700; color: var(--dark-grey); }
+
+table { width: 100%; border-collapse: collapse; margin: 4mm 0; font-size: 9pt; }
+th { background: var(--dark-grey); color: var(--white); padding: 2.5mm 3mm; text-align: left; font-size: 8.5pt; font-weight: 700; letter-spacing: 0.5px; }
+td { padding: 2.5mm 3mm; border-bottom: 1px solid var(--panel-grey); vertical-align: top; }
+tr:nth-child(even) td { background: var(--bg-grey); }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; }
+
+.image-style-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; margin: 5mm 0; }
+.style-do, .style-dont { padding: 5mm; border-radius: 3px; }
+.style-do { background: #F0FAF8; border-left: 4px solid var(--teal); }
+.style-dont { background: #FFF5F5; border-left: 4px solid var(--red-orange); }
+.style-do h4, .style-dont h4 { font-size: 10pt; font-weight: 800; margin-bottom: 3mm; letter-spacing: 1px; }
+.style-do h4 { color: #2A6A5A; }
+.style-dont h4 { color: #8A2020; }
+.style-do ul, .style-dont ul { list-style: none; padding: 0; }
+.style-do ul li, .style-dont ul li { font-size: 8.5pt; padding: 1.5mm 0; padding-left: 5mm; position: relative; line-height: 1.4; }
+.style-do ul li::before { content: "\2713"; position: absolute; left: 0; color: #2A6A5A; font-weight: 900; }
+.style-dont ul li::before { content: "\2717"; position: absolute; left: 0; color: #8A2020; font-weight: 900; }
+
+.tech-ref-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin: 5mm 0; }
+.ref-card { border: 1.5px solid var(--panel-grey); padding: 5mm; border-radius: 4px; }
+.ref-card h4 { font-size: 10pt; font-weight: 800; color: var(--dark-grey); margin-bottom: 3mm; border-bottom: 2px solid var(--red-orange); padding-bottom: 2mm; }
+.ref-card ul { list-style: none; padding: 0; }
+.ref-card ul li { font-size: 8.5pt; padding: 1.5mm 0; color: #3a3a3a; border-bottom: 1px solid var(--panel-grey); }
+.ref-card ul li:last-child { border-bottom: none; }
+
+.highlight-box { background: var(--bg-grey); border: 1px solid var(--panel-grey); padding: 5mm; border-radius: 3px; margin: 4mm 0; }
+.highlight-box strong { color: var(--red-orange); }
+
+.messgae-matrix { width: 100%; border-collapse: collapse; margin: 5mm 0; font-size: 8.5pt; }
+.messgae-matrix th { background: var(--dark-grey); color: var(--white); padding: 2.5mm 3mm; text-align: left; font-size: 8.5pt; }
+.messgae-matrix td { padding: 2.5mm 3mm; border-bottom: 1px solid var(--panel-grey); vertical-align: top; }
+.messgae-matrix td:first-child { font-weight: 700; color: var(--dark-grey); background: var(--bg-grey); }
+
+blockquote { border-left: 4px solid var(--red-orange); padding: 3mm 5mm; background: #FFF8F7; margin: 4mm 0; font-style: italic; font-size: 9.5pt; color: var(--text-grey); }
+
+.clear-space-table td { background: var(--white) !important; }
+code { font-family: monospace; font-size: 8.5pt; background: var(--bg-grey); padding: 1mm 2mm; border-radius: 2px; }
+</style>
+</head>
+<body>
+<!-- PAGE 1: COVER -->
+<div class="page cover">
+  <div class="logo-wrap"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 72" width="280" height="72"><g transform="translate(36,36)"><polygon points="0,-26 22.52,-13 22.52,13 0,26 -22.52,13 -22.52,-13" fill="none" stroke="#2A2B2A" stroke-width="3.5" stroke-linejoin="round"/><polygon points="0,-17 14.47,-8.5 14.47,8.5 0,17 -14.47,8.5 -14.47,-8.5" fill="#2A2B2A" fill-opacity="0.08" stroke="#2A2B2A" stroke-width="1.5" stroke-linejoin="round"/><path d="M 9,-11 A 13,13 0 1,0 9,11" fill="none" stroke="#E63F26" stroke-width="4.5" stroke-linecap="round"/><circle cx="10" cy="0" r="2.5" fill="#E63F26"/><line x1="0" y1="-22" x2="0" y2="-19.5" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/><line x1="19.05" y1="-11" x2="16.9" y2="-9.77" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/><line x1="19.05" y1="11" x2="16.9" y2="9.77" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/><line x1="0" y1="22" x2="0" y2="19.5" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/><line x1="-19.05" y1="11" x2="-16.9" y2="9.77" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/><line x1="-19.05" y1="-11" x2="-16.9" y2="-9.77" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/></g><text x="76" y="36" font-family="Roboto Flex, Roboto, system-ui, sans-serif" font-weight="900" font-size="30" fill="#2A2B2A" letter-spacing="-0.5">CAD</text><text x="76" y="58" font-family="Roboto Flex, Roboto, system-ui, sans-serif" font-weight="400" font-size="13" fill="#6B6B6B" letter-spacing="2">MATION</text><rect x="76" y="41" width="65" height="2.5" fill="#E63F26" rx="1.25"/></svg></div>
+  <div class="brand-tag">Brand Guidelines v1.0</div>
+  <div class="accent-line"></div>
+  <div class="tagline">The Intelligent Local Copilot for CATIA V5 Sheet Metal Design — precision without compromise, local without limitation.</div>
+  <div class="doc-meta">April 2026 &nbsp;|&nbsp; Confidential &nbsp;|&nbsp; cadmation.io</div>
+</div>
+<!-- PAGE 2: IDENTITY -->
+<div class="page">
+  <div class="section-header">
+    <div class="section-num">Section 01</div>
+    <div class="section-title">Brand Identity &amp; Purpose</div>
+  </div>
+  <h3>What CADMation Is</h3>
+  <p>CADMation is the <strong>Intelligent Local Copilot for CATIA V5 sheet metal design</strong> — a professional-grade desktop AI companion that works entirely offline, putting engineer-grade precision directly on the engineer's workstation.</p>
+  <p>Our identity is a commitment to <strong>consistency, visibility, and reliability</strong> within the high-stakes engineering workflow. We provide the technical infrastructure — Deep Specification Tree extraction, Interactive Tagging, and Smart Chat — to transform complex CAD data into actionable design intelligence.</p>
+  <div class="highlight-box">
+    <p style="margin:0;"><strong>Interactive Tagging</strong> isn't just a feature; it is the <em>visual bridge</em> between human intent and AI execution. Our identity system is engineered for flexibility and instant brand recognition, ensuring the CADMation presence remains a stable, professional anchor across every touchpoint.</p>
+  </div>
+  <h3>Brand Promise</h3>
+  <blockquote>Precision without compromise. Local without limitation. Smart without internet.</blockquote>
+  <h3>Core Attribute</h3>
+  <p>Desktop-native AI for CATIA V5 sheet metal professionals — running <strong>entirely offline</strong>, with zero cloud dependency.</p>
+  <table style="margin-top:6mm;">
+    <tr><th style="width:45mm;">Attribute</th><th>Definition</th></tr>
+    <tr><td><strong>Precision</strong></td><td>Engineering-grade accuracy in every feature and every word</td></tr>
+    <tr><td><strong>Locality</strong></td><td>No cloud, no latency, no dependency — AI runs on the workstation</td></tr>
+    <tr><td><strong>Reliability</strong></td><td>WebSocket architecture, MIT licensed, single-file distribution</td></tr>
+    <tr><td><strong>Clarity</strong></td><td>Class Utility Simple — every word earns its place</td></tr>
+  </table>
+  <div class="footer"><span class="brand">CADMATION</span><span>Brand Guidelines v1.0 &nbsp;|&nbsp; Section 01</span></div>
+</div>
+<!-- PAGE 3: LOGO -->
+<div class="page">
+  <div class="section-header">
+    <div class="section-num">Section 02</div>
+    <div class="section-title">Logo System &amp; Versions</div>
+  </div>
+  <p>The CADMation logo system provides three primary lockups, each engineered for maximum brand recognition across every conceivable interface — from the CATIA specification tree panel to A3 technical posters.</p>
+  <h3>2.1 Horizontal Lockup</h3>
+  <p style="color:var(--text-grey); font-size:8.5pt; margin-bottom:4mm;">The preferred version for all standard applications.</p>
+  <div class="logo-card" style="margin-bottom:7mm;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 72" width="280" height="72"><g transform="translate(36,36)"><polygon points="0,-26 22.52,-13 22.52,13 0,26 -22.52,13 -22.52,-13" fill="none" stroke="#2A2B2A" stroke-width="3.5" stroke-linejoin="round"/><polygon points="0,-17 14.47,-8.5 14.47,8.5 0,17 -14.47,8.5 -14.47,-8.5" fill="#2A2B2A" fill-opacity="0.08" stroke="#2A2B2A" stroke-width="1.5" stroke-linejoin="round"/><path d="M 9,-11 A 13,13 0 1,0 9,11" fill="none" stroke="#E63F26" stroke-width="4.5" stroke-linecap="round"/><circle cx="10" cy="0" r="2.5" fill="#E63F26"/><line x1="0" y1="-22" x2="0" y2="-19.5" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/><line x1="19.05" y1="-11" x2="16.9" y2="-9.77" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/><line x1="19.05" y1="11" x2="16.9" y2="9.77" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/><line x1="0" y1="22" x2="0" y2="19.5" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/><line x1="-19.05" y1="11" x2="-16.9" y2="9.77" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/><line x1="-19.05" y1="-11" x2="-16.9" y2="-9.77" stroke="#2A2B2A" stroke-width="2" stroke-linecap="round"/></g><text x="76" y="36" font-family="Roboto Flex, Roboto, system-ui, sans-serif" font-weight="900" font-size="30" fill="#2A2B2A" letter-spacing="-0.5">CAD</text><text x="76" y="58" font-family="Roboto Flex, Roboto, system-ui, sans-serif" font-weight="400" font-size="13" fill="#6B6B6B" letter-spacing="2">MATION</text><rect x="76" y="41" width="65" height="2.5" fill="#E63F26" rx="1.25"/></svg><div class="logo-label">Horizontal Lockup — Primary</div><div class="logo-desc">Preferred version for maximum visual impact and immediate brand recognition</div></div>
+  <div class="two-col">
+    <div>
+      <h3>2.2 Vertical Lockup</h3>
+      <p style="color:var(--text-grey); font-size:8.5pt; margin-bottom:4mm;">For tall, narrow layouts — vertical banners, sidebar icons, mobile-first contexts.</p>
+      <div class="logo-card"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 180" width="140" height="180"><g transform="translate(70,62)"><polygon points="0,-44 38.11,-22 38.11,22 0,44 -38.11,22 -38.11,-22" fill="none" stroke="#2A2B2A" stroke-width="4.5" stroke-linejoin="round"/><polygon points="0,-28 24.5,-14 24.5,14 0,28 -24.5,14 -24.5,-14" fill="#2A2B2A" fill-opacity="0.08" stroke="#2A2B2A" stroke-width="2" stroke-linejoin="round"/><path d="M 15,-18 A 20,20 0 1,0 15,18" fill="none" stroke="#E63F26" stroke-width="5.5" stroke-linecap="round"/><circle cx="16" cy="0" r="4" fill="#E63F26"/><line x1="0" y1="-37" x2="0" y2="-32" stroke="#2A2B2A" stroke-width="2.5" stroke-linecap="round"/><line x1="32" y1="-18.5" x2="28.8" y2="-16.5" stroke="#2A2B2A" stroke-width="2.5" stroke-linecap="round"/><line x1="32" y1="18.5" x2="28.8" y2="16.5" stroke="#2A2B2A" stroke-width="2.5" stroke-linecap="round"/><line x1="0" y1="37" x2="0" y2="32" stroke="#2A2B2A" stroke-width="2.5" stroke-linecap="round"/><line x1="-32" y1="18.5" x2="-28.8" y2="16.5" stroke="#2A2B2A" stroke-width="2.5" stroke-linecap="round"/><line x1="-32" y1="-18.5" x2="-28.8" y2="-16.5" stroke="#2A2B2A" stroke-width="2.5" stroke-linecap="round"/></g><text x="70" y="128" text-anchor="middle" font-family="Roboto Flex, Roboto, system-ui, sans-serif" font-weight="900" font-size="38" fill="#2A2B2A" letter-spacing="-1">CAD</text><text x="70" y="150" text-anchor="middle" font-family="Roboto Flex, Roboto, system-ui, sans-serif" font-weight="400" font-size="16" fill="#6B6B6B" letter-spacing="2.5">MATION</text><rect x="28" y="134" width="84" height="3.5" fill="#E63F26" rx="1.75"/></svg><div class="logo-label">Vertical Lockup</div><div class="logo-desc">Narrow / portrait layouts</div></div>
+    </div>
+    <div>
+      <h3>2.3 Symbol Lockup</h3>
+      <p style="color:var(--text-grey); font-size:8.5pt; margin-bottom:4mm;">For absolute space constraints — favicons, toolbar buttons, app icons.</p>
+      <div class="logo-card" style="display:flex; flex-direction:column; align-items:center; gap:5mm;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><polygon points="32,4 56,18 56,46 32,60 8,46 8,18" fill="#2A2B2A"/><polygon points="32,14 48,23 48,41 32,50 16,41 16,23" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-opacity="0.3" stroke-linejoin="round"/><path d="M 42,22 A 16,16 0 1,0 42,42" fill="none" stroke="#E63F26" stroke-width="5" stroke-linecap="round"/><circle cx="43" cy="32" r="3" fill="#E63F26"/><line x1="32" y1="6" x2="32" y2="11" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/><line x1="54" y1="18" x2="50" y2="21" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/><line x1="54" y1="46" x2="50" y2="43" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/><line x1="32" y1="58" x2="32" y2="53" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/><line x1="10" y1="46" x2="14" y2="43" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/><line x1="10" y1="18" x2="14" y2="21" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/></svg><div class="logo-label">Symbol Only</div><div class="logo-desc">Brand name must remain visible within same visual field</div></div>
+    </div>
+  </div>
+  <h3>Logo File Deliverables</h3>
+  <table>
+    <tr><th>File</th><th>Format</th><th>Use Case</th></tr>
+    <tr><td><code>CADMation-Horizontal-FullColor.svg</code></td><td>Vector</td><td>Primary digital use</td></tr>
+    <tr><td><code>CADMation-Horizontal-Monochrome.svg</code></td><td>Vector</td><td>Single-color print</td></tr>
+    <tr><td><code>CADMation-Vertical-FullColor.svg</code></td><td>Vector</td><td>Narrow layouts</td></tr>
+    <tr><td><code>CADMation-Symbol-FullColor.svg</code></td><td>Vector</td><td>Icon / favicon</td></tr>
+  </table>
+  <div class="footer"><span class="brand">CADMATION</span><span>Brand Guidelines v1.0 &nbsp;|&nbsp; Section 02</span></div>
+</div>
+<!-- PAGE 4: CLEAR SPACE + MISUSE -->
+<div class="page">
+  <div class="section-header">
+    <div class="section-num">Section 03 + 04</div>
+    <div class="section-title">Clear Space, Sizing &amp; Logo Misuse</div>
+  </div>
+  <h3>Clear Space Rule</h3>
+  <p>The minimum clear space around the logo is equal to the <strong>height of the CADMation symbol</strong> on all four sides. This breathing room prevents visual clutter and ensures the logo remains legible against complex engineering data.</p>
+  <div class="highlight-box" style="margin:5mm 0;"><p style="margin:0; text-align:center; font-size:10.5pt;"><strong>Clear Space = 1 x Symbol Height on all four sides</strong></p></div>
+  <h3>Minimum Dimensions</h3>
+  <table class="clear-space-table">
+    <tr><th>Lockup Type</th><th>Digital Minimum</th><th>Print Minimum</th></tr>
+    <tr><td><strong>Horizontal Lockup</strong></td><td class="mono">112px x 34px</td><td class="mono">39mm x 12mm</td></tr>
+    <tr><td><strong>Vertical Lockup</strong></td><td class="mono">88px x 53px</td><td class="mono">31mm x 18mm</td></tr>
+    <tr><td><strong>Symbol (standalone)</strong></td><td class="mono">24px x 24px</td><td class="mono">8mm x 8mm</td></tr>
+  </table>
+  <h3>Logo Misuse — Strictly Prohibited</h3>
+  <p>To maintain the technical authority of the CADMation brand, the following actions are strictly prohibited:</p>
+  <div class="prohibition-grid">
+    <div class="prohibition-item"><span class="icon">X</span><span>Change the logo color outside of the approved palette</span></div>
+    <div class="prohibition-item"><span class="icon">X</span><span>Outline, apply gradients, or use pattern fills on the logo</span></div>
+    <div class="prohibition-item"><span class="icon">X</span><span>Stretch, distort, warp, crop, or rotate the logo</span></div>
+    <div class="prohibition-item"><span class="icon">X</span><span>Add drop shadows or external visual effects</span></div>
+    <div class="prohibition-item"><span class="icon">X</span><span>Position the logo over off-brand colors or busy backgrounds</span></div>
+    <div class="prohibition-item"><span class="icon">X</span><span>Overlay the logo on CATIA viewports where geometry obscures legibility</span></div>
+    <div class="prohibition-item"><span class="icon">X</span><span>Separate the symbol from the wordmark in the horizontal lockup</span></div>
+    <div class="prohibition-item"><span class="icon">X</span><span>Add extra text, icons, or graphic elements inside the logo boundary</span></div>
+    <div class="prohibition-item"><span class="icon">X</span><span>Use unapproved background colors behind any lockup</span></div>
+    <div class="prohibition-item"><span class="icon">X</span><span>Recreate or redraw the logo without written approval</span></div>
+  </div>
+  <div class="highlight-box" style="margin-top:5mm;"><p style="margin:0;"><strong>When in doubt:</strong> Default to monochrome (black or white) lockup on any colored background.</p></div>
+  <div class="footer"><span class="brand">CADMATION</span><span>Brand Guidelines v1.0 &nbsp;|&nbsp; Sections 03-04</span></div>
+</div>
+<!-- PAGE 5: COLOR PALETTE -->
+<div class="page">
+  <div class="section-header">
+    <div class="section-num">Section 05</div>
+    <div class="section-title">Brand Color Palette</div>
+  </div>
+  <p>The CADMation palette is rooted in <strong>industrial neutrals</strong> with high-contrast functional colors for UI feedback. Every color serves a specific purpose in the CATIA plugin context.</p>
+  <h3>Primary Colors</h3>
+  <div class="color-grid" style="margin:5mm 0;">
+    <div class="swatch"><div class="swatch-box" style="background:#2A2B2A;"></div><div class="swatch-name">Dark Grey</div><div class="swatch-hex">#2A2B2A</div><div class="swatch-use">Primary backgrounds, text on light</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:#191919;"></div><div class="swatch-name">Rich Black</div><div class="swatch-hex">#191919</div><div class="swatch-use">Maximum contrast, headings, dark UI</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:#FFFFFF; border:1px solid #ccc;"></div><div class="swatch-name">White</div><div class="swatch-hex">#FFFFFF</div><div class="swatch-use">Neutral space, text on dark</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:#F4F4F4; border:1px solid #ccc;"></div><div class="swatch-name">CATIA Grey</div><div class="swatch-hex">#F4F4F4</div><div class="swatch-use">Light UI backgrounds, inactive panels</div></div>
+  </div>
+  <h3>Functional Colors</h3>
+  <div class="color-grid" style="margin:5mm 0;">
+    <div class="swatch"><div class="swatch-box" style="background:#E63F26;"></div><div class="swatch-name">Red-Orange</div><div class="swatch-hex">#E63F26</div><div class="swatch-use">Critical BOM errors, STL failures, alerts</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:#FFCC33;"></div><div class="swatch-name">Signal Yellow</div><div class="swatch-hex">#FFCC33</div><div class="swatch-use">Warnings, interactive tagging highlights</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:#98CBCB;"></div><div class="swatch-name">Teal Blue</div><div class="swatch-hex">#98CBCB</div><div class="swatch-use">PartNumber resolved, confirmed processes</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:#6B6B6B;"></div><div class="swatch-name">Text Grey</div><div class="swatch-hex">#6B6B6B</div><div class="swatch-use">Secondary text, disabled states</div></div>
+  </div>
+  <h3>Color Proportions</h3>
+  <table>
+    <tr><th>Color Group</th><th>Share</th><th>Use</th></tr>
+    <tr><td><strong>Rich Black / Dark Grey</strong></td><td>70%</td><td>Dominant — background, UI chrome</td></tr>
+    <tr><td><strong>White / CATIA Grey</strong></td><td>15%</td><td>Neutral space, text on dark</td></tr>
+    <tr><td><strong>Red-Orange / Yellow</strong></td><td>10%</td><td>Alerts, highlights, interactive states</td></tr>
+    <tr><td><strong>Teal Blue</strong></td><td>5%</td><td>Success, confirmation — used sparingly</td></tr>
+  </table>
+  <div class="footer"><span class="brand">CADMATION</span><span>Brand Guidelines v1.0 &nbsp;|&nbsp; Section 05</span></div>
+</div>
+<!-- PAGE 6: TYPOGRAPHY -->
+<div class="page">
+  <div class="section-header">
+    <div class="section-num">Section 06</div>
+    <div class="section-title">Typography: Roboto FLEX</div>
+  </div>
+  <p><strong>Roboto FLEX</strong> is the exclusive typeface for CADMation. It provides the variable axis necessary for technical clarity, hierarchy, and precision across all digital and print touchpoints.</p>
+  <div class="highlight-box" style="margin:4mm 0;"><p style="margin:0; font-size:8.5pt;"><strong>Why Roboto FLEX?</strong> CATIA V5 is a dense, information-rich engineering interface. Roboto FLEX's variable weight axes (wdth, wght, opsz) allow the same font file to serve everything from 9px specification tree labels to 48px section headings, without switching font families.</p></div>
+  <h3>Approved Weights</h3>
+  <table class="type-table">
+    <tr><th>Weight</th><th>Variable Axis</th><th>Use</th></tr>
+    <tr><td><strong>Black</strong></td><td class="mono">wght=900</td><td>Hero headings, watermark text</td></tr>
+    <tr><td><strong>Bold</strong></td><td class="mono">wght=700</td><td>Section headings, UI labels</td></tr>
+    <tr><td><strong>SemiBold</strong></td><td class="mono">wght=600</td><td>Sub-headings, key values</td></tr>
+    <tr><td><strong>Medium</strong></td><td class="mono">wght=500</td><td>Interactive elements, buttons</td></tr>
+    <tr><td><strong>Regular</strong></td><td class="mono">wght=400</td><td>Body text, descriptions</td></tr>
+    <tr><td><strong>Light</strong></td><td class="mono">wght=300</td><td>Tertiary info, timestamps</td></tr>
+  </table>
+  <h3>Typography Hierarchy</h3>
+  <table>
+    <tr><th>Role</th><th>Size</th><th>Weight</th><th>Line Height</th></tr>
+    <tr><td><strong>Document Title</strong></td><td class="mono">32px / 18pt</td><td>Bold</td><td class="mono">1.2</td></tr>
+    <tr><td><strong>Section Heading</strong></td><td class="mono">20px / 12pt</td><td>Bold</td><td class="mono">1.3</td></tr>
+    <tr><td><strong>Sub-Heading</strong></td><td class="mono">16px / 10pt</td><td>SemiBold</td><td class="mono">1.4</td></tr>
+    <tr><td><strong>Body Copy</strong></td><td class="mono">14px / 9pt</td><td>Regular</td><td class="mono">1.5</td></tr>
+    <tr><td><strong>Labels &amp; Tags</strong></td><td class="mono">12px / 8pt</td><td>Medium</td><td class="mono">1.4</td></tr>
+    <tr><td><strong>Caption / Metadata</strong></td><td class="mono">10px / 7pt</td><td>Light</td><td class="mono">1.3</td></tr>
+  </table>
+  <h3>Prohibited Uses</h3>
+  <div class="prohibition-grid" style="grid-template-columns:1fr 1fr 1fr;">
+    <div class="prohibition-item"><span class="icon">X</span><span>Unauthorized fonts (Arial, Helvetica, Open Sans, etc.)</span></div>
+    <div class="prohibition-item"><span class="icon">X</span><span>Strokes, outlines, or drop shadows on typography</span></div>
+    <div class="prohibition-item"><span class="icon">X</span><span>Text-to-outline conversion in logo lockups</span></div>
+  </div>
+  <div class="footer"><span class="brand">CADMATION</span><span>Brand Guidelines v1.0 &nbsp;|&nbsp; Section 06</span></div>
+</div>
+<!-- PAGE 7: IMAGE STYLE -->
+<div class="page">
+  <div class="section-header">
+    <div class="section-num">Section 07</div>
+    <div class="section-title">Image Style: Focus on the Important</div>
+  </div>
+  <p>Our imagery mirrors the precision of the CADMation plugin itself. Every image follows a <strong>Singular Focus Rule</strong> — isolation to guide the viewer's eye directly to the technical subject.</p>
+  <h3>Core Principles</h3>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:5mm; margin:5mm 0;">
+    <div class="style-do"><h4>APPROVED</h4><ul>
+      <li>Show ONE primary subject per image — a spec tree tag, BOM entry, part number, or error highlight</li>
+      <li>Use shallow Depth of Field — blur backgrounds, keep subject razor-sharp</li>
+      <li>Neutral or solid backgrounds — no assembly clutter</li>
+      <li>High contrast — subject pops from background</li>
+      <li>Close-up UI panels showing Smart Chat interaction</li>
+      <li>Single sheet metal parts isolated on neutral backgrounds</li>
+    </ul></div>
+    <div class="style-dont"><h4>PROHIBITED</h4><ul>
+      <li>Full CATIA interface screenshots as hero images — too much noise</li>
+      <li>Busy CAD geometry backgrounds without selective blur</li>
+      <li>Stock photography of unrelated engineering or office scenes</li>
+      <li>Low-resolution or pixelated screenshots</li>
+      <li>Multiple competing focal points in a single image</li>
+      <li>Cluttered BOM lists without color-coded status highlighting</li>
+    </ul></div>
+  </div>
+  <h3>Approved Image Types</h3>
+  <table>
+    <tr><th>Image Type</th><th>Context</th></tr>
+    <tr><td><strong>Isolated sheet metal part</strong></td><td>Hero images, landing pages</td></tr>
+    <tr><td><strong>Specification tree with Interactive Tagging highlights</strong></td><td>Feature documentation, tutorials</td></tr>
+    <tr><td><strong>Color-coded BOM entries</strong></td><td>Status communication, alerts</td></tr>
+    <tr><td><strong>STL isolation view</strong></td><td>Feature demonstration</td></tr>
+    <tr><td><strong>Rough Stock scraping workflow</strong></td><td>Process documentation</td></tr>
+    <tr><td><strong>Smart Chat interaction panel</strong></td><td>Product showcase</td></tr>
+  </table>
+  <div class="footer"><span class="brand">CADMATION</span><span>Brand Guidelines v1.0 &nbsp;|&nbsp; Section 07</span></div>
+</div>
+<!-- PAGE 8: TONE OF VOICE -->
+<div class="page">
+  <div class="section-header">
+    <div class="section-num">Section 08</div>
+    <div class="section-title">Tone of Voice: Precise &amp; Purposeful</div>
+  </div>
+  <p>The CADMation voice is defined by the <strong>Class Utility Simple</strong> principle. Our language must be as efficient as the code it describes.</p>
+  <div class="voice-grid">
+    <div class="voice-card"><div class="pillar">PRECISE</div><p class="desc">Every word is technically accurate. No fluff, no filler. Engineering-grade precision in every sentence.</p></div>
+    <div class="voice-card"><div class="pillar">PURPOSEFUL</div><p class="desc">Every word Educates, Entices, or Encourages. Nothing is said just to fill space.</p></div>
+    <div class="voice-card"><div class="pillar">SIMPLE</div><p class="desc">Get to the point quickly. Simple but smart is the way to go. Short sentences. Active voice.</p></div>
+  </div>
+  <h3>Writing Guidelines</h3>
+  <table>
+    <tr><th>Rule</th><th>Guideline</th></tr>
+    <tr><td><strong>Voice</strong></td><td>Active voice exclusively</td></tr>
+    <tr><td><strong>Sentence length</strong></td><td>Under 20 words for UI copy; 25 max for documentation</td></tr>
+    <tr><td><strong>Jargon</strong></td><td>Use technical terms correctly — BOM, PartNumber, STL, Specification Tree</td></tr>
+    <tr><td><strong>Avoid</strong></td><td>Corporate filler: synergy, best-in-class, leveraging, cutting-edge</td></tr>
+    <tr><td><strong>Abbreviations</strong></td><td>Spell out on first use: Bill of Materials (BOM)</td></tr>
+    <tr><td><strong>Numbers</strong></td><td>Spell out one-nine; use numerals for 10+</td></tr>
+  </table>
+  <h3>Messaging Matrix</h3>
+  <table class="messgae-matrix">
+    <tr><th style="width:40mm;">Context</th><th>Tone</th><th>Example</th></tr>
+    <tr><td>Error alerts</td><td>Firm, clear, helpful</td><td><em>STL Isolation Failed: Body 'Cut_Revolve_1' has non-manifold topology.</em></td></tr>
+    <tr><td>Success confirmation</td><td>Confident, concise</td><td><em>PartNumber Resolved: 247 entries matched.</em></td></tr>
+    <tr><td>Documentation</td><td>Patient, instructive, thorough</td><td><em>Interactive Tagging lets you assign custom labels to any specification tree node, creating a searchable BOM layer.</em></td></tr>
+    <tr><td>Feature announcement</td><td>Precise, benefit-focused</td><td><em>Deep Specification Tree extraction surfaces every PartNumber in your active CATIA document — offline, instantly.</em></td></tr>
+    <tr><td>Marketing / landing</td><td>Professional, forward-looking</td><td><em>CADMation: The Intelligent Local Copilot for CATIA V5 Sheet Metal Design.</em></td></tr>
+  </table>
+  <div class="footer"><span class="brand">CADMATION</span><span>Brand Guidelines v1.0 &nbsp;|&nbsp; Section 08</span></div>
+</div>
+<!-- PAGE 9: TECHNICAL REFERENCE -->
+<div class="page">
+  <div class="section-header">
+    <div class="section-num">Section 09</div>
+    <div class="section-title">Technical Reference</div>
+  </div>
+  <h3>Product Architecture</h3>
+  <table>
+    <tr><th style="width:50mm;">Attribute</th><th>Detail</th></tr>
+    <tr><td><strong>Product Name</strong></td><td>CADMation</td></tr>
+    <tr><td><strong>Product Type</strong></td><td>Desktop AI Copilot Plugin for CATIA V5</td></tr>
+    <tr><td><strong>Specialization</strong></td><td>Sheet Metal Design Workflow Automation</td></tr>
+    <tr><td><strong>Operating Mode</strong></td><td>Fully offline (local inference, no cloud dependency)</td></tr>
+    <tr><td><strong>Version Range</strong></td><td>v2.0.0 through v2.2.0</td></tr>
+    <tr><td><strong>License</strong></td><td>MIT License</td></tr>
+    <tr><td><strong>Distribution</strong></td><td>Single-file executable</td></tr>
+  </table>
+  <h3>Core Features</h3>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:4mm; margin:4mm 0;">
+    <div style="background:#F4F4F4; padding:3.5mm 4mm; border-radius:3px; font-size:8.5pt;"><strong>Deep Specification Tree Extraction</strong></div>
+    <div style="background:#F4F4F4; padding:3.5mm 4mm; border-radius:3px; font-size:8.5pt;"><strong>Interactive Tagging</strong></div>
+    <div style="background:#F4F4F4; padding:3.5mm 4mm; border-radius:3px; font-size:8.5pt;"><strong>Smart Chat</strong></div>
+    <div style="background:#F4F4F4; padding:3.5mm 4mm; border-radius:3px; font-size:8.5pt;"><strong>BOM Extraction</strong></div>
+    <div style="background:#F4F4F4; padding:3.5mm 4mm; border-radius:3px; font-size:8.5pt;"><strong>STL Isolation</strong></div>
+    <div style="background:#F4F4F4; padding:3.5mm 4mm; border-radius:3px; font-size:8.5pt;"><strong>Rough Stock Scraping</strong></div>
+  </div>
+  <h3>Reliability Pillars</h3>
+  <div class="tech-ref-grid">
+    <div class="ref-card"><h4>1. WebSocket Architecture</h4><ul><li>Real-time, low-latency communication between CATIA plugin and local AI inference engine</li><li>No network dependency</li></ul></div>
+    <div class="ref-card"><h4>2. Single-File Distribution</h4><ul><li>Zero-config installation for enterprise deployment</li><li>No dependencies to manage</li></ul></div>
+    <div class="ref-card"><h4>3. SPA &amp; PartNumber Resolution</h4><ul><li>Uses reference document names to prevent duplicate naming mismatches</li><li>Ensures BOM accuracy across large assemblies</li></ul></div>
+    <div class="ref-card"><h4>4. MIT Licensing</h4><ul><li>Open-source stability</li><li>Enterprise-friendly deployment terms</li><li>Continuous development across versions</li></ul></div>
+  </div>
+  <h3>Brand Contact</h3>
+  <table>
+    <tr><th>Channel</th><th>Placeholder</th></tr>
+    <tr><td><strong>Website</strong></td><td>cadmation.io</td></tr>
+    <tr><td><strong>Support</strong></td><td>support@cadmation.io</td></tr>
+    <tr><td><strong>Documentation</strong></td><td>docs.cadmation.io</td></tr>
+  </table>
+  <div class="footer"><span class="brand">CADMATION</span><span>Brand Guidelines v1.0 &nbsp;|&nbsp; Section 09 — End of Document</span></div>
+</div>
+</body>
+</html>

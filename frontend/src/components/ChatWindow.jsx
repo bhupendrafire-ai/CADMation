@@ -138,29 +138,38 @@ const ChatWindow = forwardRef(({ messages, activeDoc, onSendMessage, onUpdateBom
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className={`p-6 border-t border-zen-border ${isEmbedded ? 'bg-zen-surface-alt' : ''}`}>
-                <form onSubmit={handleSubmit} className="relative max-w-4xl mx-auto">
-                    <textarea
-                        ref={textareaRef}
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder={isEmbedded ? "Ask Copilot..." : "Ask the copilot to modify the CATIA model..."}
-                        className={`w-full bg-zen-surface border border-zen-border rounded-2xl py-4 pl-4 pr-14 focus:outline-none focus:ring-1 focus:ring-zen-text-muted resize-none h-14 min-h-[56px] text-sm overflow-hidden placeholder:text-zen-text-muted transition-all focus:border-zen-border-strong text-zen-text-main ${isEmbedded ? 'text-xs' : ''}`}
-                        rows={1}
-                    />
-                    <button
-                        type="submit"
-                        disabled={!input.trim()}
-                        className="absolute right-2 top-2 p-2 rounded-full bg-zen-primary text-white hover:scale-105 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="22" y1="2" x2="11" y2="13" />
-                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                        </svg>
-                    </button>
-                </form>
-            </div>
+            {!isEmbedded ? (
+                <div className="p-6 border-t border-zen-border">
+                    <form onSubmit={handleSubmit} className="relative max-w-4xl mx-auto">
+                        <textarea
+                            ref={textareaRef}
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            placeholder="Ask the copilot to modify the CATIA model..."
+                            className="w-full bg-zen-surface border border-zen-border rounded-2xl py-4 pl-4 pr-14 focus:outline-none focus:ring-1 focus:ring-zen-text-muted resize-none h-14 min-h-[56px] text-sm overflow-hidden placeholder:text-zen-text-muted transition-all focus:border-zen-border-strong text-zen-text-main"
+                            rows={1}
+                        />
+                        <button
+                            type="submit"
+                            disabled={!input.trim()}
+                            className="absolute right-2 top-2 p-2 rounded-full bg-zen-primary text-white hover:scale-105 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="22" y1="2" x2="11" y2="13" />
+                                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            ) : (
+                <div className="p-4 border-t border-zen-border bg-zen-surface-alt/50">
+                    <div className="flex items-center justify-center gap-2 text-zen-text-muted">
+                        <svg className="w-3.5 h-3.5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span className="text-[10px] font-bold uppercase tracking-widest">Copilot Activity Log</span>
+                    </div>
+                </div>
+            )}
         </section>
     )
 })

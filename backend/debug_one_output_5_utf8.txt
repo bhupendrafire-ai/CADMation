@@ -1,0 +1,55 @@
+﻿python : 2026-03-16 
+19:03:00,551 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current 
+thread.
+At line:1 char:1
++ python h:\CADMation\backen
+d\debug_one_rs.py > 
+h:\CADMation\backend\de ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (2026-  
+  03-16 19:0...current th   
+ read.:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+h:\CADMation\backend\debug_o
+ne_rs.py:73: 
+DeprecationWarning: 
+PyMakeBuffer is deprecated; 
+use PyGetMemory instead
+  buffer = win32gui.PyMakeBu
+ffer(buf_size)
+Found 001_LOWER SHOE .1 (Type: CDispatch)
+
+--- Strategy: Product/Part itself ---
+Selected 001_LOWER SHOE .1. Waiting 5s...
+ListBox Text (Before): 'EdtPartBody'
+Executing Search: Name='*001_LOWER SHOE .1*',all
+Selected 1 items. Waiting 5s...
+ListBox Text (After Search): 'EdtPartBody'
+Clicking 'Select' button (Index 7)...
+Added to selection after click. Waiting 5s...
+ListBox Text (After Click+Add): 'EdtPartBody'
+
+Edit count: 9
+X: 0mm, 0mm, DX: 0mm
+
+--- Strategy: PartBody ---
+Selected MAIN_BODY. Waiting 5s...
+ListBox Text (Before): 'EdtPartBody'
+Executing Search: Name='*MAIN_BODY*',all
+Selected 9 items. Waiting 5s...
+ListBox Text (After Search): 'EdtPartBody'
+Clicking 'Select' button (Index 7)...
+Added to selection after click. Waiting 5s...
+ListBox Text (After Click+Add): 'EdtPartBody'
+
+Edit count: 9
+X: 0mm, 0mm, DX: 0mm

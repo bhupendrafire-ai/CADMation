@@ -45,8 +45,16 @@ from app.services.skill_service import skill_service
 from app.services.memory_service import memory_service
 
 @router.get("/sessions")
-def list_sessions():
-    return history_service.list_sessions()
+def list_sessions(user_id: Optional[str] = None, role: Optional[str] = None):
+    sessions = history_service.list_sessions()
+    if role != "SUPER_ADMIN" and user_id:
+        # Filter for current user only
+        sessions = [s for s in sessions if s.get("user_id") == user_id]
+    return sessions
+
+@router.get("/sessions/final")
+def list_final_sessions():
+    return history_service.list_final_sessions()
 
 @router.get("/sessions/{session_id}")
 def get_session(session_id: str):
@@ -62,7 +70,16 @@ class SessionUpdate(BaseModel):
 
 @router.put("/sessions/{session_id}")
 def update_session(session_id: str, update: SessionUpdate):
-    history_service.save_session(session_id, update.messages, last_doc=update.last_doc)
+    from app.services.auth_service import auth_service
+    user = auth_service.current_user or {}
+    history_service.save_session(
+        session_id, 
+        update.messages, 
+        name=update.name,
+        last_doc=update.last_doc,
+        user_id=user.get("id"),
+        user_name=user.get("name")
+    )
     return {"status": "success"}
 
 @router.post("/sessions/new")
@@ -178,10 +195,17 @@ def chat(request: ChatRequest):
             {"role": "ai", "content": reply, "interactive": interactive_feedback, "code": code, "executed": executed, "output": output_text}
         ]
         
-        # Determine current active document for naming
-        active_doc_name = catia_bridge.get_active_document_name()
+        from app.services.auth_service import auth_service
+        user = auth_service.current_user or {}
+        active_doc_name = tree_context.get("name", "")
         
-        history_service.save_session(request.session_id, updated_history, last_doc=active_doc_name)
+        history_service.save_session(
+            request.session_id, 
+            updated_history, 
+            last_doc=active_doc_name,
+            user_id=user.get("id"),
+            user_name=user.get("name")
+        )
     except Exception as e:
         logger.error(f"Chat: Failed to persist history: {e}")
 

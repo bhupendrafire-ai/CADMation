@@ -61,6 +61,40 @@ _monitor_thread = None
 # COM Search timeout (seconds); CATIA Search can block if recomputing heavy geometry
 _COM_SEARCH_TIMEOUT_SEC = 8
 
+# SPA GetBoundaryBox timeout (seconds); can block indefinitely on complex geometry
+_SPA_BBOX_TIMEOUT_SEC = float(os.environ.get("CADMATION_SPA_BBOX_TIMEOUT", "20") or "20")
+
+
+def _run_spa_get_boundary_box(measurable, bb_list: list, timeout: float = _SPA_BBOX_TIMEOUT_SEC) -> bool:
+    """
+    Call measurable.GetBoundaryBox(bb_list) in a daemon thread with a hard timeout.
+    Returns True if the call completed within the timeout, False if it timed out.
+    CATIA's SPA COM call can block indefinitely when computing heavy geometry;
+    this wrapper ensures we always regain control.
+    """
+    done = threading.Event()
+    success = [False]
+
+    def _worker():
+        try:
+            measurable.GetBoundaryBox(bb_list)
+            success[0] = True
+        except Exception as e:
+            logger.debug("SPA GetBoundaryBox failed in thread: %s", e)
+        finally:
+            done.set()
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    completed = done.wait(timeout=timeout)
+    if not completed:
+        logger.warning(
+            "SPA GetBoundaryBox timed out after %.0fs (CATIA busy computing geometry); "
+            "falling through to dialog scrape.",
+            timeout,
+        )
+    return completed and success[0]
+
 
 def _com_search_with_timeout(sel, pattern: str, timeout: float = _COM_SEARCH_TIMEOUT_SEC):
     """
@@ -864,7 +898,9 @@ class RoughStockService:
                     continue
                 m = spa.GetMeasurable(sel.Item(1).Value)
                 bb = [0.0] * 6
-                m.GetBoundaryBox(bb)
+                if not _run_spa_get_boundary_box(m, bb):
+                    logger.info("Rough Stock: SPA axis-frame skipped (timeout); will use dialog scrape.")
+                    return None
                 corners = RoughStockService._bbox_corners_mm_from_spa_m(bb)
                 ddx, ddy, ddz = RoughStockService._extent_along_unit_axes(corners, o_mm, ex, ey, ez)
                 if ddx > dx_max:
@@ -907,7 +943,9 @@ class RoughStockService:
                     continue
                 m = spa.GetMeasurable(sel.Item(1).Value)
                 bb = [0.0] * 6
-                m.GetBoundaryBox(bb)
+                if not _run_spa_get_boundary_box(m, bb):
+                    logger.info("Rough Stock: SPA world-AABB skipped (timeout); will use dialog scrape.")
+                    return None
                 dx = abs(bb[1] - bb[0]) * 1000.0
                 dy = abs(bb[3] - bb[2]) * 1000.0
                 dz = abs(bb[5] - bb[4]) * 1000.0

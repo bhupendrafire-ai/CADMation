@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Stratos x CADMation | Initialize Session</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed-dim": "#b6c4ff",
+                        "on-error-container": "#ffdad6",
+                        "error": "#ffb4ab",
+                        "on-tertiary-container": "#fff4f1",
+                        "on-error": "#690005",
+                        "on-primary-fixed": "#001550",
+                        "on-surface-variant": "#c3c5d8",
+                        "tertiary-fixed": "#ffdbcf",
+                        "inverse-on-surface": "#313032",
+                        "on-secondary-fixed": "#001550",
+                        "on-primary-fixed-variant": "#003ab3",
+                        "on-tertiary-fixed-variant": "#802a00",
+                        "on-surface": "#e5e1e4",
+                        "secondary-container": "#2e4287",
+                        "on-primary": "#002780",
+                        "tertiary-container": "#c74500",
+                        "surface-tint": "#b6c4ff",
+                        "on-secondary-container": "#9eb2fe",
+                        "inverse-primary": "#004ee8",
+                        "on-primary-container": "#f7f5ff",
+                        "tertiary-fixed-dim": "#ffb59a",
+                        "surface-container-lowest": "#0e0e10",
+                        "outline-variant": "#434656",
+                        "on-tertiary": "#5b1b00",
+                        "on-secondary": "#142b6f",
+                        "on-background": "#e5e1e4",
+                        "surface-container-highest": "#353437",
+                        "primary-container": "#2962ff",
+                        "inverse-surface": "#e5e1e4",
+                        "surface-container-high": "#2a2a2c",
+                        "surface-variant": "#353437",
+                        "surface": "#131315",
+                        "secondary": "#b6c4ff",
+                        "primary": "#b6c4ff",
+                        "surface-container": "#201f22",
+                        "surface-bright": "#39393b",
+                        "outline": "#8d90a2",
+                        "secondary-fixed": "#dce1ff",
+                        "primary-fixed": "#dce1ff",
+                        "on-tertiary-fixed": "#380d00",
+                        "surface-dim": "#131315",
+                        "on-secondary-fixed-variant": "#2e4287",
+                        "surface-container-low": "#1c1b1d",
+                        "error-container": "#93000a",
+                        "background": "#131315",
+                        "primary-fixed-dim": "#b6c4ff",
+                        "tertiary": "#ffb59a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0px",
+                        "lg": "0px",
+                        "xl": "0px",
+                        "full": "0px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter", "sans-serif"],
+                        "display": ["Inter", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .machined-input {
+            border: none;
+            border-bottom: 2px solid #434656;
+            background: transparent;
+            transition: border-color 0.3s ease;
+        }
+        .machined-input:focus {
+            outline: none;
+            border-bottom: 2px solid #2962ff;
+            box-shadow: none;
+        }
+        .glass-panel {
+            background: rgba(53, 52, 55, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-50 bg-[#131315]/70 backdrop-blur-[20px] bg-gradient-to-b from-[#1c1c1e] to-transparent shadow-[0_24px_48px_rgba(0,0,0,0.5)]">
+<nav class="flex justify-between items-center px-12 h-16 w-full font-['Inter'] tracking-[-0.02em] antialiased">
+<div class="text-lg font-semibold tracking-tighter text-[#e5e1e4] uppercase">
+                Stratos x CADMation
+            </div>
+<div class="hidden md:flex items-center gap-8">
+<a class="text-[#949494] font-medium hover:text-[#2962FF] transition-all duration-300" href="#">Platform</a>
+<a class="text-[#949494] font-medium hover:text-[#2962FF] transition-all duration-300" href="#">Precision</a>
+<a class="text-[#949494] font-medium hover:text-[#2962FF] transition-all duration-300" href="#">Schematics</a>
+<a class="text-[#949494] font-medium hover:text-[#2962FF] transition-all duration-300" href="#">Archive</a>
+</div>
+<div class="flex items-center gap-6">
+<button class="text-[#949494] font-medium hover:text-[#e5e1e4] transition-colors text-sm">Documentation</button>
+<button class="bg-[#2962ff] text-[#f7f5ff] px-6 py-2 font-semibold active:scale-[0.98] transition-transform text-sm uppercase tracking-widest">
+                    Initialize Session
+                </button>
+</div>
+</nav>
+</header>
+<!-- Main Canvas -->
+<main class="flex-grow relative flex items-center justify-center pt-16 overflow-hidden bg-surface-container-lowest">
+<!-- Architectural Background Pattern -->
+<div class="absolute inset-0 z-0 opacity-20 pointer-events-none">
+<div class="absolute inset-0" style="background-image: radial-gradient(#2962ff 0.5px, transparent 0.5px); background-size: 40px 40px;"></div>
+<div class="absolute inset-0 bg-gradient-to-tr from-surface via-surface-container-low to-surface-container-lowest"></div>
+<img class="w-full h-full object-cover mix-blend-overlay opacity-30 grayscale" data-alt="A highly technical architectural schematic background featuring complex blueprinted structural lines and mathematical notations. The scene is set in a deep, dark atmospheric space with subtle blue and grey volumetric gradients that suggest vast engineering precision. High-contrast lighting highlights the sharp edges of the blueprint, creating a professional industrial Zen aesthetic that feels both futuristic and grounded in reality." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBOm1x7FarIbqv5k5Bw8WbeZlJJljThgvYdbfa-bTlq5fKqbzb8Y_WgiH2gdSqixfNmANX2YzfBP6mu8jX4ipOImkDDKWlq--UpJgJYGfQfCQ8nSDX6bhJcxPMS_E8FQ0HSDZ2Ci-i9RbeBb8VuGGycZIlbQPycQBmvCNEWoy7_n98YfL-_rw5cGtB8GPNGgZxC7gZb3t4LbXTUVUu7ANu3rSdf0oUkGkSGga5M73TYHaFv7BXdAyb2AXDEwmaA50jJ8lVmgidQRiQ3"/>
+</div>
+<!-- Login Card -->
+<section class="relative z-10 w-full max-w-md mx-auto px-4">
+<div class="glass-panel p-12 border-l border-t border-outline-variant/20 shadow-[0_24px_48px_rgba(0,0,0,0.8)]">
+<div class="mb-10 space-y-2">
+<h1 class="text-4xl font-extrabold tracking-tighter text-on-surface uppercase">Session Initializer</h1>
+<p class="text-sm font-medium text-on-surface-variant tracking-normal">Enter credentials for platform authorization.</p>
+</div>
+<form class="space-y-8">
+<div class="space-y-1">
+<label class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-fixed">Network Identifier</label>
+<input class="w-full machined-input py-3 text-on-surface placeholder:text-outline-variant text-sm font-mono" placeholder="USER_EMAIL@STRATOS.ENGINEERING" type="email"/>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-fixed">Access Cipher</label>
+<input class="w-full machined-input py-3 text-on-surface placeholder:text-outline-variant text-sm" placeholder="••••••••••••" type="password"/>
+</div>
+<div class="pt-4">
+<button class="w-full bg-gradient-to-r from-primary-container to-[#003ab3] text-on-primary-container py-4 font-bold uppercase tracking-[0.3em] text-xs hover:brightness-110 active:scale-[0.99] transition-all shadow-lg" type="submit">
+                            Initialize Session
+                        </button>
+</div>
+<div class="flex justify-between items-center text-[10px] uppercase tracking-widest font-bold text-outline">
+<a class="hover:text-primary transition-colors" href="#">Request Access</a>
+<a class="hover:text-primary transition-colors" href="#">Credential Recovery</a>
+</div>
+</form>
+</div>
+<!-- Contextual Data Overlay -->
+<div class="mt-8 flex justify-between items-end opacity-40">
+<div class="space-y-1">
+<div class="text-[8px] font-mono">LAT: 34.0522° N</div>
+<div class="text-[8px] font-mono">LNG: 118.2437° W</div>
+</div>
+<div class="text-right">
+<div class="text-[8px] font-mono">ENCRYPTION: AES-256</div>
+<div class="text-[8px] font-mono">STATUS: STANDBY</div>
+</div>
+</div>
+</section>
+<!-- Decorative Elements -->
+<div class="absolute bottom-12 left-12 h-64 w-[1px] bg-gradient-to-t from-primary-container to-transparent hidden lg:block"></div>
+<div class="absolute top-24 right-12 w-64 h-[1px] bg-gradient-to-l from-primary-container to-transparent hidden lg:block"></div>
+</main>
+<!-- Footer -->
+<footer class="bg-[#131315] w-full py-8 border-t border-[#1c1c1e] font-['Inter'] text-sm tracking-tight">
+<div class="flex flex-col md:flex-row justify-between items-center px-12 w-full gap-4">
+<div class="text-sm font-bold text-[#e5e1e4] uppercase tracking-widest">
+                Stratos x CADMation
+            </div>
+<div class="text-[#949494] text-xs font-medium">
+                © 2024 Stratos x CADMation. Precision Milled Architecture.
+            </div>
+<div class="flex items-center gap-8">
+<a class="text-[#949494] hover:text-[#e5e1e4] transition-colors uppercase text-[10px] font-bold tracking-widest" href="#">Legal</a>
+<a class="text-[#949494] hover:text-[#e5e1e4] transition-colors uppercase text-[10px] font-bold tracking-widest" href="#">Tolerances</a>
+<a class="text-[#949494] hover:text-[#e5e1e4] transition-colors uppercase text-[10px] font-bold tracking-widest flex items-center gap-2" href="#">
+<span class="w-1.5 h-1.5 bg-primary-container rounded-full animate-pulse"></span> Node Status
+                </a>
+<a class="text-[#949494] hover:text-[#e5e1e4] transition-colors uppercase text-[10px] font-bold tracking-widest" href="#">Security</a>
+</div>
+</div>
+</footer>
+</body></html>

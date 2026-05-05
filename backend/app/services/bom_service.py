@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import threading
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -8,6 +9,9 @@ from app.services.bom_rules import canonicalize_row
 from app.services.bom_schema import build_size_payload, ensure_list
 from app.services.catia_bridge import catia_bridge
 from app.services.tree_extractor import tree_extractor
+from app.services.auth_service import auth_service
+from app.services.telemetry_worker import telemetry_worker
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +49,12 @@ class BOMService:
         return node.get("type") in ("Part", "Component") or origin_type in {"leaf_part", "std_leaf", "unknown_leaf"}
 
     def _normalize_sheet_category(self, row: Dict[str, Any]) -> str:
-        category = row.get("exportBucket") or row.get("sheetCategory") or "Steel"
-        if category in {"STD-MISUMI", "STD-OTHER"}:
+        if row.get("isStd"):
             return "STD"
-        if category in {"Steel", "MS", "Casting", "STD"}:
+        category = row.get("exportBucket") or row.get("sheetCategory") or "Steel"
+        if category in {"STD-MISUMI", "STD-OTHER", "STD"}:
+            return "STD"
+        if category in {"Steel", "MS", "Casting"}:
             return category
         return "Steel"
 
@@ -294,7 +300,74 @@ class BOMService:
             return None
         project_name = rows[0].get("projectName", "BOM") if rows else "BOM"
         metadata = self._extract_document_metadata(project_name)
-        return self._write_excel(self._rollup_rows(rows), metadata)
+        file_path = self._write_excel(self._rollup_rows(rows), metadata)
+        
+        if file_path:
+            # Trigger background upload and telemetry
+            threading.Thread(target=self._upload_and_log_bom, args=(file_path, metadata), daemon=True).start()
+            
+        return file_path
+
+    def _upload_and_log_bom(self, file_path: str, metadata: Dict[str, str]):
+        """Uploads the generated Excel to ToolRoom and logs it to telemetry."""
+        from app.services.license_manager import TOOLROOM_API_URL
+        
+        filename = os.path.basename(file_path)
+        blob_url = None
+        
+        try:
+            # 1. Upload to ToolRoom -> Vercel Blob
+            with open(file_path, "rb") as f:
+                url = f"{TOOLROOM_API_URL}/api/cadmation/upload-bom?filename={filename}"
+                response = requests.post(url, data=f, timeout=30)
+                if response.status_code == 200:
+                    blob_url = response.json().get("url")
+                    logger.info(f"BOM uploaded successfully: {blob_url}")
+                else:
+                    logger.warning(f"BOM upload failed with status {response.status_code}")
+        except Exception as e:
+            logger.error(f"BOM upload error: {e}")
+
+        # 2. Log Telemetry
+        user = auth_service.current_user or {}
+        telemetry_worker.log_event("BOM_GENERATED", {
+            "bomMetadata": {
+                "fileName": filename,
+                "blobUrl": blob_url,
+                "generatedByUserId": user.get("id", "anonymous"),
+                "generatedByUserName": user.get("name", "Unknown User"),
+                "projectCode": metadata.get("woNo", metadata.get("projectName", "Unknown"))
+            }
+        })
+
+    def submit_for_review(self, items: List[Dict[str, Any]], metadata: Dict[str, str]) -> Dict:
+        """Sends the BOM to ToolRoom and marks it as Pending Review."""
+        from app.services.license_manager import TOOLROOM_API_URL
+        import time
+        
+        try:
+            submit_url = f"{TOOLROOM_API_URL}/api/cadmation/bom/submit-review"
+            user = auth_service.current_user or {}
+            
+            payload = {
+                "projectId": metadata.get("projectId"),
+                "toolId": metadata.get("toolId"),
+                "toolName": metadata.get("toolName", metadata.get("projectName", "Unknown")),
+                "uploadedBy": user.get("name", "Unknown User"),
+                "items": items,
+                "comment": metadata.get("comment", "Submitted for review via CADMation Copilot.")
+            }
+            
+            response = requests.post(submit_url, json=payload, timeout=30)
+            
+            if response.status_code == 200:
+                return {"success": True, "message": "BOM successfully submitted for Design Lead review."}
+            else:
+                return {"success": False, "message": f"Failed to submit: {response.text}"}
+                
+        except Exception as e:
+            logger.error(f"Error submitting BOM for review: {e}")
+            return {"success": False, "message": str(e)}
 
     def save_excel_bom(self, items: List[Dict[str, Any]]) -> str | None:
         return self.generate_excel_bom(edited_items=items)
@@ -403,7 +476,7 @@ class BOMService:
         for col_letter, width in {"A": 16, "B": 24, "C": 12, "D": 18, "E": 18, "H": 22, "I": 14}.items():
             ws.column_dimensions[col_letter].width = width
 
-    def _write_mfg_sheet(self, wb, metadata: Dict[str, str], sheet_name: str, rows: List[Dict[str, Any]]):
+    def _write_mfg_sheet(self, wb, metadata: Dict[str, str], sheet_name: str, rows: List[Dict[str, Any]], start_serial: int) -> int:
         from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
         ws = wb.create_sheet(title=sheet_name)
@@ -456,7 +529,7 @@ class BOMService:
 
         current_row = 11
         current_section = None
-        serial = 1
+        serial = start_serial
         for row in rows:
             next_section = row.get("parentAssembly") or sheet_name
             if next_section != current_section:
@@ -493,8 +566,9 @@ class BOMService:
         for col, width in widths.items():
             ws.column_dimensions[col].width = width
         ws.freeze_panes = "A11"
+        return serial
 
-    def _write_std_sheet(self, wb, metadata: Dict[str, str], sheet_name: str, rows: List[Dict[str, Any]]):
+    def _write_std_sheet(self, wb, metadata: Dict[str, str], sheet_name: str, rows: List[Dict[str, Any]], start_serial: int) -> int:
         from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
         ws = wb.create_sheet(title=sheet_name)
@@ -530,13 +604,15 @@ class BOMService:
         for idx, header in enumerate(headers, start=1):
             ws.cell(row=9, column=idx, value=header)
 
+        serial = start_serial
         for row_idx, row in enumerate(rows, start=10):
-            ws.cell(row=row_idx, column=1, value=99 + row_idx - 9)
+            ws.cell(row=row_idx, column=1, value=99 + serial)
             ws.cell(row=row_idx, column=2, value=row.get("description"))
             ws.cell(row=row_idx, column=3, value="STD")
             ws.cell(row=row_idx, column=4, value=row.get("manufacturer"))
             ws.cell(row=row_idx, column=5, value=row.get("catalogCode") or row.get("partNumber"))
             ws.cell(row=row_idx, column=6, value=row.get("qty"))
+            serial += 1
 
         for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=6):
             for cell in row:
@@ -556,6 +632,7 @@ class BOMService:
         for col, width in {"A": 10, "B": 26, "C": 10, "D": 16, "E": 20, "F": 8}.items():
             ws.column_dimensions[col].width = width
         ws.freeze_panes = "A10"
+        return serial
 
     def _write_excel(self, rows: List[Dict[str, Any]], metadata: Dict[str, str]) -> str | None:
         from openpyxl import Workbook
@@ -577,13 +654,14 @@ class BOMService:
                 category = self._normalize_sheet_category(row)
                 categories.setdefault(category, []).append({**row, "sheetCategory": category, "exportBucket": category})
 
+            global_serial = 1
             for sheet_name in ["Steel", "MS", "Casting", "STD"]:
                 if sheet_name not in categories:
                     continue
                 if sheet_name == "STD":
-                    self._write_std_sheet(wb, metadata, sheet_name, categories[sheet_name])
+                    global_serial = self._write_std_sheet(wb, metadata, sheet_name, categories[sheet_name], global_serial)
                 else:
-                    self._write_mfg_sheet(wb, metadata, sheet_name, categories[sheet_name])
+                    global_serial = self._write_mfg_sheet(wb, metadata, sheet_name, categories[sheet_name], global_serial)
 
             wb.save(file_path)
             self._log_op(f"BOM exported successfully to: {file_path}")

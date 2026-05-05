@@ -1,0 +1,147 @@
+﻿python : 2026-03-16 
+18:56:23,279 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current 
+thread.
+At line:1 char:1
++ python h:\CADMation\backen
+d\final_verify_rs.py > 
+h:\CADMation\backend ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (2026-  
+  03-16 18:5...current th   
+ read.:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+2026-03-16 18:56:23,861 
+[INFO] app.services.geometry
+_service: GeometryService: 
+get_bounding_box for 
+001_LOWER SHOE .1 
+(Method=ROUGH_STOCK)
+2026-03-16 18:56:23,863 
+[INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current 
+thread.
+2026-03-16 18:56:23,869 
+[INFO] app.services.rough_st
+ock_service: Background 
+dialog monitor started.
+2026-03-16 18:56:23,871 
+[INFO] app.services.rough_st
+ock_service: Triggering 
+'c:Creates rough stock' 
+command...
+2026-03-16 18:56:24,971 
+[INFO] app.services.rough_st
+ock_service: Adding to 
+selection: MAIN_BODY
+2026-03-16 18:56:28,561 
+[WARNING] app.services.geome
+try_service:   Tier 0 Rough 
+Stock failed for 001_LOWER 
+SHOE .1
+2026-03-16 18:56:28,561 
+[WARNING] app.services.geome
+try_service:   Strict 
+ROUGH_STOCK mode: failing 
+measurement.
+2026-03-16 18:56:29,183 
+[INFO] app.services.geometry
+_service: GeometryService: 
+get_bounding_box for 
+000_LOWER_FLANGE_STEEL_01 
+(Method=ROUGH_STOCK)
+2026-03-16 18:56:29,185 
+[INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current 
+thread.
+2026-03-16 18:56:29,193 
+[INFO] app.services.rough_st
+ock_service: Triggering 
+'c:Creates rough stock' 
+command...
+2026-03-16 18:56:30,232 
+[INFO] app.services.rough_st
+ock_service: Adding to 
+selection: LOWER STEEL-01
+2026-03-16 18:56:33,829 
+[WARNING] app.services.geome
+try_service:   Tier 0 Rough 
+Stock failed for 
+000_LOWER_FLANGE_STEEL_01
+2026-03-16 18:56:33,830 
+[WARNING] app.services.geome
+try_service:   Strict 
+ROUGH_STOCK mode: failing 
+measurement.
+2026-03-16 18:56:34,441 
+[INFO] app.services.geometry
+_service: GeometryService: 
+get_bounding_box for 
+203_UPPER_FLANGE_STEEL_01.1 
+(Method=ROUGH_STOCK)
+2026-03-16 18:56:34,443 
+[INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current 
+thread.
+2026-03-16 18:56:34,450 
+[INFO] app.services.rough_st
+ock_service: Triggering 
+'c:Creates rough stock' 
+command...
+2026-03-16 18:56:35,494 
+[INFO] app.services.rough_st
+ock_service: Adding to 
+selection: UPPER STEEL-01
+2026-03-16 18:56:39,079 
+[WARNING] app.services.geome
+try_service:   Tier 0 Rough 
+Stock failed for 
+203_UPPER_FLANGE_STEEL_01.1
+2026-03-16 18:56:39,079 
+[WARNING] app.services.geome
+try_service:   Strict 
+ROUGH_STOCK mode: failing 
+measurement.
+Active Document: _0101BZ105930N-940N_011_FLANGE DOWN RESTRIKE_TOOL_OP40.CATProduct
+
+Searching for: 001_LOWER SHOE
+Executing search: Name=*001_LOWER SHOE*,all
+Found 001_LOWER SHOE .1. Measuring via GeometryService (ROUGH_STOCK)...
+RESULT: Not Measurable (4.7s)
+
+Searching for: 000_LOWER_FLANGE_STEEL_01
+Executing search: Name=*000_LOWER_FLANGE_STEEL_01*,all
+Found 000_LOWER_FLANGE_STEEL_01. Measuring via GeometryService (ROUGH_STOCK)...
+RESULT: Not Measurable (4.6s)
+
+Searching for: 203_UPPER_FLANGE_STEEL_01
+Executing search: Name=*203_UPPER_FLANGE_STEEL_01*,all
+Found 203_UPPER_FLANGE_STEEL_01.1. Measuring via GeometryService (ROUGH_STOCK)...
+RESULT: Not Measurable (4.6s)
+
+Searching for: 004_UPPER_PAD_ST_02
+Executing search: Name=*004_UPPER_PAD_ST_02*,all
+NOT FOUND: 004_UPPER_PAD_ST_02
+
+==================================================
+Part Name                      | Result              
+--------------------------------------------------
+001_LOWER SHOE                 | Not Measurable      
+000_LOWER_FLANGE_STEEL_01      | Not Measurable      
+203_UPPER_FLANGE_STEEL_01      | Not Measurable      
+004_UPPER_PAD_ST_02            | NOT FOUND           
+==================================================

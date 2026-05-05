@@ -52,10 +52,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("CADMation-GUI")
 
+__version__ = "3.6.7"
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("CADMation Enterprise v2.3.0")
+        self.setWindowTitle(f"CADMation Enterprise v{__version__}")
         self.resize(1200, 800)
         self.setMinimumSize(1000, 700)
         

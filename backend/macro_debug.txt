@@ -1,0 +1,8 @@
+--- CATIA Diagnostic Dump ---
+Time: 17/03/2026 02:24:16
+Active Document: UPR NON STD PART _1_1_1_1_1_1_1.CATProduct
+Full Name: H:\Documents\RFQ\0101BZ105930N-940N_011_FLG REST_OP30_16.03.26\0101BZ105930N-940N_011_FLG REST_OP30_16.03.26\3D\UPR NON STD PART _1_1_1_1_1_1_1.CATProduct
+Selection Count: 1
+Selection(1): 203_UPPER_FLANGE_STEEL_01 [Type: Part]
+  SPA Bounding Box: , , , , , 
+  Parent: 203_UPPER_FLANGE_STEEL_01_1.CATPart [Type: PartDocument]

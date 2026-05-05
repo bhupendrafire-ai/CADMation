@@ -1,7 +1,7 @@
 # CADMation Installer Script
 # This script installs the CADMation Copilot as a regular Windows application.
 
-$Version = "2.3.0"
+$Version = "3.6.7"
 $AppName = "CADMation Enterprise v$Version"
 $ExeName = "CADMation_Enterprise.exe"
 $SourceExe = Join-Path $PSScriptRoot "dist\$ExeName"
@@ -20,8 +20,11 @@ Start-Sleep -Seconds 2
 Write-Host "Cleaning up old shortcuts..."
 $DesktopPath = [Environment]::GetFolderPath("Desktop")
 $StartMenuPath = [Environment]::GetFolderPath("StartMenu")
+$ProgramsPath = [Environment]::GetFolderPath("Programs")
+
 Get-ChildItem -Path $DesktopPath -Filter "CADMation*.lnk" | Remove-Item -Force
-Get-ChildItem -Path $StartMenuPath -Include "CADMation*.lnk" -Recurse | Remove-Item -Force
+Get-ChildItem -Path $StartMenuPath -Filter "CADMation*.lnk" -Recurse | Remove-Item -Force
+Get-ChildItem -Path $ProgramsPath -Filter "CADMation*.lnk" -Recurse | Remove-Item -Force
 
 # 1. Check if the EXE exists
 if (-not (Test-Path $SourceExe)) {

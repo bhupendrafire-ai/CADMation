@@ -45,21 +45,35 @@ from app.routers.chat import router as chat_router
 
 
 from app.services.com_worker import com_sentinel
+from app.services.telemetry_worker import telemetry_worker
+from app.services.license_manager import license_manager
+from pydantic import BaseModel
+
+class ActivationRequest(BaseModel):
+    license_key: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting CADMation backend services...")
     com_sentinel.start()
+    telemetry_worker.start()
     yield
     # Shutdown
     logger.info("Stopping CADMation backend services...")
     com_sentinel.stop()
+    telemetry_worker.stop()
 
+
+__version__ = "3.6.7"
 
 app = FastAPI(
     title="CADMation Enterprise",
-    version="2.3.0",
+    version=__version__,
     description="Professional Enterprise AI copilot for CATIA V5 sheet metal design",
     lifespan=lifespan,
 )
@@ -94,6 +108,112 @@ async def health():
         "status": "ok",
         "catia": catia_bridge.check_connection()
     }
+
+@app.get("/api/license/status")
+async def get_license_status():
+    return license_manager.get_license_status()
+
+@app.post("/api/license/activate")
+async def activate_license(req: ActivationRequest):
+    return license_manager.activate_online(req.license_key)
+
+from app.services.auth_service import auth_service
+
+@app.post("/api/auth/login")
+async def login(req: LoginRequest):
+    result = auth_service.login(req.email, req.password)
+    if result["success"]:
+        return result
+    raise HTTPException(status_code=401, detail=result["message"])
+
+@app.post("/api/auth/logout")
+async def logout():
+    auth_service.logout()
+    return {"success": True}
+
+@app.get("/api/auth/user")
+async def get_current_user():
+    return {
+        "is_logged_in": auth_service.current_user is not None,
+        "user": auth_service.current_user
+    }
+
+    if not auth_service.current_user:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    return {"projects": auth_service.get_assigned_projects()}
+
+from app.services.bom_service import bom_service
+from typing import Any, Dict, List
+
+class ReviewSubmissionRequest(BaseModel):
+    items: List[Dict[str, Any]]
+    projectId: str
+    toolId: str
+    projectName: str
+    comment: str = ""
+
+@app.post("/api/bom/submit-review")
+async def submit_bom_for_review(req: ReviewSubmissionRequest):
+    if not auth_service.current_user:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    
+    metadata = {
+        "projectId": req.projectId,
+        "toolId": req.toolId,
+        "projectName": req.projectName,
+        "comment": req.comment
+    }
+    
+    result = bom_service.submit_for_review(req.items, metadata)
+    if result.get("success"):
+        return result
+    raise HTTPException(status_code=500, detail=result.get("message", "Submission failed"))
+
+@app.get("/api/bom/reviews")
+async def get_bom_reviews():
+    """Proxies to ToolRoom ERP to get submitted reviews for the current user."""
+    if not auth_service.current_user_token:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    
+    try:
+        from app.services.license_manager import TOOLROOM_API_URL
+        import requests
+        url = f"{TOOLROOM_API_URL}/api/cadmation/bom/reviews"
+        headers = {"Authorization": f"Bearer {auth_service.current_user_token}"}
+        response = requests.get(url, headers=headers, timeout=10)
+        return response.json()
+    except Exception as e:
+        logger.error(f"Failed to fetch reviews from ToolRoom: {e}")
+        return {"success": False, "reviews": []}
+
+@app.get("/api/stats/leaderboard")
+async def get_leaderboard():
+    """Proxies to ToolRoom ERP to get the global scan leaderboard."""
+    try:
+        from app.services.license_manager import TOOLROOM_API_URL
+        import requests
+        url = f"{TOOLROOM_API_URL}/api/cadmation/stats/leaderboard"
+        response = requests.get(url, timeout=10)
+        return response.json()
+    except Exception as e:
+        logger.error(f"Failed to fetch leaderboard from ToolRoom: {e}")
+        return {"success": False, "leaderboard": []}
+
+@app.post("/api/stats/scan-increment")
+async def increment_scan_count():
+    """Notifies ToolRoom ERP that a scan has occurred for gamification."""
+    if not auth_service.current_user_token:
+        return {"success": False}
+    
+    try:
+        from app.services.license_manager import TOOLROOM_API_URL
+        import requests
+        url = f"{TOOLROOM_API_URL}/api/cadmation/stats/scan-increment"
+        headers = {"Authorization": f"Bearer {auth_service.current_user_token}"}
+        requests.post(url, headers=headers, timeout=5)
+        return {"success": True}
+    except:
+        return {"success": False}
 
 
 if os.path.exists(FRONTEND_DIST):

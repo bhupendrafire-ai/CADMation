@@ -1,0 +1,39 @@
+﻿python : 2026-03-16 
+18:50:58,909 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current 
+thread.
+At line:1 char:1
++ python h:\CADMation\backen
+d\final_verify_rs.py > 
+h:\CADMation\backend ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (2026-  
+  03-16 18:5...current th   
+ read.:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+Active Document: _0101BZ105930N-940N_011_FLANGE DOWN RESTRIKE_TOOL_OP40.CATProduct
+
+Searching for: 001_LOWER SHOE
+Error measuring 001_LOWER SHOE: (-2147352567, 'Exception occurred.', (0, 'CATIASelection', 'The method Search failed', None, 0, -2147467259), None)
+
+Searching for: 000_LOWER_FLANGE_STEEL_01
+Error measuring 000_LOWER_FLANGE_STEEL_01: (-2147352567, 'Exception occurred.', (0, 'CATIASelection', 'The method Search failed', None, 0, -2147467259), None)
+
+Searching for: 203_UPPER_FLANGE_STEEL_01
+Error measuring 203_UPPER_FLANGE_STEEL_01: (-2147352567, 'Exception occurred.', (0, 'CATIASelection', 'The method Search failed', None, 0, -2147467259), None)
+
+Searching for: 004_UPPER_PAD_ST_02
+Error measuring 004_UPPER_PAD_ST_02: (-2147352567, 'Exception occurred.', (0, 'CATIASelection', 'The method Search failed', None, 0, -2147467259), None)
+
+==================================================
+Part Name                      | Result              
+--------------------------------------------------
+==================================================

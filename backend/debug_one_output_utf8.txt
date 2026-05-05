@@ -1,0 +1,23 @@
+﻿python : 2026-03-16 
+18:54:18,141 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current 
+thread.
+At line:1 char:1
++ python h:\CADMation\backen
+d\debug_one_rs.py > 
+h:\CADMation\backend\de ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (2026-  
+  03-16 18:5...current th   
+ read.:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+Found 001_LOWER SHOE .1 (Type: CDispatch)
+Rough Stock window did not appear.

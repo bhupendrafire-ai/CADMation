@@ -19,7 +19,7 @@ def _repo_root() -> str:
 
 def _run(cmd: list[str], cwd: str):
     print(f"> {' '.join(cmd)}")
-    subprocess.check_call(cmd, cwd=cwd)
+    subprocess.check_call(cmd, cwd=cwd, shell=True)
 
 
 def main():
@@ -31,10 +31,9 @@ def main():
     dist_out = os.path.join(repo, "dist")
     work_out = os.path.join(repo, "build", "pyinstaller_gui")
 
-    if not os.path.exists(frontend_dist):
-        print("Frontend 'dist' not found. Building frontend first.")
-        _run(["npm", "install"], cwd=frontend_dir)
-        _run(["npm", "run", "build"], cwd=frontend_dir)
+    print("Rebuilding frontend...")
+    _run(["npm", "install"], cwd=frontend_dir)
+    _run(["npm", "run", "build"], cwd=frontend_dir)
 
     try:
         import PyInstaller.__main__  # type: ignore
@@ -44,10 +43,10 @@ def main():
         raise
 
     gui_entry = os.path.join(backend_dir, "gui.py")
-    icon_path = os.path.join(backend_dir, "resources", "app_icon.ico")
+    icon_path = os.path.join(backend_dir, "resources", "CADMation_Brand_Icon.ico")
     resources_dir = os.path.join(backend_dir, "resources")
     
-    name = os.environ.get("CADMATION_GUI_EXE_NAME", "CADMation_GUI")
+    name = os.environ.get("CADMATION_GUI_EXE_NAME", "CADMation_Enterprise")
 
     args = [
         gui_entry,

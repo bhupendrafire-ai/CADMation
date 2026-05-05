@@ -53,3 +53,6 @@ backend/build/
 # OS
 .DS_Store
 Thumbs.db
+installers/
+AutoCADMation/
+build/

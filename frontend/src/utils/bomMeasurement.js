@@ -2,6 +2,7 @@ export function startBomMeasurement({
   items,
   projectName,
   method = 'STL',
+  force = false,
   tempRenameDuplicateBodies = false,
   onOpen,
   onProgress,
@@ -20,7 +21,7 @@ export function startBomMeasurement({
 
   ws.onopen = () => {
     onOpen?.(ws)
-    const payload = { items, method, projectName }
+    const payload = { items, method, projectName, force }
     if (tempRenameDuplicateBodies) payload.tempRenameDuplicateBodies = true
     ws.send(JSON.stringify(payload))
   }
@@ -29,7 +30,7 @@ export function startBomMeasurement({
     const data = JSON.parse(event.data)
     if (data.progress !== undefined) onProgress?.(data.progress, data)
     if (data.log) onLog?.(data.log, data)
-    if (data.result) onResultRow?.(data.result, data)
+    if (data.result || data.isPartial) onResultRow?.(data.result || data, data)
     if (data.action) {
       onAction?.(data.action, data, ws)
     }
@@ -48,7 +49,7 @@ export function startBomMeasurement({
   return ws
 }
 
-export function measureBomItems({ items, projectName, method = 'STL', tempRenameDuplicateBodies = false, onAction, onLog, onResultRow }) {
+export function measureBomItems({ items, projectName, method = 'STL', force = false, tempRenameDuplicateBodies = false, onAction, onLog, onResultRow }) {
   return new Promise((resolve, reject) => {
     let settled = false
     const logs = []
@@ -58,6 +59,7 @@ export function measureBomItems({ items, projectName, method = 'STL', tempRename
         items,
         projectName,
         method,
+        force,
         tempRenameDuplicateBodies,
         onLog: (log, data) => {
            logs.push(log)

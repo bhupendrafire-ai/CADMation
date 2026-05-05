@@ -1,9 +1,23 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { flushSync } from 'react-dom'
+import { DataGrid, SelectColumn } from 'react-data-grid'
+import 'react-data-grid/lib/styles.css'
 import { startBomMeasurement } from '../utils/bomMeasurement'
 import { getNameSuggestions } from '../utils/bomNaming'
 
-const DEFAULT_METHOD = 'STL'
+const DEFAULT_METHOD = 'ROUGH_STOCK'
+
+const textEditor = ({ row, column, onRowChange, onClose }) => {
+  return (
+    <input
+      autoFocus
+      className="rdg-text-editor"
+      value={row[column.key]}
+      onChange={(e) => onRowChange({ ...row, [column.key]: e.target.value }, true)}
+      onBlur={() => onClose(true)}
+    />
+  )
+}
 
 function mergeClassificationIntoResults(classifiedRows, resultRows) {
   const map = new Map()
@@ -90,13 +104,13 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
   const [selectorError, setSelectorError] = useState('')
   const [bodyListError, setBodyListError] = useState('')
   const [measureMethod, setMeasureMethod] = useState(DEFAULT_METHOD)
-  const [dragRowIndex, setDragRowIndex] = useState(null)
-  const [dropTargetIndex, setDropTargetIndex] = useState(null)
+  const [force, setForce] = useState(false)
+  const [selectedRows, setSelectedRows] = useState(() => new Set(items.filter(it => it.selected).map(it => it.id)))
+  
   const wsRef = useRef(null)
   const logEndRef = useRef(null)
   const cancelledRef = useRef(false)
   const itemsRef = useRef(items)
-
   const lastSyncedItemsRef = useRef(null)
 
   useEffect(() => {
@@ -105,6 +119,7 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
     if (nextJson !== lastSyncedItemsRef.current) {
       setItems(nextNormalized)
       lastSyncedItemsRef.current = nextJson
+      setSelectedRows(new Set(nextNormalized.filter(it => it.selected).map(it => it.id)))
     }
   }, [initialItems])
 
@@ -116,6 +131,14 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
       onUpdate(items);
     }
   }, [items, onUpdate])
+
+  // Sync selectedRows to item.selected
+  useEffect(() => {
+    setItems(prev => prev.map(it => ({
+      ...it,
+      selected: selectedRows.has(it.id)
+    })));
+  }, [selectedRows]);
 
   const bodyFetchKey = useMemo(() => {
     const flag = bomOptions?.tempRenameDuplicateBodies ? '1' : '0'
@@ -152,6 +175,7 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
         sourceDocPath: i.sourceDocPath,
         name: i.name,
         isManualRow: !!i.isManualRow,
+        isClonedRow: !!i.isClonedRow,
       }))
     const ac = new AbortController()
     const t = setTimeout(() => {
@@ -193,9 +217,9 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
           }
           const hintFor = (e) =>
             e === 'unresolved'
-              ? 'Not found — open the CATProduct or correct source path'
+              ? 'Not found — open the CATProduct'
               : e === 'no_bodies'
-                ? 'Part has no bodies'
+                ? 'No bodies'
                 : e || ''
           setItems((prev) =>
             prev.map((row) => {
@@ -212,7 +236,7 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
                   ...row,
                   bodyNameOptions: [],
                   _bodyFetchPending: false,
-                  measureBodyColumnHint: 'No match — refresh BOM list',
+                  measureBodyColumnHint: 'No match',
                 }
               }
               const opts = Array.isArray(r.bodies) ? r.bodies : []
@@ -223,9 +247,7 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
               } else if (opts.length > 1 && mb) {
                 const mbNorm = mb.trim().toUpperCase()
                 const canonicalMatch = opts.find(o => o.trim().toUpperCase() === mbNorm)
-                if (canonicalMatch) {
-                  mb = canonicalMatch
-                }
+                if (canonicalMatch) mb = canonicalMatch
               }
               
               const hint = opts.length === 0 && r.error ? hintFor(r.error) : ''
@@ -268,92 +290,90 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
     }
   }, [logs, calculating])
 
-  const updateItem = (id, updater) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? updater(item) : item)))
-  }
-
-  const moveRow = (fromIndex, toIndex) => {
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return
+  const handleRowsChange = useCallback((newRows, { indexes, column }) => {
     setSelectorError('')
-    setItems((prev) => {
-      if (fromIndex >= prev.length || toIndex >= prev.length) return prev
-      const next = [...prev]
-      const [row] = next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, row)
-      return next
+    const nextItems = [...items]
+    indexes.forEach(idx => {
+      const gridRow = newRows[idx]
+      const originalIndex = items.findIndex(it => it.id === gridRow.id)
+      if (originalIndex === -1) return
+
+      let updatedRow = { ...gridRow }
+      
+      if (column.key === 'isStd') {
+        updatedRow.sheetCategory = updatedRow.isStd ? 'STD' : 'Steel';
+        updatedRow.manufacturer = updatedRow.isStd ? (updatedRow.manufacturer || 'MISUMI') : updatedRow.manufacturer;
+      }
+      
+      if (column.key === 'sheetCategory') {
+        updatedRow.isStd = updatedRow.sheetCategory === 'STD';
+        if (updatedRow.isStd) updatedRow.manufacturer = updatedRow.manufacturer || 'MISUMI';
+      }
+
+      nextItems[originalIndex] = updatedRow
     })
-  }
-
-  const toggleItem = (id) => {
-    setSelectorError('')
-    updateItem(id, (item) => ({ ...item, selected: !item.selected }))
-  }
+    setItems(nextItems)
+  }, [items]);
 
   const selectAll = (selected) => {
     setSelectorError('')
-    setItems((prev) => prev.map((item) => ({ ...item, selected })))
-  }
-
-  const updateSheetCategory = (id, value) => {
-    setSelectorError('')
-    updateItem(id, (item) => ({
-      ...item,
-      sheetCategory: value,
-      isStd: value === 'STD',
-      manufacturer: value === 'STD' ? (item.manufacturer || 'MISUMI') : item.manufacturer,
-    }))
-  }
-
-  const updateMeasurementBody = (id, value) => {
-    setSelectorError('')
-    updateItem(id, (item) => ({ ...item, measurementBodyName: value }))
+    if (selected) {
+      setSelectedRows(new Set(items.map(it => it.id)))
+    } else {
+      setSelectedRows(new Set())
+    }
   }
 
   const addManualRow = () => {
     setSelectorError('')
     const sid = newManualRowId()
-    setItems((prev) => [
-      ...prev,
-      normalizeRows([
-        {
-          isManualRow: true,
-          id: sid,
-          sourceRowId: sid,
-          partNumber: '',
-          instanceName: '',
-          name: '',
-          description: '',
-          qty: 1,
-          selected: true,
-          isStd: false,
-          sheetCategory: 'Steel',
-          material: '',
-          measurementBodyName: '',
-          bodyNameOptions: [],
-          instances: [],
-        },
-      ])[0],
-    ])
+    const newRow = normalizeRows([
+      {
+        isManualRow: true,
+        id: sid,
+        sourceRowId: sid,
+        partNumber: '',
+        instanceName: 'NEW_PART',
+        name: '',
+        description: '',
+        qty: 1,
+        selected: true,
+        isStd: false,
+        sheetCategory: 'Steel',
+        material: '',
+        measurementBodyName: '',
+        bodyNameOptions: [],
+        instances: [],
+      },
+    ])[0];
+    setItems(prev => [...prev, newRow]);
+    setSelectedRows(prev => new Set([...prev, sid]));
   }
 
   const removeRow = (id) => {
     setSelectorError('')
     setItems((prev) => prev.filter((row) => row.id !== id))
+    setSelectedRows(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }
 
-  const splitRow = (item, index) => {
-    const qtyStr = window.prompt(`How many total BOM items exist under part "${item.instanceName || item.name || 'this item'}"?`, "2")
+  const splitRow = (row) => {
+    const qtyStr = window.prompt(`How many total BOM items exist under part "${row.instanceName || row.name || 'this item'}"?`, "2")
     if (!qtyStr) return
     const count = parseInt(qtyStr, 10)
     if (isNaN(count) || count <= 1) return
 
     setItems(prev => {
       const next = [...prev]
+      const index = next.findIndex(it => it.id === row.id)
       const clones = []
       for (let i = 1; i < count; i++) {
         const sid = newManualRowId()
         clones.push(normalizeRows([{
-          ...item,
+          ...row,
           id: sid,
           isClonedRow: true,
           sourceRowId: sid,
@@ -366,45 +386,29 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
     })
   }
 
-  const validateBeforeMeasurement = (selectedItems) => {
-    const manualNoInstance = selectedItems.filter((item) => item.isManualRow && !`${item.instanceName || ''}`.trim())
-    if (manualNoInstance.length) return 'Manual row(s): enter the CATIA instance name before measurement.'
-    const manualNoBody = selectedItems.filter(item => item.isManualRow && !item.isStd && !`${item.measurementBodyName || ''}`.trim() && (item.bodyNameOptions?.length || 0) === 0)
-    if (manualNoBody.length) return 'Manual row(s): enter the measure body name exactly as in CATIA.'
-    return ''
-  }
-
   const startCalculation = () => {
     const selectedItems = items.filter((item) => item.selected)
     if (selectedItems.length === 0) return
 
-    const validationMessage = validateBeforeMeasurement(selectedItems)
-    if (validationMessage) {
-      setSelectorError(validationMessage)
-      return
-    }
-
     const ambiguousBody = selectedItems.filter(it => !it.isStd && (it.bodyNameOptions?.length || 0) > 1 && !`${it.measurementBodyName || ''}`.trim())
     if (ambiguousBody.length) {
-      setSelectorError(`Choose a measure body for ${ambiguousBody.length} part(s) with multiple bodies.`)
+      setSelectorError(`Choose a measure body for ${ambiguousBody.length} part(s).`)
       return
     }
 
-    const toMeasure = selectedItems.filter(it => !it.isStd && (!it.stock_size || it.stock_size === 'Measuring...' || it.stock_size === 'Unknown' || it.stock_size.includes('Error') || it.stock_size.includes('Not Measurable')))
-    const skippedCount = selectedItems.length - toMeasure.length
+    const toMeasure = force 
+      ? selectedItems.filter(it => !it.isStd)
+      : selectedItems.filter(it => !it.isStd && (!it.stock_size || it.stock_size === 'Measuring...' || it.stock_size === 'Unknown' || it.stock_size.includes('Error')))
 
     setCalculating(true)
     setProgress(0)
-    setLogs([
-      'Connecting to measure engine...',
-      ...(skippedCount > 0 ? [`Skipping ${skippedCount} already measured item(s).`] : [])
-    ])
+    setLogs(['Connecting to engine...'])
     setSelectorError('')
     setPendingAction(null)
     cancelledRef.current = false
 
     if (toMeasure.length === 0) {
-      setLogs(prev => [...prev, 'All selected items are already measured.'])
+      setLogs(prev => [...prev, 'All selected items already measured.'])
       setCalculating(false)
       return
     }
@@ -413,6 +417,7 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
       items: toMeasure,
       projectName,
       method: measureMethod,
+      force,
       tempRenameDuplicateBodies: !!bomOptions?.tempRenameDuplicateBodies,
       onAction: (action, data, ws) => {
         setPendingAction({ type: action, data, ws });
@@ -420,12 +425,7 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
       },
       onOpen: () => {
         if (cancelledRef.current) return
-        flushSync(() => {
-          setLogs((prev) => [
-            ...prev,
-            `Starting measurement (${measureMethod === 'STL' ? 'STL' : 'Rough Stock'})...`,
-          ])
-        })
+        setLogs((prev) => [...prev, `Starting measurement (${measureMethod})...`])
       },
       onProgress: (nextProgress) => {
         if (!cancelledRef.current) flushSync(() => setProgress(nextProgress))
@@ -436,15 +436,12 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
       onResultRow: (row) => {
         if (cancelledRef.current) return;
         setItems((prev) => prev.map(it => {
-          const pMatch = it.partNumber === row.partNumber || it.id === row.id;
-          const iMatch = it.instanceName === row.instanceName;
-          if (pMatch && iMatch) {
+          const rowId = row.id || row.itemId;
+          if (it.id === rowId) {
             return {
               ...it,
-              stock_size: row.stock_size,
-              rawDims: row.rawDims,
-              method_used: row.method_used,
-              measurementBodyName: row.measurementBodyName || it.measurementBodyName
+              stock_size: row.stock_size !== undefined ? row.stock_size : it.stock_size,
+              done: row.isPartial ? it.done : (row.done || true)
             };
           }
           return it;
@@ -452,14 +449,10 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
       },
       onDone: (data) => {
         if (cancelledRef.current) return
-        setLogs((prev) => [...prev, `Done! Finalizing results...`])
+        setLogs((prev) => [...prev, `Done! Finalizing...`])
         setTimeout(() => {
-          const classified = itemsRef.current || []
-          const merged = mergeClassificationIntoResults(classified, data.results || [])
-          onCalculationComplete?.({
-            results: merged,
-            retryCandidates: data.retryCandidates || [],
-          })
+          const merged = mergeClassificationIntoResults(itemsRef.current, data.results || [])
+          onCalculationComplete?.({ results: merged, retryCandidates: data.retryCandidates || [] })
         }, 1000)
       },
       onError: (error) => {
@@ -467,86 +460,150 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
         setLogs((prev) => [...prev, `Error: ${error}`])
         setCalculating(false)
       },
-      onClose: () => {},
     })
     wsRef.current = ws
   }
 
-  const cancelCalculation = (e) => {
-    e?.preventDefault?.()
+  const cancelCalculation = () => {
     cancelledRef.current = true
-    if (wsRef.current) {
-      try { wsRef.current.close() } catch (_) {}
-      wsRef.current = null
-    }
+    if (wsRef.current) wsRef.current.close()
     setCalculating(false)
     setProgress(0)
-    setLogs((prev) => [...prev, 'Cancelled by user.'])
   }
 
-  const handleActionConfirm = (command, extra = {}) => {
-    if (!pendingAction?.ws) return;
-    pendingAction.ws.send(JSON.stringify({ command, ...extra }));
-    setLogs(prev => [...prev, `✅ Confirmed: ${command} ${extra.bodyName || ''}`]);
-    setPendingAction(null);
-  }
+  const columns = useMemo(() => [
+    { ...SelectColumn, width: 35 },
+    { 
+        key: '_drag', 
+        name: '', 
+        width: 30, 
+        renderCell: () => <div className="flex items-center justify-center text-zen-text-muted/30 cursor-grab active:cursor-grabbing"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></div> 
+    },
+    { 
+        key: 'instanceName', 
+        name: 'Part Instance', 
+        width: 180, 
+        resizable: true,
+        cellClass: 'editable-cell',
+        renderEditCell: textEditor,
+        renderCell: ({ row }) => (
+            <div className="flex items-center gap-2 overflow-hidden">
+                <span className={`text-[10px] font-bold truncate ${row.isManualRow ? 'text-zen-warning' : 'text-zen-primary'}`}>
+                    {row.instanceName}
+                </span>
+                <span className="text-[9px] font-mono text-zen-text-muted/50 truncate">
+                    ({row.partNumber || '—'})
+                </span>
+                {row.isClonedRow && <span className="text-[7px] font-bold text-zen-info uppercase tracking-widest shrink-0">Split</span>}
+            </div>
+        )
+    },
+    { key: 'description', name: 'Description', width: 160, resizable: true, cellClass: 'editable-cell', renderEditCell: textEditor },
+    { 
+        key: 'isStd', 
+        name: 'Type', 
+        width: 60, 
+        renderCell: ({ row }) => {
+            const isStd = !!row.isStd;
+            return (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', width: '100%' }}>
+                    <div style={{
+                        fontSize: '9px',
+                        fontWeight: '700',
+                        padding: '1px 6px',
+                        borderRadius: '3px',
+                        border: `1px solid ${isStd ? '#FDE68A' : '#18181b'}`,
+                        backgroundColor: isStd ? '#FFF7ED' : '#18181b',
+                        color: isStd ? '#D97706' : '#ffffff',
+                        textAlign: 'center',
+                        minWidth: '36px',
+                        lineHeight: '1',
+                        display: 'inline-block'
+                    }}>
+                        {isStd ? 'STD' : 'MFG'}
+                    </div>
+                </div>
+            );
+        }
+    },
+    { 
+        key: 'sheetCategory', 
+        name: 'Sheet', 
+        width: 80, 
+        resizable: true, 
+        cellClass: 'editable-cell dropdown-cell',
+        renderEditCell: ({ row, onRowChange }) => (
+            <select value={row.sheetCategory || ''} onChange={(e) => onRowChange({ ...row, sheetCategory: e.target.value })} className="w-full bg-zen-surface text-[10px] h-full outline-none" autoFocus>
+                {(row.isStd ? ['STD'] : ['Steel', 'MS', 'Casting']).map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+        )
+    },
+    { key: 'material', name: 'Material / Vendor', width: 130, resizable: true, cellClass: 'editable-cell', renderEditCell: textEditor },
+    { 
+        key: 'measurementBodyName', 
+        name: 'Measure Body', 
+        width: 200, 
+        resizable: true, 
+        cellClass: 'editable-cell dropdown-cell',
+        renderEditCell: ({ row, onRowChange }) => (
+            <select value={row.measurementBodyName || ''} onChange={(e) => onRowChange({ ...row, measurementBodyName: e.target.value })} className="w-full bg-zen-surface text-[10px] h-full outline-none" autoFocus>
+                <option value="">-- Pick Body --</option>
+                {(row.bodyNameOptions || []).map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+        ),
+        renderCell: ({ row }) => (
+            <div className="flex flex-col justify-center h-full gap-0.5 leading-none">
+                <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold ${row.measurementBodyName ? 'text-zen-info' : 'text-zen-text-muted'}`}>
+                        {row.measurementBodyName || (row.isStd ? '—' : 'Select...')}
+                    </span>
+                    {row._bodyFetchPending && <div className="w-2.5 h-2.5 border border-zen-info/20 border-t-zen-info rounded-full animate-spin"></div>}
+                </div>
+                {row.measureBodyColumnHint && <span className="text-[7px] font-bold text-zen-error uppercase tracking-widest">{row.measureBodyColumnHint}</span>}
+            </div>
+        )
+    },
+    { key: 'qty', name: 'Qty', width: 45, resizable: true, cellClass: 'editable-cell text-center', renderEditCell: textEditor },
+    {
+        key: '_actions',
+        name: '',
+        width: 60,
+        renderCell: ({ row }) => (
+            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity justify-end pr-2">
+                {!row.isManualRow && !row.isClonedRow && (
+                    <button onClick={() => splitRow(row)} className="p-1 hover:bg-zen-surface-alt rounded text-zen-text-muted hover:text-zen-primary transition-all" title="Split">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8"/><path d="M21 3l-6 6"/><path d="M3 3l6 6"/></svg>
+                    </button>
+                )}
+                {(row.isManualRow || row.isClonedRow) && (
+                    <button onClick={() => removeRow(row.id)} className="p-1 hover:bg-zen-error/10 rounded text-zen-error/40 hover:text-zen-error transition-all font-bold">×</button>
+                )}
+            </div>
+        )
+    }
+  ], [items, handleRowsChange]);
 
-  const handlePartialExport = () => {
-    const measuredItems = items.filter(it => it.stock_size && it.stock_size !== 'Measuring...' && !it.stock_size.includes('Error') && !it.stock_size.includes('Not Measurable'))
-    onPartialExport?.(measuredItems)
-  }
+  const mfgCount = items.filter(it => !it.isStd).length;
+  const stdCount = items.filter(it => it.isStd).length;
 
   if (calculating) {
     return (
-      <div className="mt-4 p-6 zen-card border border-zen-border space-y-6 animate-in fade-in duration-500">
+      <div className="mt-4 p-6 zen-card border border-zen-border space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="zen-label text-zen-primary">Measurement in Progress</span>
+            <span className="zen-label text-zen-primary uppercase tracking-widest">Measure Progress</span>
             <span className="text-[10px] text-zen-text-muted mt-1 truncate max-w-[300px] font-mono">{logs[logs.length - 1]}</span>
           </div>
           <div className="flex items-center gap-3">
              <span className="text-xl font-bold text-zen-primary">{progress}%</span>
-             <div className="flex items-center gap-2">
-                <button type="button" onClick={handlePartialExport} className="text-[10px] font-bold px-4 py-2 rounded-full bg-zen-success/10 text-zen-success border border-zen-success/20 hover:bg-zen-success/20 transition-all">Partial Export</button>
-                <button type="button" onClick={cancelCalculation} className="text-[10px] font-bold px-4 py-2 rounded-full bg-zen-error/10 text-zen-error border border-zen-error/20 hover:bg-zen-error/20 transition-all">Cancel</button>
-             </div>
+             <button type="button" onClick={cancelCalculation} className="text-[10px] font-bold px-4 py-2 rounded-full bg-zen-error/10 text-zen-error border border-zen-error/20 hover:bg-zen-error/20">Cancel</button>
           </div>
         </div>
-
         <div className="w-full h-1.5 bg-zen-surface-alt rounded-full overflow-hidden border border-zen-border/50">
           <div className="h-full bg-zen-primary transition-all duration-500 ease-out" style={{ width: `${progress}%` }} />
         </div>
-
-        {pendingAction && (
-          <div className="p-5 rounded-3xl bg-zen-warning/5 border border-zen-warning/20 shadow-sm animate-pulse">
-            <p className="text-xs font-bold text-zen-warning mb-2 flex items-center gap-2 uppercase tracking-widest">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-              Manual Intervention
-            </p>
-            <p className="text-[11px] text-zen-text-main mb-4 leading-relaxed">{pendingAction.data?.log || 'Please interact with CATIA as requested.'}</p>
-            
-            <div className="flex flex-wrap gap-2">
-              {pendingAction.type === 'REQUIRE_AXIS_SELECTION' && (
-                <button onClick={() => handleActionConfirm('AXIS_CONFIRMED')} className="zen-pill px-6 py-2.5 text-[10px]">
-                  Confirm Axis Selected
-                </button>
-              )}
-              {pendingAction.type === 'REQUIRE_BODY_SELECTION' && (pendingAction.data?.candidates || []).map((name) => (
-                <button key={name} onClick={() => handleActionConfirm('BODY_SELECTED', { bodyName: name })} className="px-4 py-2 text-[10px] font-bold rounded-full border border-zen-border bg-zen-surface text-zen-text-main hover:bg-zen-surface-alt transition-all">
-                  {name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className="text-[10px] text-zen-text-muted font-mono h-40 overflow-y-auto bg-zen-surface-alt/50 p-4 rounded-2xl border border-zen-border no-scrollbar">
-          {logs.map((entry, i) => (
-            <div key={i} className="mb-1 flex gap-3 opacity-80 hover:opacity-100 transition-opacity">
-              <span className="text-zen-text-muted/40 shrink-0">[{new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>
-              <span className={entry.includes('Error') ? 'text-zen-error' : entry.includes('Done') ? 'text-zen-success font-bold' : ''}>{entry}</span>
-            </div>
-          ))}
+          {logs.map((entry, i) => <div key={i} className="mb-1">[{new Date().toLocaleTimeString()}] {entry}</div>)}
           <div ref={logEndRef} />
         </div>
       </div>
@@ -554,187 +611,63 @@ export default function BOMSelectionList({ items: initialItems, projectName, bom
   }
 
   return (
-    <div className="mt-4 zen-card border border-zen-border overflow-hidden animate-in fade-in duration-500">
-      <div className="p-5 border-b border-zen-border flex items-center justify-between bg-zen-surface-alt/50">
-        <div className="flex flex-col gap-1">
-          <span className="zen-label text-zen-primary">BOM Classification</span>
-          <span className="text-[10px] text-zen-text-muted max-w-2xl leading-relaxed">
-            Verify part categories and measurement bodies before starting the engine. Drag rows to prioritize specific parts.
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 justify-end">
-          <button type="button" onClick={addManualRow} className="text-[10px] font-bold px-4 py-2 rounded-full bg-zen-surface border border-zen-border hover:bg-zen-surface-alt text-zen-text-main transition-all">+ Manual Row</button>
+    <div className="mt-4 zen-card border border-zen-border overflow-hidden flex flex-col min-h-[500px]">
+      <div className="p-4 border-b border-zen-border flex items-center justify-between bg-zen-surface-alt/30">
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col">
+            <span className="zen-label text-zen-primary">Initial Draft</span>
+            <div className="flex items-center gap-2 mt-1">
+                <span className="text-[9px] px-2 py-0.5 rounded-md bg-zen-info/10 text-zen-info border border-zen-info/10 font-bold uppercase tracking-wider">MFG: {mfgCount}</span>
+                <span className="text-[9px] px-2 py-0.5 rounded-md bg-zen-warning/10 text-zen-warning border border-zen-warning/10 font-bold uppercase tracking-wider">STD: {stdCount}</span>
+            </div>
+          </div>
+          
+          <div className="h-8 w-px bg-zen-border"></div>
+
           <div className="flex bg-zen-bg p-1 rounded-full border border-zen-border">
             <button onClick={() => selectAll(true)} className="text-[9px] px-3 py-1 text-zen-text-muted hover:text-zen-primary font-bold uppercase tracking-tighter">All</button>
             <button onClick={() => selectAll(false)} className="text-[9px] px-3 py-1 text-zen-text-muted hover:text-zen-error font-bold uppercase tracking-tighter">None</button>
           </div>
-          <button onClick={startCalculation} disabled={items.filter(i => i.selected).length === 0} className="zen-pill px-6 py-2 text-[10px] disabled:opacity-30">
-            Start Measure
-          </button>
+
+          <div className="flex bg-zen-bg p-1 rounded-full border border-zen-border">
+             <button onClick={() => setMeasureMethod('STL')} className={`text-[9px] px-4 py-1 rounded-full transition-all font-bold uppercase tracking-tighter ${measureMethod === 'STL' ? 'bg-zen-primary text-white' : 'text-zen-text-muted hover:text-zen-primary'}`}>STL</button>
+             <button onClick={() => setMeasureMethod('ROUGH_STOCK')} className={`text-[9px] px-4 py-1 rounded-full transition-all font-bold uppercase tracking-tighter ${measureMethod === 'ROUGH_STOCK' ? 'bg-zen-primary text-white' : 'text-zen-text-muted hover:text-zen-primary'}`}>Rough Stock</button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button onClick={() => setForce(!force)} className={`text-[9px] px-4 py-2 rounded-full border font-bold uppercase tracking-tighter transition-all ${force ? 'bg-zen-warning/10 text-zen-warning border-zen-warning/30' : 'bg-zen-bg text-zen-text-muted border-zen-border hover:text-zen-primary'}`}>Force Re-measure</button>
+          <button type="button" onClick={addManualRow} className="text-[10px] font-bold px-4 py-2 rounded-full bg-zen-surface border border-zen-border hover:bg-zen-surface-alt text-zen-text-main transition-all">+ Manual Row</button>
+          <button onClick={startCalculation} disabled={selectedRows.size === 0} className="zen-pill px-6 py-2 text-[10px] disabled:opacity-30">Start Measure</button>
         </div>
       </div>
 
-      {selectorError && (
-        <div className="px-6 py-3 text-[11px] text-zen-warning bg-zen-warning/5 border-b border-zen-warning/20 flex items-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-          {selectorError}
-        </div>
-      )}
-      {bodyListError && !selectorError && (
-        <div className="px-6 py-3 text-[11px] text-zen-error bg-zen-error/5 border-b border-zen-error/20 flex items-center gap-2">
-           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-           {bodyListError}
-        </div>
-      )}
+      {selectorError && <div className="px-6 py-2 text-[11px] text-zen-warning bg-zen-warning/5 border-b border-zen-warning/20">{selectorError}</div>}
+      {bodyListError && <div className="px-6 py-2 text-[11px] text-zen-error bg-zen-error/5 border-b border-zen-error/20">{bodyListError}</div>}
 
-      <div className="overflow-x-auto max-h-[55vh] overflow-y-auto no-scrollbar">
-        <table className="w-full text-[11px] border-collapse min-w-max">
-          <thead className="sticky top-0 bg-zen-surface z-20 border-b border-zen-border">
-            <tr className="bg-zen-surface-alt/30">
-              <th className="w-8 py-3 px-1"></th>
-              <th className="w-8 py-3 px-2 text-center text-[9px] font-bold text-zen-text-muted uppercase tracking-tighter">In</th>
-              <th className="w-8 py-3 px-1"></th>
-              <th className="text-left py-3 px-4 min-w-[160px] text-[9px] font-bold text-zen-primary uppercase tracking-widest">Part Instance</th>
-              <th className="text-left py-3 px-4 min-w-[200px] text-[9px] font-bold text-zen-text-muted uppercase tracking-tighter">Description</th>
-              <th className="text-left py-3 px-4 min-w-[100px] text-[9px] font-bold text-zen-text-muted uppercase tracking-tighter">Type</th>
-              <th className="text-left py-3 px-4 min-w-[110px] text-[9px] font-bold text-zen-text-muted uppercase tracking-tighter">Sheet</th>
-              <th className="text-left py-3 px-4 min-w-[140px] text-[9px] font-bold text-zen-text-muted uppercase tracking-tighter">Material / Vendor</th>
-              <th className="text-left py-3 px-4 min-w-[160px] text-[9px] font-bold text-zen-info uppercase tracking-widest">Measure Body</th>
-              <th className="text-center py-3 px-4 w-16 text-[9px] font-bold text-zen-text-muted uppercase tracking-tighter">Qty</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zen-border/50">
-            {items.map((item, idx) => {
-              const suggestions = getNameSuggestions(item)
-              const datalistId = `bom-name-suggestions-${item.id}`
-              const categoryOptions = item.isStd ? ['STD'] : ['Steel', 'MS', 'Casting']
-              const isDragOver = dropTargetIndex === idx && dragRowIndex !== null && dragRowIndex !== idx
-              return (
-                <tr
-                  key={item.id}
-                  onDragOver={(e) => {
-                    if (dragRowIndex === null) return
-                    e.preventDefault()
-                    e.dataTransfer.dropEffect = 'move'
-                    setDropTargetIndex(idx)
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault()
-                    const raw = e.dataTransfer.getData('text/plain')
-                    const from = parseInt(raw, 10)
-                    if (!Number.isNaN(from)) moveRow(from, idx)
-                    setDragRowIndex(null)
-                    setDropTargetIndex(null)
-                  }}
-                  className={`transition-colors duration-200 group ${item.selected ? 'bg-zen-info/[0.02]' : ''} ${
-                    dragRowIndex === idx ? 'opacity-30' : ''
-                  } ${isDragOver ? 'bg-zen-info/10' : 'hover:bg-zen-surface-alt/50'}`}
-                >
-                  <td className="py-2 px-1 align-middle text-center">
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', String(idx))
-                        e.dataTransfer.effectAllowed = 'move'
-                        setDragRowIndex(idx)
-                      }}
-                      onDragEnd={() => {
-                        setDragRowIndex(null)
-                        setDropTargetIndex(null)
-                      }}
-                      className="inline-flex cursor-grab active:cursor-grabbing text-zen-text-muted/30 group-hover:text-zen-primary p-1.5 rounded-lg hover:bg-zen-surface transition-all outline-none"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
-                    </span>
-                  </td>
-                  <td className="py-2 px-2 text-center">
-                    <input type="checkbox" checked={item.selected} onChange={() => toggleItem(item.id)} className="w-3.5 h-3.5 rounded border-zen-border bg-zen-bg checked:bg-zen-primary transition-all cursor-pointer" />
-                  </td>
-                  <td className="py-2 px-1 text-center">
-                    {item.isManualRow || item.isClonedRow ? (
-                      <button type="button" onClick={() => removeRow(item.id)} className="text-zen-error/40 hover:text-zen-error transition-all font-bold text-lg leading-none p-1">×</button>
-                    ) : (
-                      <span className="text-zen-text-muted/10 font-bold">·</span>
-                    )}
-                  </td>
-                  <td className="py-2 px-4">
-                    {item.isManualRow ? (
-                      <div className="flex flex-col gap-1.5 min-w-0">
-                        <input
-                          type="text"
-                          value={item.instanceName || ''}
-                          onChange={(e) => {
-                            const v = e.target.value
-                            updateItem(item.id, (row) => ({ ...row, instanceName: v, instances: v.trim() ? [v.trim()] : [] }))
-                          }}
-                          placeholder="CATIA Instance Name"
-                          className="w-full min-w-[140px] text-xs font-bold bg-zen-warning/5 border border-zen-warning/20 rounded-lg px-3 py-1.5 placeholder:text-zen-warning/30 text-zen-warning focus:bg-zen-warning/10 outline-none transition-all"
-                        />
-                        <input
-                          type="text"
-                          value={item.partNumber || ''}
-                          onChange={(e) => updateItem(item.id, (row) => ({ ...row, partNumber: e.target.value }))}
-                          placeholder="Part Number"
-                          className="w-full text-[10px] font-mono bg-zen-surface-alt border border-zen-border rounded-md px-2 py-1 placeholder:text-zen-text-muted/30 text-zen-text-muted outline-none"
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex flex-col min-w-0 group/split">
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <span className="text-xs font-bold truncate text-zen-primary shrink">{item.instanceName}</span>
-                          <button
-                            type="button"
-                            onClick={() => splitRow(item, idx)}
-                            className="shrink-0 opacity-0 group-hover/split:opacity-100 flex items-center justify-center bg-zen-surface border border-zen-border hover:bg-zen-surface-alt text-zen-text-muted hover:text-zen-primary transition-all rounded p-1"
-                            title="Split into multiple items"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8"/><path d="M21 3l-6 6"/><path d="M3 3l6 6"/></svg>
-                          </button>
-                        </div>
-                        <span className="text-[10px] font-mono text-zen-text-muted/60 truncate">{item.partNumber || '—'}</span>
-                        {item.isClonedRow && <span className="text-[8px] font-bold text-zen-info uppercase tracking-widest mt-0.5">Split Result</span>}
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-2 px-4">
-                    <input list={datalistId} type="text" value={item.description || ''} onChange={(e) => updateItem(item.id, (row) => ({ ...row, description: e.target.value }))} placeholder="Description" className="w-full bg-transparent border-transparent hover:border-zen-border focus:bg-zen-bg rounded-lg px-2 py-1.5 text-xs text-zen-text-main transition-all outline-none" />
-                    <datalist id={datalistId}>{suggestions.map(s => <option key={s} value={s} />)}</datalist>
-                  </td>
-                  <td className="py-2 px-4">
-                     <button type="button" onClick={() => updateSheetCategory(item.id, item.isStd ? 'Steel' : 'STD')} className={`text-[9px] font-bold px-3 py-1 rounded-full border tracking-widest transition-all ${item.isStd ? 'bg-zen-warning/10 text-zen-warning border-zen-warning/10' : 'bg-zen-primary text-white border-zen-primary'}`}>
-                        {item.isStd ? 'STD' : 'MFG'}
-                     </button>
-                  </td>
-                  <td className="py-2 px-4">
-                     <select value={item.sheetCategory || ''} onChange={(e) => updateSheetCategory(item.id, e.target.value)} className="w-full bg-zen-surface-alt border border-zen-border rounded-lg text-[10px] font-bold px-2 py-1.5 outline-none cursor-pointer text-zen-text-main">
-                        {categoryOptions.map(o => <option key={o} value={o}>{o}</option>)}
-                     </select>
-                  </td>
-                  <td className="py-2 px-4">
-                     <input type="text" value={item.isStd ? (item.manufacturer || '') : (item.material || '')} onChange={(e) => updateItem(item.id, row => ({ ...row, [item.isStd ? 'manufacturer' : 'material']: e.target.value }))} placeholder={item.isStd ? "Manufacturer" : "Material"} className="w-full bg-transparent border-transparent hover:border-zen-border focus:bg-zen-bg rounded-lg px-2 py-1.5 text-xs text-zen-text-main transition-all outline-none" />
-                  </td>
-                  <td className="py-2 px-4">
-                     <div className="flex flex-col gap-1">
-                        <div className="relative">
-                           <select value={item.measurementBodyName || ''} onChange={(e) => updateMeasurementBody(item.id, e.target.value)} disabled={item.isStd || item._bodyFetchPending} className={`w-full bg-zen-info/[0.03] border border-zen-info/20 rounded-lg text-xs font-bold px-3 py-2 outline-none cursor-pointer transition-all ${item.isStd ? 'opacity-20 grayscale' : 'hover:border-zen-info'}`}>
-                              <option value="">{item._bodyFetchPending ? 'Loading bodies...' : (item.bodyNameOptions?.length > 0 ? '-- Pick Body --' : '-- No Bodies Found --')}</option>
-                              {(item.bodyNameOptions || []).map(o => <option key={o} value={o}>{o}</option>)}
-                           </select>
-                           {item._bodyFetchPending && <div className="absolute right-3 top-2.5 w-3 h-3 border-2 border-zen-info/20 border-t-zen-info rounded-full animate-spin"></div>}
-                        </div>
-                        {item.measureBodyColumnHint && <span className="text-[8px] font-bold text-zen-error uppercase tracking-widest ml-1">{item.measureBodyColumnHint}</span>}
-                     </div>
-                  </td>
-                  <td className="py-2 px-4">
-                     <input type="number" min="1" value={item.qty || 1} onChange={(e) => updateItem(item.id, row => ({ ...row, qty: parseInt(e.target.value, 10) || 1 }))} className="w-12 bg-transparent border-transparent hover:border-zen-border focus:bg-zen-bg rounded-lg text-center text-xs font-bold text-zen-primary transition-all outline-none" />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+      <div className="flex-1 overflow-hidden rdg-zen-container">
+        <DataGrid
+          columns={columns}
+          rows={items}
+          onRowsChange={handleRowsChange}
+          rowKeyGetter={(row) => row.id}
+          selectedRows={selectedRows}
+          onSelectedRowsChange={setSelectedRows}
+          onCellClick={({ row, column, selectCell }) => {
+            if (column.key === 'isStd') {
+              const rowIndex = items.findIndex(it => it.id === row.id);
+              if (rowIndex === -1) return;
+              const nextItems = items.map((it, idx) => idx === rowIndex ? { ...it, isStd: !it.isStd } : it);
+              handleRowsChange(nextItems, { indexes: [rowIndex], column: { key: 'isStd' } });
+            } else if (column.renderEditCell) {
+              selectCell(true);
+            }
+          }}
+          rowHeight={35}
+          headerRowHeight={35}
+          className="rdg-light fill-grid"
+          style={{ height: '100%' }}
+        />
       </div>
     </div>
   )

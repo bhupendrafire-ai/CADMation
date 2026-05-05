@@ -1,0 +1,66 @@
+Language="VBSCRIPT"
+
+Sub CATMain()
+    On Error Resume Next
+    Dim outFile
+    outFile = "h:\CADMation\backend\macro_debug.txt"
+    
+    Dim fso, txt
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set txt = fso.CreateTextFile(outFile, True)
+    
+    If Err.Number <> 0 Then
+        MsgBox "Failed to create log file: " & Err.Description
+        Exit Sub
+    End If
+    
+    txt.WriteLine "--- CATIA Diagnostic Dump ---"
+    txt.WriteLine "Time: " & Now
+    
+    Dim doc
+    Set doc = CATIA.ActiveDocument
+    
+    If doc Is Nothing Then
+        txt.WriteLine "ERROR: No Active Document found."
+        txt.Close
+        MsgBox "No active document found in CATIA.", vbCritical
+        Exit Sub
+    End If
+    
+    txt.WriteLine "Active Document: " & doc.Name
+    txt.WriteLine "Full Name: " & doc.FullName
+    
+    Dim sel
+    Set sel = doc.Selection
+    txt.WriteLine "Selection Count: " & sel.Count
+    
+    Dim i
+    For i = 1 To sel.Count
+        Dim obj
+        Set obj = sel.Item(i).Value
+        txt.WriteLine "Selection(" & i & "): " & obj.Name & " [Type: " & TypeName(obj) & "]"
+        
+        ' Try to get bounding box via SPA
+        Dim spa
+        Set spa = doc.GetWorkbench("SPAWorkbench")
+        If Not spa Is Nothing Then
+            Dim meas
+            Set meas = spa.GetMeasurable(obj)
+            If Not meas Is Nothing Then
+                Dim bb(6)
+                meas.GetBoundaryBox bb
+                txt.WriteLine "  SPA Bounding Box: " & bb(0) & ", " & bb(1) & ", " & bb(2) & ", " & bb(3) & ", " & bb(4) & ", " & bb(5)
+            End If
+        End If
+        
+        ' Try to get parent details
+        Dim p
+        Set p = obj.Parent
+        If Not p Is Nothing Then
+            txt.WriteLine "  Parent: " & p.Name & " [Type: " & TypeName(p) & "]"
+        End If
+    Next
+    
+    txt.Close
+    MsgBox "Diagnostic data dumped to " & outFile, vbInformation, "CADMation Diagnostic"
+End Sub

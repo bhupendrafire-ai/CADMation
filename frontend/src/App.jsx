@@ -11,9 +11,20 @@ import DraftingPage from './components/DraftingPage'
 import BOMEditor from './components/BOMEditor'
 import BOMSelectionList from './components/BOMSelectionList'
 import HowToUseModal from './components/HowToUseModal'
+import LandingScreen from './components/LandingScreen'
+import SessionsPage from './components/SessionsPage'
+import FinalBOMsPage from './components/FinalBOMsPage'
+import PendingReviewsPage from './components/PendingReviewsPage'
+import ScanLeaderboardPage from './components/ScanLeaderboardPage'
 import { measureBomItems } from './utils/bomMeasurement'
 
 function App() {
+  const [isActivated, setIsActivated] = useState(true)
+  const [isCheckingLicense, setIsCheckingLicense] = useState(true)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [currentUser, setCurrentUser] = useState(null)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+  const [machineId, setMachineId] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
   const [activeDoc, setActiveDoc] = useState(null)
   const [messages, setMessages] = useState([
@@ -28,6 +39,7 @@ function App() {
   const [sessionId, setSessionId] = useState(null)
   const [sessions, setSessions] = useState([])
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [bomSubTab, setBomSubTab] = useState('final') // 'draft' | 'final'
   const [isCopilotOpen, setIsCopilotOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(true)
   const [exportStatus, setExportStatus] = useState({ 
@@ -35,9 +47,8 @@ function App() {
     path: '', 
     error: '' 
   })
-  const [showGuide, setShowGuide] = useState(() => {
-    return localStorage.getItem('cadmation_hide_guide') !== 'true'
-  })
+  const [showGuide, setShowGuide] = useState(false)
+  const [dashboardView, setDashboardView] = useState(null) // null | 'sessions' | 'final-boms' | 'reviews' | 'leaderboard'
   
   const chatWindowRef = useRef(null)
   const messagesRef = useRef(messages)
@@ -45,8 +56,34 @@ function App() {
     messagesRef.current = messages
   }, [messages])
 
-  // Poll for CATIA connection status
+  // Poll for CATIA connection status and license status
   useEffect(() => {
+    const checkLicense = async () => {
+      try {
+        const res = await fetch('/api/license/status')
+        const data = await res.json()
+        setIsActivated(data.is_activated)
+        setMachineId(data.machine_id)
+        setIsCheckingLicense(false)
+      } catch (err) {
+        setIsCheckingLicense(false)
+      }
+    }
+
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/user')
+        const data = await res.json()
+        setIsLoggedIn(data.is_logged_in)
+        setCurrentUser(data.user)
+      } catch (err) {
+        setIsLoggedIn(false)
+        setCurrentUser(null)
+      } finally {
+        setIsCheckingAuth(false)
+      }
+    }
+
     const checkStatus = async () => {
       try {
         const res = await fetch('/api/catia/status')
@@ -59,6 +96,8 @@ function App() {
       }
     }
 
+    checkLicense()
+    checkAuth()
     checkStatus()
     const interval = setInterval(checkStatus, 5000)
     
@@ -246,6 +285,7 @@ function App() {
       },
     ])
     setActiveTab('bom')
+    setBomSubTab('draft')
     setIsCopilotOpen(true)
   }
 
@@ -264,16 +304,17 @@ function App() {
     const method = payload?.method || 'ROUGH_STOCK'
 
     if (payload?.results) {
-       // Results already provided by the selector component
-       handleUpdateBomMessage(messageIndex, {
-         items: payload.results,
-         exporting: false,
-       })
-       return;
+      console.log(`[BOM] Selection complete (direct results). Received ${payload.results.length} items.`);
+      handleUpdateBomMessage(messageIndex, {
+        items: payload.results.map(it => ({ ...it, keepInExport: it.keepInExport ?? true })),
+        exporting: false,
+      })
+      setBomSubTab('final')
+      return;
     }
 
     handleUpdateBomMessage(messageIndex, {
-      items: (payload?.items || []).map(it => ({ ...it, stock_size: 'Measuring...' })),
+      items: (payload?.items || []).map(it => ({ ...it, stock_size: 'Measuring...', keepInExport: true })),
       exporting: false,
     })
 
@@ -283,6 +324,7 @@ function App() {
         items: requestedItems,
         projectName: activeDoc,
         method: method,
+        force: !!bomOpts?.force,
         tempRenameDuplicateBodies: !!bomOpts?.tempRenameDuplicateBodies,
         onLog: (log) => {
           handleUpdateBomMessage(messageIndex, { 
@@ -292,10 +334,13 @@ function App() {
         onAction: handleMeasurementAction
       })
 
+      console.log(`[BOM] Selection complete. Received ${data.results?.length || 0} items from selector. Original requested: ${requestedItems.length}`);
+      
       handleUpdateBomMessage(messageIndex, {
-        items: data.results || [],
+        items: (data.results || []).map(it => ({ ...it, keepInExport: true })),
         exporting: false,
       })
+      setBomSubTab('final')
       
       // Handle retries if any items failed Rough Stock
       const retryCandidates = (data.results || []).filter(r => 
@@ -414,11 +459,14 @@ function App() {
     setMessages((prev) =>
       prev.map((m, i) => {
         if (i === messageIndex) {
-          // If we are transitioning from selector to editor, clear interactive type
-          const nextMsg = { ...m, bomEditor: bomData };
-          if (nextMsg.interactive?.type === 'bom-selector') {
-             nextMsg.interactive = null;
-          }
+          // Merge with existing bomEditor data to avoid losing items/log/etc.
+          const nextMsg = { 
+            ...m, 
+            bomEditor: { 
+              ...(m.bomEditor || {}), 
+              ...bomData 
+            } 
+          };
           return nextMsg;
         }
         return m;
@@ -506,7 +554,36 @@ function App() {
   const renderActiveWorkspace = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard stats={stats} onNavigate={setActiveTab} />
+        if (dashboardView === 'sessions') {
+          return <SessionsPage user={currentUser} onSelectSession={(id) => {
+            handleSelectSession(id);
+            setDashboardView(null);
+            setActiveTab('bom');
+            setIsCopilotOpen(true);
+          }} />
+        }
+        if (dashboardView === 'final-boms') {
+          return <FinalBOMsPage onSelectSession={(id) => {
+            handleSelectSession(id);
+            setDashboardView(null);
+            setActiveTab('bom');
+            setIsCopilotOpen(true);
+            setBomSubTab('final');
+          }} />
+        }
+        if (dashboardView === 'reviews') {
+          return <PendingReviewsPage />
+        }
+        if (dashboardView === 'leaderboard') {
+          return <ScanLeaderboardPage currentUser={currentUser} />
+        }
+        return <Dashboard stats={stats} onNavigate={(view) => {
+          if (['tree', 'bom', 'drafting'].includes(view)) {
+            setActiveTab(view);
+          } else {
+            setDashboardView(view);
+          }
+        }} user={currentUser} />
       case 'tree':
         return (
           <div className="flex-1 flex overflow-hidden">
@@ -532,34 +609,80 @@ function App() {
       case 'bom':
         if (lastBomMsg) {
           const i = messages.indexOf(lastBomMsg)
+          // Robust check for draft/final availability
+          const hasDraft = (lastBomMsg.interactive && lastBomMsg.interactive.type === 'bom-selector') || !!lastBomMsg.bomEditor
+          const hasFinal = !!lastBomMsg.bomEditor
+          
+          // Determine the actual tab to render (fallback if needed)
+          let currentTab = bomSubTab
+          if (currentTab === 'draft' && !hasDraft) currentTab = 'final'
+          if (currentTab === 'final' && !hasFinal) currentTab = 'draft'
+
           return (
-            <div className="flex-1 overflow-hidden p-6 bg-zen-bg">
-              {lastBomMsg.bomEditor && (
-                <BOMEditor
-                  items={lastBomMsg.bomEditor.items}
-                  projectName={activeDoc}
-                  onItemsChange={(items) => handleUpdateBomMessage?.(i, { ...lastBomMsg.bomEditor, items })}
-                  onExport={(items) => handleBomExport?.(i, items)}
-                  disabled={lastBomMsg.bomEditor.exporting}
-                  isFullscreen={true}
-                />
-              )}
-              {lastBomMsg.interactive && lastBomMsg.interactive.type === 'bom-selector' && (
-                <div className="max-w-6xl mx-auto">
-                  <BOMSelectionList
-                    key={lastBomMsg.id || messages.indexOf(lastBomMsg)}
-                    items={lastBomMsg.interactive.items}
-                    projectName={activeDoc}
-                    bomOptions={lastBomMsg.interactive.bomOptions}
-                    onAction={handleMeasurementAction}
-                    onUpdate={(items) => handleBomDraftUpdate?.(i, items)}
-                    onCalculationComplete={(payload) => {
-                      handleBomSelectionComplete?.(i, payload)
-                    }}
-                    onPartialExport={(items) => handleBomExport?.(i, items)}
-                  />
+            <div className="flex-1 flex flex-col overflow-hidden bg-zen-bg">
+              {/* BOM Header / Tab Switcher */}
+              <div className="px-6 py-4 border-b border-zen-border bg-zen-surface-alt/30 flex items-center justify-between">
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-zen-primary animate-pulse"></div>
+                    <h2 className="text-sm font-bold text-zen-text-main uppercase tracking-widest">BOM Workspace</h2>
+                  </div>
+                  
+                  <div className="flex bg-zen-bg p-1 rounded-full border border-zen-border">
+                    <button 
+                      onClick={() => setBomSubTab('draft')}
+                      disabled={!hasDraft}
+                      className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-tighter transition-all ${currentTab === 'draft' ? 'bg-zen-surface text-zen-primary shadow-sm' : 'text-zen-text-muted hover:text-zen-text-main'} disabled:opacity-20`}
+                    >
+                      Initial Draft
+                    </button>
+                    <button 
+                      onClick={() => setBomSubTab('final')}
+                      disabled={!hasFinal}
+                      className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-tighter transition-all ${currentTab === 'final' ? 'bg-zen-surface text-zen-primary shadow-sm' : 'text-zen-text-muted hover:text-zen-text-main'} disabled:opacity-20`}
+                    >
+                      Final Document
+                    </button>
+                  </div>
                 </div>
-              )}
+
+                {hasFinal && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-zen-text-muted font-mono uppercase tracking-tighter">
+                      {lastBomMsg.bomEditor.items.length} Items Measured
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-hidden p-6">
+                {currentTab === 'final' && lastBomMsg.bomEditor && (
+                  <BOMEditor
+                    items={lastBomMsg.bomEditor.items}
+                    projectName={activeDoc}
+                    onUpdate={(items) => handleUpdateBomMessage?.(i, { ...lastBomMsg.bomEditor, items })}
+                    onExport={(items) => handleBomExport?.(i, items.filter(it => it.keepInExport))}
+                    disabled={lastBomMsg.bomEditor.exporting}
+                    isFullscreen={true}
+                  />
+                )}
+                {currentTab === 'draft' && hasDraft && (
+                  <div className="max-w-6xl mx-auto h-full overflow-hidden flex flex-col">
+                    <BOMSelectionList
+                      key={lastBomMsg.id || messages.indexOf(lastBomMsg)}
+                      items={lastBomMsg.interactive?.items || lastBomMsg.bomEditor?.items || []}
+                      projectName={activeDoc}
+                      bomOptions={lastBomMsg.interactive?.bomOptions || {}}
+                      onAction={handleMeasurementAction}
+                      onUpdate={(items) => handleBomDraftUpdate?.(i, items)}
+                      onCalculationComplete={(payload) => {
+                        handleBomSelectionComplete?.(i, payload)
+                      }}
+                      onPartialExport={(items) => handleBomExport?.(i, items.filter(it => it.keepInExport))}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           )
         }
@@ -578,9 +701,37 @@ function App() {
     }
   }
 
+  if (isCheckingLicense || isCheckingAuth) {
+    return <div className="flex items-center justify-center h-screen bg-zen-bg text-zen-text-muted">Initializing CADMation...</div>
+  }
+
+  if (!isActivated) {
+    return <ActivationScreen machineId={machineId} onActivated={() => setIsActivated(true)} />
+  }
+
+  if (!isLoggedIn) {
+    return <LandingScreen onLoginSuccess={(user) => {
+      setCurrentUser(user)
+      setIsLoggedIn(true)
+    }} />
+  }
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-zen-bg text-zen-text-main font-sans antialiased">
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      <Sidebar 
+        activeTab={activeTab === 'dashboard' && dashboardView === 'sessions' ? 'sessions' : activeTab} 
+        onTabChange={(tab) => {
+          if (tab === 'sessions') {
+            setActiveTab('dashboard');
+            setDashboardView('sessions');
+          } else {
+            setActiveTab(tab);
+            setDashboardView(null);
+          }
+        }} 
+        user={currentUser} 
+        onOpenGuide={() => setShowGuide(true)} 
+      />
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <Header isConnected={isConnected} activeDoc={activeDoc} />
@@ -780,6 +931,73 @@ function ExportModal({ state, onClose, onOpenFile }) {
       </div>
     </div>
   );
+}
+
+function ActivationScreen({ machineId, onActivated }) {
+  const [key, setKey] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleActivate = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/license/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ license_key: key })
+      })
+      const data = await res.json()
+      if (data.success) {
+        onActivated()
+      } else {
+        setError(data.message || 'Activation failed.')
+      }
+    } catch (err) {
+      setError('Could not reach activation server.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex h-screen w-screen items-center justify-center bg-zen-bg">
+      <div className="zen-card w-full max-w-lg p-8">
+        <h2 className="text-2xl font-black italic tracking-tighter text-zen-text-main mb-2">CADMATION ENTERPRISE</h2>
+        <p className="text-sm text-zen-text-dim mb-8">This workstation requires an active enterprise license.</p>
+        
+        <div className="bg-zen-surface-alt rounded-xl p-4 mb-6 border border-zen-border">
+          <p className="text-xs font-bold uppercase tracking-widest text-zen-text-muted mb-1">Machine Identifier</p>
+          <p className="font-mono text-zen-text-main">{machineId || 'Generating...'}</p>
+        </div>
+
+        <form onSubmit={handleActivate} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-widest text-zen-text-muted mb-2">License Key</label>
+            <input
+              type="text"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder="XXXX-XXXX-XXXX"
+              className="w-full px-4 py-3 rounded-xl border border-zen-border bg-zen-bg focus:border-zen-primary outline-none transition-all font-mono"
+              required
+            />
+          </div>
+          
+          {error && <div className="text-zen-error text-sm font-medium">{error}</div>}
+          
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full zen-pill py-3 text-sm font-bold disabled:opacity-50"
+          >
+            {loading ? 'Verifying...' : 'Activate Now'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
 }
 
 export default App

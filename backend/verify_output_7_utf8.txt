@@ -1,0 +1,134 @@
+﻿python : 2026-03-16 19:06:19,799 
+[INFO] app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+At line:1 char:1
++ python h:\CADMation\backend\final
+_verify_rs.py > 
+h:\CADMation\backend ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~
+    + CategoryInfo              : 
+NotSpecified: (2026-    03-16 
+19:0...current th    read.:String) 
+[], Remot    eException
+    + FullyQualifiedErrorId     : 
+NativeCommandError
+ 
+2026-03-16 19:06:20,447 [INFO] 
+app.services.geometry_service: 
+GeometryService: get_bounding_box 
+for 001_LOWER SHOE .1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:06:20,451 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:06:20,467 [INFO] 
+app.services.rough_stock_service: 
+Background dialog monitor started.
+2026-03-16 19:06:20,469 [INFO] 
+app.services.rough_stock_service: 
+Triggering 'c:Creates rough stock' 
+command...
+2026-03-16 19:06:21,580 [INFO] 
+app.services.rough_stock_service: 
+Resolved Product '001_LOWER SHOE 
+.1' to Body 'MAIN_BODY'
+2026-03-16 19:06:21,585 [INFO] 
+app.services.rough_stock_service: 
+Targeting internal body: MAIN_BODY
+2026-03-16 19:06:23,611 [INFO] 
+app.services.rough_stock_service: 
+Scraped Dims (Attempt 0): 1090.0 x 
+910.0 x 550.0
+2026-03-16 19:06:23,681 [INFO] 
+app.services.geometry_service:   
+Tier 0 Rough Stock Success: 1090.0 
+x 910.0 x 550.0
+2026-03-16 19:06:24,260 [INFO] 
+app.services.geometry_service: 
+GeometryService: get_bounding_box 
+for 000_LOWER_FLANGE_STEEL_01 
+(Method=ROUGH_STOCK)
+2026-03-16 19:06:24,262 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:06:24,269 [INFO] 
+app.services.rough_stock_service: 
+Triggering 'c:Creates rough stock' 
+command...
+2026-03-16 19:06:25,308 [INFO] 
+app.services.rough_stock_service: 
+Resolved Product 
+'000_LOWER_FLANGE_STEEL_01' to 
+Body 'LOWER STEEL-01'
+2026-03-16 19:06:25,313 [INFO] 
+app.services.rough_stock_service: 
+Targeting internal body: LOWER 
+STEEL-01
+2026-03-16 19:06:27,343 [INFO] 
+app.services.rough_stock_service: 
+Scraped Dims (Attempt 0): 355.152 
+x 350.283 x 185.201
+2026-03-16 19:06:27,421 [INFO] 
+app.services.geometry_service:   
+Tier 0 Rough Stock Success: 355.15 
+x 350.28 x 185.2
+2026-03-16 19:06:28,047 [INFO] 
+app.services.geometry_service: 
+GeometryService: get_bounding_box 
+for 203_UPPER_FLANGE_STEEL_01.1 
+(Method=ROUGH_STOCK)
+2026-03-16 19:06:28,049 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current thread.
+2026-03-16 19:06:28,057 [INFO] 
+app.services.rough_stock_service: 
+Triggering 'c:Creates rough stock' 
+command...
+2026-03-16 19:06:36,079 [WARNING] 
+app.services.rough_stock_service: 
+Rough Stock window did not appear. 
+(Ensure you are in GSD and Part is 
+in Design Mode)
+2026-03-16 19:06:36,079 [WARNING] 
+app.services.geometry_service:   
+Tier 0 Rough Stock failed for 
+203_UPPER_FLANGE_STEEL_01.1
+2026-03-16 19:06:36,079 [WARNING] 
+app.services.geometry_service:   
+Strict ROUGH_STOCK mode: failing 
+measurement.
+Active Document: _0101BZ105930N-940N_011_FLANGE DOWN RESTRIKE_TOOL_OP40.CATProduct
+
+Searching for: 001_LOWER SHOE
+Executing search: Name=*001_LOWER SHOE*,all
+Found 001_LOWER SHOE .1. Measuring via GeometryService (ROUGH_STOCK)...
+RESULT: 1090.0 x 910.0 x 550.0 (3.2s)
+
+Searching for: 000_LOWER_FLANGE_STEEL_01
+Executing search: Name=*000_LOWER_FLANGE_STEEL_01*,all
+Found 000_LOWER_FLANGE_STEEL_01. Measuring via GeometryService (ROUGH_STOCK)...
+RESULT: 355.15 x 350.28 x 185.2 (3.2s)
+
+Searching for: 203_UPPER_FLANGE_STEEL_01
+Executing search: Name=*203_UPPER_FLANGE_STEEL_01*,all
+Found 203_UPPER_FLANGE_STEEL_01.1. Measuring via GeometryService (ROUGH_STOCK)...
+RESULT: Not Measurable (8.0s)
+
+Searching for: 004_UPPER_PAD_ST_02
+Executing search: Name=*004_UPPER_PAD_ST_02*,all
+NOT FOUND: 004_UPPER_PAD_ST_02
+
+==================================================
+Part Name                      | Result              
+--------------------------------------------------
+001_LOWER SHOE                 | 1090.0 x 910.0 x 550.0
+000_LOWER_FLANGE_STEEL_01      | 355.15 x 350.28 x 185.2
+203_UPPER_FLANGE_STEEL_01      | Not Measurable      
+004_UPPER_PAD_ST_02            | NOT FOUND           
+==================================================

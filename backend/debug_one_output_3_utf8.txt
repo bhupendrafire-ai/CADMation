@@ -1,0 +1,56 @@
+﻿python : 2026-03-16 
+19:00:53,004 [INFO] 
+app.services.catia_bridge: 
+Successfully acquired CATIA 
+connection in current 
+thread.
+At line:1 char:1
++ python h:\CADMation\backen
+d\debug_one_rs.py > 
+h:\CADMation\backend\de ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (2026-  
+  03-16 19:0...current th   
+ read.:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+h:\CADMation\backend\debug_o
+ne_rs.py:73: 
+DeprecationWarning: 
+PyMakeBuffer is deprecated; 
+use PyGetMemory instead
+  buffer = win32gui.PyMakeBu
+ffer(buf_size)
+2026-03-16 19:01:00,282 
+[ERROR] DebugMeas: Debug 
+failed: PyGetMemory() takes 
+exactly 2 arguments (1 
+given)
+Traceback (most recent call 
+last):
+  File "h:\CADMation\backend
+\debug_one_rs.py", line 90, 
+in debug_one
+    print(f"ListBox Text 
+(Before): '{get_text(control
+s[5][0])}'")
+                            
+         
+~~~~~~~~^^^^^^^^^^^^^^^^
+  File "h:\CADMation\backend
+\debug_one_rs.py", line 86, 
+in get_text
+    buffer = 
+win32gui.PyGetMemory(512)
+TypeError: PyGetMemory() 
+takes exactly 2 arguments 
+(1 given)
+Found 001_LOWER SHOE .1 (Type: CDispatch)
+
+--- Strategy: Product/Part itself ---
+Selected 001_LOWER SHOE .1. Waiting 5s...

@@ -1,0 +1,273 @@
+Language="VBSCRIPT"
+
+Sub CATMain()
+
+Dim bSTR1
+bSTR1 = CATIA.Name
+
+Dim bSTR2
+bSTR2 = CATIA.Name
+
+Set specsAndGeomWindow1 = CATIA.ActiveWindow
+
+Dim bSTR3
+bSTR3 = specsAndGeomWindow1.Caption
+
+Dim bSTR4
+bSTR4 = CATIA.Name
+
+Dim bSTR5
+bSTR5 = CATIA.Name
+
+Set specsAndGeomWindow1 = CATIA.ActiveWindow
+
+Dim bSTR6
+bSTR6 = specsAndGeomWindow1.Caption
+
+Dim bSTR7
+bSTR7 = CATIA.Name
+
+Dim bSTR8
+bSTR8 = CATIA.Name
+
+Set specsAndGeomWindow1 = CATIA.ActiveWindow
+
+Dim bSTR9
+bSTR9 = specsAndGeomWindow1.Caption
+
+Dim bSTR10
+bSTR10 = CATIA.Name
+
+Dim bSTR11
+bSTR11 = CATIA.Name
+
+Set specsAndGeomWindow1 = CATIA.ActiveWindow
+
+Dim bSTR12
+bSTR12 = specsAndGeomWindow1.Caption
+
+Set specsAndGeomWindow2 = CATIA.ActiveWindow
+
+Set viewer3D1 = specsAndGeomWindow2.ActiveViewer
+
+Set viewpoint3D1 = viewer3D1.Viewpoint3D
+
+Dim bSTR13
+bSTR13 = CATIA.Name
+
+Dim bSTR14
+bSTR14 = CATIA.Name
+
+Set specsAndGeomWindow2 = CATIA.ActiveWindow
+
+Dim bSTR15
+bSTR15 = specsAndGeomWindow2.Caption
+
+Dim bSTR16
+bSTR16 = CATIA.Name
+
+Dim bSTR17
+bSTR17 = CATIA.Name
+
+Set specsAndGeomWindow2 = CATIA.ActiveWindow
+
+Dim bSTR18
+bSTR18 = specsAndGeomWindow2.Caption
+
+Set documents1 = CATIA.Documents
+
+Set drawingDocument1 = documents1.Add("Drawing")
+
+drawingDocument1.Standard = catISO
+
+Set drawingSheets1 = drawingDocument1.Sheets
+
+Set drawingSheet1 = drawingSheets1.Item("Sheet.1")
+
+drawingSheet1.PaperSize = catPaperA0
+
+drawingSheet1.Scale = 1.000000
+
+drawingSheet1.Orientation = catPaperLandscape
+
+Dim bSTR19
+bSTR19 = CATIA.Name
+
+Dim bSTR20
+bSTR20 = CATIA.Name
+
+Set specsAndGeomWindow3 = CATIA.ActiveWindow
+
+Dim bSTR21
+bSTR21 = specsAndGeomWindow3.Caption
+
+Dim bSTR22
+bSTR22 = CATIA.Name
+
+Dim bSTR23
+bSTR23 = CATIA.Name
+
+Set specsAndGeomWindow3 = CATIA.ActiveWindow
+
+Dim bSTR24
+bSTR24 = specsAndGeomWindow3.Caption
+
+drawingSheet1.ProjectionMethod = catThirdAngle
+
+Set drawingViews1 = drawingSheet1.Views
+
+Set drawingView1 = drawingViews1.Add("AutomaticNaming")
+
+Set drawingViewGenerativeLinks1 = drawingView1.GenerativeLinks
+
+Set drawingViewGenerativeBehavior1 = drawingView1.GenerativeBehavior
+
+Set partDocument1 = documents1.Item("001_LOWER SHOE _1_1.CATPart")
+
+Set product1 = partDocument1.GetItem("202_LOWER PLATE")
+
+drawingViewGenerativeBehavior1.Document = product1
+
+drawingViewGenerativeBehavior1.DefineFrontView 0.000000, 0.642788, -0.766044, 1.000000, -0.000000, 0.000000
+
+drawingView1.x = 594.500000
+
+drawingView1.y = 420.500000
+
+drawingView1.Scale = 1.000000
+
+Set drawingViewGenerativeBehavior1 = drawingView1.GenerativeBehavior
+
+drawingViewGenerativeBehavior1.Update 
+
+drawingView1.Activate 
+
+Dim bSTR25
+bSTR25 = CATIA.Name
+
+Dim bSTR26
+bSTR26 = CATIA.Name
+
+Set specsAndGeomWindow3 = CATIA.ActiveWindow
+
+Dim bSTR27
+bSTR27 = specsAndGeomWindow3.Caption
+
+Set drawingViewGenerativeBehavior1 = drawingView1.GenerativeBehavior
+
+drawingViewGenerativeBehavior1.HiddenLineMode = catHlrModeOn
+
+drawingViewGenerativeBehavior1.ColorInheritanceMode = cat3DColorInheritanceModeOn
+
+Set drawingViewGenerativeBehavior1 = drawingView1.GenerativeBehavior
+
+drawingViewGenerativeBehavior1.ForceUpdate 
+
+Dim bSTR28
+bSTR28 = CATIA.Name
+
+Dim bSTR29
+bSTR29 = CATIA.Name
+
+Set specsAndGeomWindow3 = CATIA.ActiveWindow
+
+Dim bSTR30
+bSTR30 = specsAndGeomWindow3.Caption
+
+Set drawingDocument1 = CATIA.ActiveDocument
+
+Set drawingSheets1 = drawingDocument1.Sheets
+
+Set drawingSheet1 = drawingSheets1.ActiveSheet
+
+Set drawingViews1 = drawingSheet1.Views
+
+Set drawingView1 = drawingViews1.ActiveView
+
+Set drawingViewGenerativeBehavior1 = drawingView1.GenerativeBehavior
+
+Set drawingView2 = drawingViews1.Add("AutomaticNaming")
+
+Set drawingViewGenerativeBehavior2 = drawingView2.GenerativeBehavior
+
+drawingViewGenerativeBehavior2.DefineProjectionView drawingViewGenerativeBehavior1, catRightView
+
+Set drawingViewGenerativeLinks2 = drawingView2.GenerativeLinks
+
+Set drawingViewGenerativeLinks1 = drawingView1.GenerativeLinks
+
+drawingViewGenerativeLinks1.CopyLinksTo drawingViewGenerativeLinks2
+
+drawingView2.x = 1525.751953
+
+drawingView2.y = 420.500000
+
+Dim double1
+double1 = drawingView1.Scale
+
+drawingView2.Scale = 1.000000
+
+Set drawingViewGenerativeBehavior2 = drawingView2.GenerativeBehavior
+
+drawingViewGenerativeBehavior2.Update 
+
+drawingView2.ReferenceView = drawingView1
+
+drawingView2.AlignedWithReferenceView 
+
+Dim bSTR31
+bSTR31 = CATIA.Name
+
+Dim bSTR32
+bSTR32 = CATIA.Name
+
+Set specsAndGeomWindow3 = CATIA.ActiveWindow
+
+Dim bSTR33
+bSTR33 = specsAndGeomWindow3.Caption
+
+Set drawingDocument1 = CATIA.ActiveDocument
+
+Set drawingSheets1 = drawingDocument1.Sheets
+
+Set drawingSheet1 = drawingSheets1.ActiveSheet
+
+Set drawingViews1 = drawingSheet1.Views
+
+Set drawingView1 = drawingViews1.ActiveView
+
+Set drawingViewGenerativeBehavior1 = drawingView1.GenerativeBehavior
+
+Set drawingView3 = drawingViews1.Add("AutomaticNaming")
+
+Set drawingViewGenerativeBehavior3 = drawingView3.GenerativeBehavior
+
+drawingViewGenerativeBehavior3.DefineProjectionView drawingViewGenerativeBehavior1, catTopView
+
+Set drawingViewGenerativeLinks3 = drawingView3.GenerativeLinks
+
+Set drawingViewGenerativeLinks1 = drawingView1.GenerativeLinks
+
+drawingViewGenerativeLinks1.CopyLinksTo drawingViewGenerativeLinks3
+
+drawingView3.x = 594.500000
+
+drawingView3.y = 931.638306
+
+Dim double2
+double2 = drawingView1.Scale
+
+drawingView3.Scale = 1.000000
+
+Set drawingViewGenerativeBehavior3 = drawingView3.GenerativeBehavior
+
+drawingViewGenerativeBehavior3.Update 
+
+drawingView3.ReferenceView = drawingView1
+
+drawingView3.AlignedWithReferenceView 
+
+Dim bSTR34
+bSTR34 = specsAndGeomWindow3.Caption
+
+End Sub
